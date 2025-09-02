@@ -1,0 +1,26 @@
+[package]
+name = "gpu-worker"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wgpu = "0.18"
+pollster = "0.3"
+bytemuck = { version = "1.14", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+anyhow = "1.0"
+thiserror = "1.0"
+libc = "0.2"
+nix = "0.27"
+
+[lib]
+name = "gpu_worker"
+crate-type = ["cdylib", "staticlib"]
+
+[[bin]]
+name = "gpu-worker"
+path = "src/main.rs"

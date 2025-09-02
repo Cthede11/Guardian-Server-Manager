@@ -1,0 +1,29 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="MIT"
+
+[[mods]]
+modId="guardian"
+version="1.0.0"
+displayName="Guardian Agent"
+description='''
+A high-performance, self-healing hosting platform designed specifically for modded Minecraft servers.
+Guardian provides non-destructive crash prevention, GPU-accelerated world generation, and intelligent mod compatibility management.
+'''
+authors="Guardian Team"
+credits="Based on the Guardian project design"
+logoFile="guardian_logo.png"
+
+[[dependencies.guardian]]
+modId="neoforge"
+mandatory=true
+versionRange="[20.1.0,)"
+ordering="NONE"
+side="SERVER"
+
+[[dependencies.guardian]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1,1.21)"
+ordering="NONE"
+side="SERVER"

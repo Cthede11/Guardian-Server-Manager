@@ -1,0 +1,134 @@
+version: '3.8'
+
+services:
+  # Main Minecraft server with Guardian Agent
+  minecraft:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.minecraft
+    container_name: guardian-minecraft
+    ports:
+      - "25565:25565"
+      - "25575:25575"  # RCON
+    volumes:
+      - ./data:/data
+      - ./configs:/configs
+      - ./mods:/mods
+      - ./world:/world
+    environment:
+      - GUARDIAN_CONFIG=/configs/server.yaml
+      - GUARDIAN_RULES=/configs/rules.yaml
+    depends_on:
+      - gpu-worker
+      - hostd
+    networks:
+      - guardian-network
+    restart: unless-stopped
+
+  # GPU Worker for chunk generation acceleration
+  gpu-worker:
+    build:
+      context: ./gpu-worker
+      dockerfile: Dockerfile
+    container_name: guardian-gpu-worker
+    volumes:
+      - /dev/dri:/dev/dri  # GPU access
+      - ./data/gpu-cache:/cache
+    environment:
+      - RUST_LOG=info
+      - GPU_WORKER_IPC=shm
+    networks:
+      - guardian-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Watchdog daemon for process supervision
+  hostd:
+    build:
+      context: ./hostd
+      dockerfile: Dockerfile
+    container_name: guardian-hostd
+    ports:
+      - "8080:8080"  # Web dashboard
+      - "9090:9090"  # Prometheus metrics
+    volumes:
+      - ./data:/data
+      - ./configs:/configs
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - RUST_LOG=info
+      - HOSTD_CONFIG=/configs/hostd.yaml
+    networks:
+      - guardian-network
+    restart: unless-stopped
+
+  # Velocity proxy for multi-instance sharding
+  velocity:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile
+    container_name: guardian-velocity
+    ports:
+      - "25577:25577"  # Velocity port
+    volumes:
+      - ./proxy/velocity.toml:/app/velocity.toml
+      - ./data/velocity:/data
+    networks:
+      - guardian-network
+    restart: unless-stopped
+    profiles:
+      - sharding
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: guardian-prometheus
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - guardian-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+  # Grafana for dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: guardian-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - guardian-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+volumes:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  guardian-network:
+    driver: bridge
+

@@ -1,0 +1,247 @@
+# Guardian Compatibility Rules
+# This file defines rules for resolving mod conflicts and compatibility issues
+
+version: "1.0.0"
+allow_bake_for_permissive_licenses: false
+
+rules:
+  # Flywheel and Embeddium compatibility
+  - id: disable-conflicting-flywheel-mixin
+    when:
+      mod: flywheel
+      mixinTarget: "net.minecraft.client.renderer.LevelRenderer"
+    action:
+      type: "disable_mixin"
+      mixinClass: "com.mod.flywheel.mixin.LevelRendererMixin"
+    version_if: "flywheel < 0.6.9"
+
+  # Create mod NPE protection
+  - id: guard-npe-create-kinetics
+    when:
+      class: "com.simibubi.create.content.contraptions.Kinetics"
+      method: "tick()V"
+    action:
+      type: "asm_insert_guard"
+      pattern: "ALOAD 0 ; INVOKEVIRTUAL ..."
+      insert: "IFNULL GOTO L_safe"
+
+  # Create mod contraption protection
+  - id: guard-npe-create-contraption
+    when:
+      class: "com.simibubi.create.content.contraptions.Contraption"
+      method: "tick()V"
+    action:
+      type: "asm_insert_guard"
+      pattern: "ALOAD 0 ; GETFIELD ..."
+      insert: "IFNULL GOTO L_safe"
+
+  # Relocate embedded libraries
+  - id: relocate-embedded-slf4j
+    when:
+      jarContainsPackage: "org.slf4j"
+    action:
+      type: "relocate"
+      from: "org.slf4j"
+      to: "guardian.shadow.slf4j"
+
+  - id: relocate-embedded-kotlin
+    when:
+      jarContainsPackage: "kotlin"
+    action:
+      type: "relocate"
+      from: "kotlin"
+      to: "guardian.shadow.kotlin"
+
+  - id: relocate-embedded-guava
+    when:
+      jarContainsPackage: "com.google.common"
+    action:
+      type: "relocate"
+      from: "com.google.common"
+      to: "guardian.shadow.guava"
+
+  # Terralith compatibility
+  - id: terralith-worldgen-optimization
+    when:
+      mod: terralith
+    action:
+      type: "config_override"
+      config_file: "terralith-common.toml"
+      settings:
+        worldgen:
+          optimization: true
+          gpu_acceleration: true
+
+  # Tectonic compatibility
+  - id: tectonic-worldgen-optimization
+    when:
+      mod: tectonic
+    action:
+      type: "config_override"
+      config_file: "tectonic-common.toml"
+      settings:
+        worldgen:
+          optimization: true
+          gpu_acceleration: true
+
+  # Boss mod compatibility
+  - id: boss-mod-entity-protection
+    when:
+      mod: "bosses_of_mass_destruction"
+    action:
+      type: "entity_protection"
+      entity_classes:
+        - "com.bossesofmassdestruction.entity.gauntlet.GauntletBossEntity"
+        - "com.bossesofmassdestruction.entity.void_blossom.VoidBlossomEntity"
+      protection_type: "freeze_on_exception"
+
+  # JEI compatibility
+  - id: jei-recipe-conflict-resolution
+    when:
+      mod: jei
+    action:
+      type: "datapack_merge"
+      merge_type: "recipes"
+      conflict_resolution: "priority_based"
+      priority_order:
+        - "create"
+        - "thermal"
+        - "mekanism"
+
+  # Thermal mods compatibility
+  - id: thermal-mods-optimization
+    when:
+      mods: ["thermal", "thermal_innovation", "thermal_cultivation"]
+    action:
+      type: "config_override"
+      config_file: "thermal-common.toml"
+      settings:
+        performance:
+          optimization: true
+          gpu_acceleration: true
+        worldgen:
+          optimization: true
+
+  # Mekanism compatibility
+  - id: mekanism-optimization
+    when:
+      mod: mekanism
+    action:
+      type: "config_override"
+      config_file: "mekanism-common.toml"
+      settings:
+        performance:
+          optimization: true
+          gpu_acceleration: true
+        worldgen:
+          optimization: true
+
+  # Applied Energistics 2 compatibility
+  - id: ae2-optimization
+    when:
+      mod: appliedenergistics2
+    action:
+      type: "config_override"
+      config_file: "appliedenergistics2-common.toml"
+      settings:
+        performance:
+          optimization: true
+          gpu_acceleration: true
+
+  # Refined Storage compatibility
+  - id: refined-storage-optimization
+    when:
+      mod: refinedstorage
+    action:
+      type: "config_override"
+      config_file: "refinedstorage-common.toml"
+      settings:
+        performance:
+          optimization: true
+          gpu_acceleration: true
+
+  # Botania compatibility
+  - id: botania-optimization
+    when:
+      mod: botania
+    action:
+      type: "config_override"
+      config_file: "botania-common.toml"
+      settings:
+        performance:
+          optimization: true
+          gpu_acceleration: true
+        worldgen:
+          optimization: true
+
+  # Quark compatibility
+  - id: quark-optimization
+    when:
+      mod: quark
+    action:
+      type: "config_override"
+      config_file: "quark-common.toml"
+      settings:
+        performance:
+          optimization: true
+          gpu_acceleration: true
+
+  # Supplementaries compatibility
+  - id: supplementaries-optimization
+    when:
+      mod: supplementaries
+    action:
+      type: "config_override"
+      config_file: "supplementaries-common.toml"
+      settings:
+        performance:
+          optimization: true
+          gpu_acceleration: true
+
+  # Farmer's Delight compatibility
+  - id: farmers-delight-optimization
+    when:
+      mod: farmersdelight
+    action:
+      type: "config_override"
+      config_file: "farmersdelight-common.toml"
+      settings:
+        performance:
+          optimization: true
+          gpu_acceleration: true
+
+  # Waystones compatibility
+  - id: waystones-optimization
+    when:
+      mod: waystones
+    action:
+      type: "config_override"
+      config_file: "waystones-common.toml"
+      settings:
+        performance:
+          optimization: true
+          gpu_acceleration: true
+
+  # Curios compatibility
+  - id: curios-optimization
+    when:
+      mod: curios
+    action:
+      type: "config_override"
+      config_file: "curios-common.toml"
+      settings:
+        performance:
+          optimization: true
+          gpu_acceleration: true
+
+  # Patchouli compatibility
+  - id: patchouli-optimization
+    when:
+      mod: patchouli
+    action:
+      type: "config_override"
+      config_file: "patchouli-common.toml"
+      settings:
+        performance:
+          optimization: true
+          gpu_acceleration: true
