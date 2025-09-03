@@ -1,14 +1,16 @@
 import { renderHook, act } from '@testing-library/react'
 import { useServersStore } from '../servers'
-import { ServerSummary } from '@/lib/types'
+import type { ServerSummary } from '@/lib/types'
 
 const mockServer: ServerSummary = {
   id: '1',
   name: 'Test Server',
   status: 'running',
-  loader: 'forge',
-  version: '1.20.1',
-  path: '/test/path',
+  tps: 20.0,
+  tickP95: 45.2,
+  heapMb: 2048,
+  playersOnline: 0,
+  gpuQueueMs: 5.2,
   blueGreen: {
     active: 'blue',
     candidateHealthy: true

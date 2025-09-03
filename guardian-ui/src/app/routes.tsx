@@ -17,7 +17,10 @@ export const router = createBrowserRouter([
         children: [
           {
             index: true,
-            element: <Navigate to="/servers/overview" replace />,
+            element: <div className="p-6 text-center">
+              <h2 className="text-2xl font-bold mb-4">Welcome to Guardian</h2>
+              <p className="text-muted-foreground">Select a server from the sidebar to get started</p>
+            </div>,
           },
           {
             path: ':id',

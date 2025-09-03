@@ -1,7 +1,7 @@
 import React from 'react';
 import { create } from 'zustand';
 import { socketManager } from '@/lib/socket';
-import { ConsoleMessage, Player, FreezeTicket, PregenJob } from '@/lib/types';
+import type { ConsoleMessage, Player, FreezeTicket, PregenJob } from '@/lib/types';
 
 interface LiveState {
   // Connection state

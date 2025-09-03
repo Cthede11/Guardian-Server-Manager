@@ -29,7 +29,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useServersStore } from '@/store/servers';
-import { Player } from '@/lib/types';
+import type { Player } from '@/lib/types';
 import { PlayersTableLoading, LoadingState } from '@/components/ui/LoadingStates';
 import { NoPlayersEmptyState, SearchEmptyState, ErrorEmptyState } from '@/components/ui/EmptyState';
 import { useLoadingState } from '@/components/ui/LoadingStates';
@@ -70,7 +70,7 @@ export const PlayersTable: React.FC<PlayersTableProps> = ({ className = '' }) =>
     
     startLoading();
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/servers/${serverId}/players/online`);
+      const response = await fetch(`/api/v1/servers/${serverId}/players/online`);
       if (response.ok) {
         const data = await response.json();
         setPlayers(data);
@@ -118,7 +118,7 @@ export const PlayersTable: React.FC<PlayersTableProps> = ({ className = '' }) =>
     
     setActionLoading(player.uuid);
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/servers/${serverId}/players/${player.uuid}/actions/${action}`, {
+      const response = await fetch(`/api/v1/servers/${serverId}/players/${player.uuid}/actions/${action}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

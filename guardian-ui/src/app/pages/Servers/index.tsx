@@ -10,6 +10,7 @@ import { Pregen as PregenPage } from './Pregen';
 import { Sharding as ShardingPage } from './Sharding';
 import { Diagnostics as DiagnosticsPage } from './Diagnostics';
 import { Overview as OverviewPage } from './Overview';
+import * as SettingsPages from './Settings';
 
 // Overview page
 export const Overview: React.FC = () => {
@@ -109,3 +110,6 @@ export const Diagnostics: React.FC = () => {
     </div>
   );
 };
+
+// Settings pages
+export const Settings = SettingsPages;

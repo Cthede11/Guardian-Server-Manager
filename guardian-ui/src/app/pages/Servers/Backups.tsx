@@ -62,7 +62,7 @@ export const Backups: React.FC<BackupsPageProps> = ({ className = '' }) => {
     
     setIsLoading(true);
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/servers/${serverId}/snapshots`);
+      const response = await fetch(`/api/v1/servers/${serverId}/snapshots`);
       if (response.ok) {
         const data = await response.json();
         setSnapshots(data);

@@ -216,7 +216,7 @@ export const WorkspaceSettingsSchema = z.object({
     id: z.string(),
     name: z.string(),
     type: z.enum(['s3', 'local']),
-    config: z.record(z.any()),
+    config: z.record(z.string(), z.any()),
   })),
   apiTokens: z.array(z.object({
     id: z.string(),
@@ -237,6 +237,7 @@ export const ApiResponseSchema = z.object({
   data: z.any().optional(),
   error: z.string().optional(),
 });
+
 export type ApiResponse<T = any> = {
   ok: boolean;
   data?: T;

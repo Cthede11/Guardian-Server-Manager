@@ -31,7 +31,6 @@ import {
   FolderX,
   FolderCheck,
   FolderClock,
-  FolderAlert,
   FolderUp,
   FolderDown
 } from 'lucide-react';
@@ -302,7 +301,7 @@ export const PathsSettings: React.FC = () => {
   const getPathStatusIcon = (status: string) => {
     switch (status) {
       case 'success': return <FolderCheck className="h-4 w-4" />;
-      case 'warning': return <FolderAlert className="h-4 w-4" />;
+      case 'warning': return <AlertTriangle className="h-4 w-4" />;
       case 'error': return <FolderX className="h-4 w-4" />;
       default: return <Folder className="h-4 w-4" />;
     }

@@ -146,14 +146,19 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <nav className="w-80 bg-card border-r border-border flex flex-col" role="navigation">
+    <nav className="w-80 bg-card border-r border-border flex flex-col shadow-lg" role="navigation">
       {/* Header */}
-      <div className="p-4 border-b border-border">
+      <div className="p-4 border-b border-border bg-secondary/30">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold text-foreground">Guardian</h1>
+          <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
+            <div className="w-6 h-6 bg-primary rounded-sm flex items-center justify-center">
+              <span className="text-primary-foreground text-sm font-bold">G</span>
+            </div>
+            Guardian
+          </h1>
           <Dialog open={showAddServer} onOpenChange={setShowAddServer}>
             <DialogTrigger asChild>
-              <Button size="sm" variant="outline">
+              <Button size="sm" variant="outline" className="bg-primary/10 hover:bg-primary/20 border-primary/30">
                 <Plus className="h-4 w-4" />
               </Button>
             </DialogTrigger>
@@ -173,7 +178,7 @@ export const Sidebar: React.FC = () => {
             placeholder="Search servers..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+            className="pl-10 bg-background/50 border-border/50 focus:bg-background focus:border-primary/50"
           />
         </div>
       </div>
@@ -181,11 +186,11 @@ export const Sidebar: React.FC = () => {
       {/* Navigation */}
       <div className="flex-1 overflow-y-auto">
         {/* Servers Section */}
-        <div className="p-2">
-          <div className="flex items-center gap-2 mb-2">
-            <Server className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium text-muted-foreground">Servers</span>
-            <Badge variant="secondary" className="ml-auto">
+        <div className="p-3">
+          <div className="flex items-center gap-2 mb-3">
+            <Server className="h-4 w-4 text-primary" />
+            <span className="text-sm font-semibold text-foreground">Servers</span>
+            <Badge variant="secondary" className="ml-auto bg-primary/20 text-primary border-primary/30">
               {servers.length}
             </Badge>
           </div>
@@ -200,14 +205,14 @@ export const Sidebar: React.FC = () => {
               ))}
             </div>
           ) : (
-                         <div className="space-y-1">
+                         <div className="space-y-2">
                {filteredServers.map((server) => (
                  <div
                    key={server.id}
-                   className={`server-card transition-colors ${
+                   className={`server-card transition-all duration-200 ${
                      selectedServerId === server.id
-                       ? 'bg-accent border-primary'
-                       : 'hover:bg-accent/50'
+                       ? 'bg-primary/20 border-primary/50 shadow-md'
+                       : 'hover:bg-accent/70 hover:shadow-sm'
                    }`}
                    onContextMenu={(e) => handleContextMenu(e, server.id)}
                  >
@@ -293,37 +298,37 @@ export const Sidebar: React.FC = () => {
         </div>
 
         {/* Workspace Section */}
-        <div className="p-2 border-t border-border">
-          <div className="flex items-center gap-2 mb-2">
-            <Settings className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium text-muted-foreground">Workspace</span>
+        <div className="p-3 border-t border-border bg-secondary/20">
+          <div className="flex items-center gap-2 mb-3">
+            <Settings className="h-4 w-4 text-primary" />
+            <span className="text-sm font-semibold text-foreground">Workspace</span>
           </div>
           
           <div className="space-y-1">
             <Link
               to="/workspace/users-roles"
-              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-accent transition-colors"
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-accent/70 transition-colors text-muted-foreground hover:text-foreground"
             >
               <Users className="h-4 w-4" />
               Users & Roles
             </Link>
             <Link
               to="/workspace/backup-targets"
-              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-accent transition-colors"
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-accent/70 transition-colors text-muted-foreground hover:text-foreground"
             >
               <Server className="h-4 w-4" />
               Backup Targets
             </Link>
             <Link
               to="/workspace/tokens"
-              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-accent transition-colors"
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-accent/70 transition-colors text-muted-foreground hover:text-foreground"
             >
               <Settings className="h-4 w-4" />
               API Tokens
             </Link>
             <Link
               to="/workspace/theme"
-              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-accent transition-colors"
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-accent/70 transition-colors text-muted-foreground hover:text-foreground"
             >
               <Settings className="h-4 w-4" />
               Theme

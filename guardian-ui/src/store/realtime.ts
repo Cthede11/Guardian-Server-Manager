@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { 
   createRealtimeManager, 
+  realtimeHelpers
+} from '@/lib/realtime';
+import type { 
   RealtimeMetrics, 
   RealtimeHealth, 
   RealtimeWorldData, 
@@ -11,10 +14,9 @@ import {
   RealtimePregenData, 
   RealtimeShardingData, 
   RealtimeDiagnosticsData, 
-  RealtimeModsData,
-  realtimeHelpers
+  RealtimeModsData
 } from '@/lib/realtime';
-import { ConsoleMessage, Player, ServerSummary } from '@/lib/types';
+import type { ConsoleMessage, Player, ServerSummary } from '@/lib/types';
 
 interface RealtimeState {
   // Connection state

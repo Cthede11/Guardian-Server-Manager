@@ -1,5 +1,5 @@
 import { socketManager } from './socket';
-import { ConsoleMessage, Player, FreezeTicket, PregenJob, ServerSummary, Event, Snapshot, Mod, Rule, CrashSignature, ShardAssignment } from './types';
+import type { ConsoleMessage, Player, FreezeTicket, PregenJob, ServerSummary, Event, Snapshot, ModInfo, Rule, Shard } from './types';
 
 // Real-time data types
 export interface RealtimeMetrics {

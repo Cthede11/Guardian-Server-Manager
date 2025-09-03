@@ -20,7 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useServersStore } from '@/store/servers';
-import { ConsoleMessage } from '@/lib/types';
+import type { ConsoleMessage } from '@/lib/types';
 
 interface ConsoleStreamProps {
   className?: string;
@@ -209,7 +209,7 @@ export const ConsoleStream: React.FC<ConsoleStreamProps> = ({ className = '' }) 
     if (!command.trim() || !serverId) return;
 
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/servers/${serverId}/console/command`, {
+      const response = await fetch(`/api/v1/servers/${serverId}/console/command`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

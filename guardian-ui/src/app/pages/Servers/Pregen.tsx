@@ -71,7 +71,7 @@ export const Pregen: React.FC<PregenPageProps> = ({ className = '' }) => {
     
     setIsLoading(true);
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/servers/${serverId}/pregen`);
+      const response = await fetch(`/api/v1/servers/${serverId}/pregen`);
       if (response.ok) {
         const data = await response.json();
         setPregenJobs(data);

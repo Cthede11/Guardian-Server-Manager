@@ -1,6 +1,7 @@
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
-import { ServerStatus } from '@/lib/types';
+import type { ServerStatus } from '@/lib/types';
+
 import { Loader2, Play, Square, RotateCcw } from 'lucide-react';
 
 interface StatusPillProps {

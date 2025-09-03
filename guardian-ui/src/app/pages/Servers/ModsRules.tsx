@@ -50,7 +50,7 @@ export const ModsRules: React.FC<ModsRulesPageProps> = ({ className = '' }) => {
     
     setIsLoading(true);
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/servers/${serverId}/mods`);
+      const response = await fetch(`/api/v1/servers/${serverId}/mods`);
       if (response.ok) {
         const data = await response.json();
         setMods(data);
@@ -72,7 +72,7 @@ export const ModsRules: React.FC<ModsRulesPageProps> = ({ className = '' }) => {
     if (!serverId) return;
     
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/servers/${serverId}/rules`);
+      const response = await fetch(`/api/v1/servers/${serverId}/rules`);
       if (response.ok) {
         const data = await response.json();
         setRules(data);
@@ -92,7 +92,7 @@ export const ModsRules: React.FC<ModsRulesPageProps> = ({ className = '' }) => {
     if (!serverId) return;
     
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/servers/${serverId}/mods/conflicts`);
+      const response = await fetch(`/api/v1/servers/${serverId}/mods/conflicts`);
       if (response.ok) {
         const data = await response.json();
         setConflicts(data);

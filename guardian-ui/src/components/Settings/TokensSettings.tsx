@@ -36,7 +36,6 @@ import {
   FolderMinus,
   FolderX,
   FolderCheck,
-  FolderAlert,
   FolderUp,
   FolderDown,
   Key,

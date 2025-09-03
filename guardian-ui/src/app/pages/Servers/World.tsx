@@ -46,7 +46,7 @@ export const World: React.FC<WorldPageProps> = ({ className = '' }) => {
     
     setIsLoading(true);
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/servers/${serverId}/world/frozen-chunks`);
+      const response = await fetch(`/api/v1/servers/${serverId}/world/frozen-chunks`);
       if (response.ok) {
         const data = await response.json();
         setFrozenChunks(data);
@@ -134,7 +134,7 @@ export const World: React.FC<WorldPageProps> = ({ className = '' }) => {
     if (!serverId) return;
     
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/servers/${serverId}/world/chunks/${chunkId}/thaw`, {
+      const response = await fetch(`/api/v1/servers/${serverId}/world/chunks/${chunkId}/thaw`, {
         method: 'POST',
       });
 

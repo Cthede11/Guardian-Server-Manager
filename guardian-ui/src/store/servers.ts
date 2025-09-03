@@ -1,7 +1,7 @@
 import React from 'react';
 import { create } from 'zustand';
 import { api } from '@/lib/api';
-import { ServerSummary, ServerHealth, ServerSettings } from '@/lib/types';
+import type { ServerSummary, ServerHealth, ServerSettings } from '@/lib/types';
 
 interface ServersState {
   // Server list
@@ -59,8 +59,10 @@ export const useServersStore = create<ServersState>((set, get) => ({
     const response = await api.getServers();
     
     if (response.ok && response.data) {
+      // Type assertion to ensure compatibility
+      const servers = response.data as ServerSummary[];
       set({ 
-        servers: response.data,
+        servers,
         loading: false,
       });
     } else {
@@ -77,8 +79,10 @@ export const useServersStore = create<ServersState>((set, get) => ({
     const response = await api.createServer(data);
     
     if (response.ok && response.data) {
+      // Type assertion to ensure compatibility
+      const newServer = response.data as ServerSummary;
       set((state) => ({
-        servers: [...state.servers, response.data],
+        servers: [...state.servers, newServer],
         loading: false,
       }));
       return true;
@@ -107,7 +111,9 @@ export const useServersStore = create<ServersState>((set, get) => ({
       // Optimistically update the server status
       set((state) => ({
         servers: state.servers.map(server =>
-          server.id === id ? { ...server, status: 'starting' as const } : server
+          server.id === id 
+            ? { ...server, status: 'starting' as const } 
+            : server
         ),
       }));
       return true;
@@ -124,7 +130,9 @@ export const useServersStore = create<ServersState>((set, get) => ({
       // Optimistically update the server status
       set((state) => ({
         servers: state.servers.map(server =>
-          server.id === id ? { ...server, status: 'stopping' as const } : server
+          server.id === id 
+            ? { ...server, status: 'stopping' as const } 
+            : server
         ),
       }));
       return true;
@@ -141,7 +149,9 @@ export const useServersStore = create<ServersState>((set, get) => ({
       // Optimistically update the server status
       set((state) => ({
         servers: state.servers.map(server =>
-          server.id === id ? { ...server, status: 'starting' as const } : server
+          server.id === id 
+            ? { ...server, status: 'starting' as const } 
+            : server
         ),
       }));
       return true;
@@ -163,7 +173,9 @@ export const useServersStore = create<ServersState>((set, get) => ({
                 ...server, 
                 blueGreen: {
                   ...server.blueGreen,
-                  active: server.blueGreen.active === 'blue' ? 'green' : 'blue',
+                  active: server.blueGreen.active === 'blue' 
+                    ? 'green' as const 
+                    : 'blue' as const,
                 }
               } 
             : server
@@ -180,10 +192,12 @@ export const useServersStore = create<ServersState>((set, get) => ({
     const response = await api.getServerHealth(id);
     
     if (response.ok && response.data) {
+      // Type assertion to ensure compatibility
+      const health = response.data as ServerHealth;
       set((state) => ({
         serverHealth: {
           ...state.serverHealth,
-          [id]: response.data,
+          [id]: health,
         },
       }));
     }
@@ -193,10 +207,12 @@ export const useServersStore = create<ServersState>((set, get) => ({
     const response = await api.getServerSettings(id);
     
     if (response.ok && response.data) {
+      // Type assertion to ensure compatibility
+      const settings = response.data as ServerSettings;
       set((state) => ({
         serverSettings: {
           ...state.serverSettings,
-          [id]: response.data,
+          [id]: settings,
         },
       }));
     }
@@ -206,10 +222,12 @@ export const useServersStore = create<ServersState>((set, get) => ({
     const response = await api.updateServerSettings(id, settings);
     
     if (response.ok && response.data) {
+      // Type assertion to ensure compatibility
+      const updatedSettings = response.data as ServerSettings;
       set((state) => ({
         serverSettings: {
           ...state.serverSettings,
-          [id]: response.data,
+          [id]: updatedSettings,
         },
       }));
       return true;

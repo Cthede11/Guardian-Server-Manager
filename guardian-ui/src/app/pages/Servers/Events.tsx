@@ -66,7 +66,7 @@ export const Events: React.FC<EventsPageProps> = ({ className = '' }) => {
     
     setIsLoading(true);
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/servers/${serverId}/events`);
+      const response = await fetch(`/api/v1/servers/${serverId}/events`);
       if (response.ok) {
         const data = await response.json();
         setEvents(data);

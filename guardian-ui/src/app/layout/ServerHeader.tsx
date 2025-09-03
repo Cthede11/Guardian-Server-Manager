@@ -114,13 +114,13 @@ export const ServerHeader: React.FC = () => {
   if (!server) {
     return (
       <div className="h-16 bg-card border-b border-border flex items-center justify-center">
-        <p className="text-muted-foreground">Select a server to view details</p>
+        <p className="text-muted-foreground text-lg">Select a server to view details</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-card border-b border-border">
+    <div className="bg-card border-b border-border shadow-sm">
       {/* Error Display */}
       {error && (
         <div className="px-6 py-2 bg-destructive/10 border-b border-destructive/20">
@@ -139,7 +139,7 @@ export const ServerHeader: React.FC = () => {
         </div>
       )}
       
-      <div className="h-16 flex items-center justify-between px-6">
+      <div className="h-16 flex items-center justify-between px-6 bg-secondary/20">
       {/* Server Info */}
       <div className="flex items-center gap-4">
         <div>
@@ -264,13 +264,14 @@ export const ServerTabs: React.FC = () => {
   };
 
   return (
-    <div className="bg-card border-b border-border px-6">
+    <div className="bg-card border-b border-border px-6 shadow-sm">
       <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-12">
+        <TabsList className="grid w-full grid-cols-12 bg-secondary/30 h-10">
           {serverTabs.map((tab) => (
             <TabsTrigger
               key={tab.id}
               value={tab.id}
+              className="text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
             >
               {tab.label}
             </TabsTrigger>

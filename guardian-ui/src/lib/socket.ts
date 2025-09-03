@@ -17,7 +17,7 @@ class SocketManager {
     this.useSSE = import.meta.env.VITE_USE_SSE === 'true' || !window.WebSocket;
   }
 
-  connect(serverUrl: string = 'http://localhost:3000') {
+  connect(serverUrl: string = '') {
     if (this.useSSE) {
       this.connectSSE(serverUrl);
     } else {

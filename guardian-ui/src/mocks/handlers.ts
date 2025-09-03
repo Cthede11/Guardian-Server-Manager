@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import { ServerSummary, ServerHealth } from '@/lib/types';
+import type { ServerSummary, ServerHealth } from '@/lib/types';
 
 // Mock server data
 const mockServers: ServerSummary[] = [

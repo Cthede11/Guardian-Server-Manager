@@ -67,7 +67,7 @@ export const Performance: React.FC<PerformancePageProps> = ({ className = '' }) 
     
     setIsLoading(true);
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/servers/${serverId}/performance`);
+      const response = await fetch(`/api/v1/servers/${serverId}/performance`);
       if (response.ok) {
         const data = await response.json();
         setPerformanceData(data);
