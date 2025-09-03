@@ -1,0 +1,42 @@
+# Minecraft Server Dockerfile
+FROM openjdk:21-jdk-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app user
+RUN useradd -r -s /bin/false minecraft
+
+# Set working directory
+WORKDIR /data
+
+# Create necessary directories
+RUN mkdir -p /data/mods /data/config /data/world /data/backups /data/configs && \
+    chown -R minecraft:minecraft /data
+
+# Copy Guardian Agent
+COPY guardian-agent.jar /data/guardian-agent.jar
+
+# Copy configuration files
+COPY configs/ /data/configs/
+
+# Switch to minecraft user
+USER minecraft
+
+# Expose ports
+EXPOSE 25565 25575
+
+# Set environment variables
+ENV GUARDIAN_CONFIG=/data/configs/server.yaml
+ENV GUARDIAN_RULES=/data/configs/rules.yaml
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:25575 || exit 1
+
+# Default command (will be overridden by docker-compose)
+CMD ["java", "-javaagent:guardian-agent.jar", "-Dguardian.config.file=/data/configs/server.yaml", "-Dguardian.rules.file=/data/configs/rules.yaml", "-jar", "server.jar", "nogui"]

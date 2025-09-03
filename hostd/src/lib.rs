@@ -13,13 +13,39 @@ pub mod config;
 pub mod process;
 pub mod snapshot;
 pub mod metrics;
-pub mod web;
+
+pub mod auth;
+pub mod tenant;
+pub mod plugin;
+pub mod webhook;
+pub mod compliance;
+pub mod community;
+pub mod ai;
+pub mod error;
+pub mod config_validation;
+pub mod health;
+pub mod backup;
+pub mod performance;
+pub mod deployment;
 
 use config::Config;
 use process::ProcessManager;
 use snapshot::SnapshotManager;
 use metrics::MetricsCollector;
-use web::WebServer;
+use auth::AuthManager;
+use tenant::TenantManager;
+use plugin::PluginManager;
+use webhook::WebhookManager;
+use compliance::ComplianceManager;
+use community::CommunityManager;
+use ai::AIManager;
+
+use error::{GuardianError, ErrorHandler, CircuitBreaker};
+use config_validation::{ConfigValidator, Environment};
+use health::{HealthMonitor, HealthCheckRegistry};
+use backup::{BackupManager, BackupConfig};
+use performance::{PerformanceProfiler, PerformanceMetrics};
+use deployment::{DeploymentManager, DeploymentConfig};
 
 /// Main host daemon that orchestrates all Guardian services
 pub struct HostDaemon {
@@ -27,7 +53,19 @@ pub struct HostDaemon {
     process_manager: Arc<ProcessManager>,
     snapshot_manager: Arc<SnapshotManager>,
     metrics_collector: Arc<MetricsCollector>,
-    web_server: Arc<WebServer>,
+
+    auth_manager: Arc<AuthManager>,
+    tenant_manager: Arc<TenantManager>,
+    plugin_manager: Arc<PluginManager>,
+    webhook_manager: Arc<WebhookManager>,
+    compliance_manager: Arc<ComplianceManager>,
+    community_manager: Arc<CommunityManager>,
+    ai_manager: Arc<AIManager>,
+    error_handler: Arc<ErrorHandler>,
+    health_monitor: Arc<HealthMonitor>,
+    backup_manager: Arc<BackupManager>,
+    performance_profiler: Arc<PerformanceProfiler>,
+    deployment_manager: Arc<DeploymentManager>,
     state: Arc<RwLock<DaemonState>>,
 }
 
@@ -66,6 +104,56 @@ impl HostDaemon {
     pub async fn new(config: Config) -> Result<Self> {
         info!("Initializing Guardian Host Daemon...");
         
+        // Validate configuration
+        let environment = Environment::Production; // TODO: Make this configurable
+        let config_validator = ConfigValidator::new(environment);
+        config_validator.validate_config(&config).await?;
+        
+        // Create error handler
+        let error_handler = Arc::new(ErrorHandler::default());
+        
+        // Create health monitor
+        let health_monitor = Arc::new(HealthMonitor::new(Duration::from_secs(30)));
+        
+        // Create backup manager
+        let backup_config = BackupConfig {
+            strategy: backup::BackupStrategy::Full,
+            retention: backup::RetentionPolicy::default(),
+            storage: backup::StorageConfig {
+                local_path: std::path::PathBuf::from("./backups"),
+                remote: None,
+                compression_level: 6,
+                encryption_enabled: false,
+                encryption_key: None,
+            },
+            schedule: "0 2 * * *".to_string(), // Daily at 2 AM
+            enabled: true,
+            include_paths: vec![
+                std::path::PathBuf::from("./world"),
+                std::path::PathBuf::from("./config"),
+                std::path::PathBuf::from("./mods"),
+            ],
+            exclude_paths: vec![
+                std::path::PathBuf::from("./logs"),
+                std::path::PathBuf::from("./temp"),
+            ],
+            max_size_bytes: 0,
+            compression_threads: 4,
+        };
+        let backup_manager = Arc::new(BackupManager::new(backup_config));
+        
+        // Create performance profiler
+        let performance_profiler = Arc::new(PerformanceProfiler::new(
+            Duration::from_secs(30),
+            Duration::from_secs(3600), // 1 hour retention
+        ));
+        
+        // Create deployment manager
+        let deployment_manager = Arc::new(DeploymentManager::new(
+            Duration::from_secs(1800), // 30 minutes timeout
+            Duration::from_secs(30),   // 30 seconds health check interval
+        ));
+        
         // Create process manager
         let process_manager = Arc::new(ProcessManager::new(config.clone()).await?);
         
@@ -75,8 +163,35 @@ impl HostDaemon {
         // Create metrics collector
         let metrics_collector = Arc::new(MetricsCollector::new(config.clone()).await?);
         
-        // Create web server
-        let web_server = Arc::new(WebServer::new(config.clone(), metrics_collector.clone()).await?);
+        // Create auth manager
+        let auth_manager = Arc::new(AuthManager::new(config.clone()));
+        auth_manager.initialize().await?;
+        
+        // Create tenant manager
+        let tenant_manager = Arc::new(TenantManager::new());
+        
+        // Create plugin manager
+        let plugin_dir = std::path::PathBuf::from("./plugins");
+        let plugin_manager = Arc::new(PluginManager::new(plugin_dir));
+        plugin_manager.initialize().await?;
+        
+        // Create webhook manager
+        let webhook_manager = Arc::new(WebhookManager::new());
+        webhook_manager.initialize().await?;
+        
+        // Create compliance manager
+        let compliance_manager = Arc::new(ComplianceManager::new());
+        compliance_manager.initialize().await?;
+        
+        // Create community manager
+        let community_manager = Arc::new(CommunityManager::new());
+        community_manager.initialize().await?;
+        
+        // Create AI manager
+        let ai_manager = Arc::new(AIManager::new());
+        ai_manager.initialize().await?;
+        
+
         
         // Create initial state
         let state = Arc::new(RwLock::new(DaemonState {
@@ -96,7 +211,19 @@ impl HostDaemon {
             process_manager,
             snapshot_manager,
             metrics_collector,
-            web_server,
+
+            auth_manager,
+            tenant_manager,
+            plugin_manager,
+            webhook_manager,
+            compliance_manager,
+            community_manager,
+            ai_manager,
+            error_handler,
+            health_monitor,
+            backup_manager,
+            performance_profiler,
+            deployment_manager,
             state,
         })
     }
@@ -142,6 +269,22 @@ impl HostDaemon {
     
     /// Start all daemon services
     async fn start_services(&mut self) -> Result<()> {
+        // Start health monitor
+        self.health_monitor.start().await?;
+        
+        // Register built-in health checks
+        let health_registry = HealthCheckRegistry::new(self.health_monitor.clone());
+        health_registry.register_builtin_checks().await?;
+        
+        // Start backup manager
+        self.backup_manager.start().await?;
+        
+        // Start performance profiler
+        self.performance_profiler.start().await?;
+        
+        // Start deployment manager
+        self.deployment_manager.start().await?;
+        
         // Start process manager
         self.process_manager.start().await?;
         
@@ -151,8 +294,7 @@ impl HostDaemon {
         // Start metrics collector
         self.metrics_collector.start().await?;
         
-        // Start web server
-        self.web_server.start().await?;
+
         
         // Start main daemon loop
         self.start_daemon_loop().await;
@@ -165,8 +307,7 @@ impl HostDaemon {
     async fn stop_services(&mut self) -> Result<()> {
         info!("Stopping Guardian Host Daemon services...");
         
-        // Stop web server
-        self.web_server.stop().await?;
+
         
         // Stop metrics collector
         self.metrics_collector.stop().await?;
@@ -176,6 +317,18 @@ impl HostDaemon {
         
         // Stop process manager
         self.process_manager.stop().await?;
+        
+        // Stop backup manager
+        self.backup_manager.stop().await;
+        
+        // Stop performance profiler
+        self.performance_profiler.stop().await;
+        
+        // Stop deployment manager
+        self.deployment_manager.stop().await;
+        
+        // Stop health monitor
+        self.health_monitor.stop().await;
         
         info!("All Guardian Host Daemon services stopped");
         Ok(())
@@ -225,7 +378,7 @@ impl HostDaemon {
         snapshot_manager: &Arc<SnapshotManager>,
         metrics_collector: &Arc<MetricsCollector>,
     ) -> Result<()> {
-        debug!("Performing health checks...");
+        // Performing health checks
         
         // Check server process
         let server_healthy = process_manager.is_server_healthy().await;
@@ -258,7 +411,7 @@ impl HostDaemon {
             }
         }
         
-        debug!("Health checks completed");
+        // Health checks completed
         Ok(())
     }
     

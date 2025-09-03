@@ -1,0 +1,343 @@
+name: Guardian Platform CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust: [stable, beta, nightly]
+        component: [gpu-worker, hostd, guardian-agent]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.rust }}
+        components: rustfmt, clippy
+        override: true
+        
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        
+    - name: Cache cargo index
+      uses: actions/cache@v3
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+        
+    - name: Cache cargo build
+      uses: actions/cache@v3
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+        
+    - name: Install Java (for guardian-agent)
+      if: matrix.component == 'guardian-agent'
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        
+    - name: Install Node.js (for plugin tests)
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        
+    - name: Run cargo fmt
+      run: cargo fmt --all -- --check
+      
+    - name: Run cargo clippy
+      run: cargo clippy --all-targets --all-features -- -D warnings
+      
+    - name: Run unit tests
+      run: |
+        if [ "${{ matrix.component }}" = "gpu-worker" ]; then
+          cd gpu-worker && cargo test
+        elif [ "${{ matrix.component }}" = "hostd" ]; then
+          cd hostd && cargo test
+        elif [ "${{ matrix.component }}" = "guardian-agent" ]; then
+          cd guardian-agent && ./gradlew test
+        fi
+        
+    - name: Run integration tests
+      run: |
+        if [ "${{ matrix.component }}" = "hostd" ]; then
+          cd hostd && cargo test --test integration_tests
+        fi
+        
+    - name: Run security audit
+      if: matrix.rust == 'stable'
+      uses: actions-rs/audit-check@v1
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: test
+    strategy:
+      matrix:
+        component: [gpu-worker, hostd, guardian-agent]
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        
+    - name: Install Java (for guardian-agent)
+      if: matrix.component == 'guardian-agent'
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        
+    - name: Build component
+      run: |
+        if [ "${{ matrix.component }}" = "gpu-worker" ]; then
+          cd gpu-worker && cargo build --release
+        elif [ "${{ matrix.component }}" = "hostd" ]; then
+          cd hostd && cargo build --release
+        elif [ "${{ matrix.component }}" = "guardian-agent" ]; then
+          cd guardian-agent && ./gradlew build
+        fi
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.component }}-build
+        path: |
+          ${{ matrix.component }}/target/release/*
+          ${{ matrix.component }}/build/libs/*
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        
+    - name: Build and push GPU Worker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./gpu-worker
+        file: ./gpu-worker/Dockerfile
+        push: true
+        tags: |
+          guardian/gpu-worker:latest
+          guardian/gpu-worker:${{ github.sha }}
+          
+    - name: Build and push Host Daemon image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./hostd
+        file: ./hostd/Dockerfile
+        push: true
+        tags: |
+          guardian/hostd:latest
+          guardian/hostd:${{ github.sha }}
+          
+    - name: Build and push Minecraft image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./docker
+        file: ./docker/Dockerfile.minecraft
+        push: true
+        tags: |
+          guardian/minecraft:latest
+          guardian/minecraft:${{ github.sha }}
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: docker
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'guardian/gpu-worker:latest'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [docker, security]
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Deploy to staging
+      run: |
+        echo "Deploying to staging environment..."
+        # Add actual deployment commands here
+        # This could be kubectl, docker-compose, or other deployment tools
+        
+    - name: Run smoke tests
+      run: |
+        echo "Running smoke tests..."
+        # Add smoke test commands here
+        
+    - name: Notify deployment
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [docker, security]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Deploy to production
+      run: |
+        echo "Deploying to production environment..."
+        # Add actual deployment commands here
+        
+    - name: Run health checks
+      run: |
+        echo "Running health checks..."
+        # Add health check commands here
+        
+    - name: Notify deployment
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+  performance:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/develop'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install k6
+      run: |
+        sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+        echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+        sudo apt-get update
+        sudo apt-get install k6
+        
+    - name: Run performance tests
+      run: |
+        k6 run tests/performance/load-test.js
+        
+    - name: Upload performance results
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-results
+        path: performance-results.json
+
+  compliance:
+    name: Compliance Check
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Run license check
+      run: |
+        cargo install cargo-license
+        cargo license --json > licenses.json
+        
+    - name: Check for security vulnerabilities
+      run: |
+        cargo install cargo-audit
+        cargo audit
+        
+    - name: Generate compliance report
+      run: |
+        echo "Generating compliance report..."
+        # Add compliance reporting commands here
+        
+    - name: Upload compliance report
+      uses: actions/upload-artifact@v3
+      with:
+        name: compliance-report
+        path: compliance-report.json
+
+  documentation:
+    name: Documentation
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        components: rust-docs
+        override: true
+        
+    - name: Generate API documentation
+      run: |
+        cd hostd && cargo doc --no-deps --document-private-items
+        cd ../gpu-worker && cargo doc --no-deps --document-private-items
+        
+    - name: Deploy documentation
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./target/doc
+        destination_dir: docs

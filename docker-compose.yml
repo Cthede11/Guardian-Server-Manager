@@ -55,7 +55,6 @@ services:
       dockerfile: Dockerfile
     container_name: guardian-hostd
     ports:
-      - "8080:8080"  # Web dashboard
       - "9090:9090"  # Prometheus metrics
     volumes:
       - ./data:/data
@@ -68,65 +67,11 @@ services:
       - guardian-network
     restart: unless-stopped
 
-  # Velocity proxy for multi-instance sharding
-  velocity:
-    build:
-      context: ./proxy
-      dockerfile: Dockerfile
-    container_name: guardian-velocity
-    ports:
-      - "25577:25577"  # Velocity port
-    volumes:
-      - ./proxy/velocity.toml:/app/velocity.toml
-      - ./data/velocity:/data
-    networks:
-      - guardian-network
-    restart: unless-stopped
-    profiles:
-      - sharding
 
-  # Prometheus for metrics collection
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: guardian-prometheus
-    ports:
-      - "9091:9090"
-    volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus-data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--web.enable-lifecycle'
-    networks:
-      - guardian-network
-    restart: unless-stopped
-    profiles:
-      - monitoring
 
-  # Grafana for dashboards
-  grafana:
-    image: grafana/grafana:latest
-    container_name: guardian-grafana
-    ports:
-      - "3000:3000"
-    volumes:
-      - grafana-data:/var/lib/grafana
-      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
-      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    networks:
-      - guardian-network
-    restart: unless-stopped
-    profiles:
-      - monitoring
 
-volumes:
-  prometheus-data:
-  grafana-data:
+
+
 
 networks:
   guardian-network:

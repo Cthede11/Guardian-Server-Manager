@@ -56,7 +56,7 @@ ha:
 monitoring:
   metrics_enabled: true
   metrics_port: 9090
-  web_dashboard_port: 8080
+
   log_level: "INFO"
   crash_reporting: true
 

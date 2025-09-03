@@ -1,0 +1,1756 @@
+openapi: 3.0.3
+info:
+  title: Guardian Platform API
+  description: |
+    The Guardian Platform API provides comprehensive management capabilities for Minecraft server hosting,
+    including multi-tenancy, plugin management, webhooks, compliance, community features, and AI-powered
+    predictive analytics.
+  version: 1.0.0
+  contact:
+    name: Guardian Platform Support
+    email: support@guardian-platform.com
+    url: https://guardian-platform.com/support
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.guardian-platform.com/v1
+    description: Production server
+  - url: https://staging-api.guardian-platform.com/v1
+    description: Staging server
+  - url: http://localhost:8080/v1
+    description: Development server
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+paths:
+  /auth/login:
+    post:
+      summary: Authenticate user
+      description: Authenticate user with username and password
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  example: admin
+                password:
+                  type: string
+                  example: admin123
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  expires_at:
+                    type: string
+                    format: date-time
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid credentials
+        '429':
+          description: Too many login attempts
+
+  /auth/refresh:
+    post:
+      summary: Refresh authentication token
+      description: Refresh an expired authentication token
+      tags:
+        - Authentication
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  expires_at:
+                    type: string
+                    format: date-time
+        '401':
+          description: Invalid or expired token
+
+  /tenants:
+    get:
+      summary: List tenants
+      description: List all tenants for the authenticated user
+      tags:
+        - Tenants
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of tenants to return
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: offset
+          in: query
+          description: Number of tenants to skip
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of tenants
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tenants:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Tenant'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+
+    post:
+      summary: Create tenant
+      description: Create a new tenant
+      tags:
+        - Tenants
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - config
+              properties:
+                name:
+                  type: string
+                  example: My Minecraft Server
+                description:
+                  type: string
+                  example: A server for my friends
+                config:
+                  $ref: '#/components/schemas/TenantConfig'
+      responses:
+        '201':
+          description: Tenant created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '400':
+          description: Invalid request data
+        '403':
+          description: Insufficient permissions
+
+  /tenants/{tenant_id}:
+    get:
+      summary: Get tenant
+      description: Get tenant by ID
+      tags:
+        - Tenants
+      parameters:
+        - name: tenant_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Tenant details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '404':
+          description: Tenant not found
+
+    put:
+      summary: Update tenant
+      description: Update tenant configuration
+      tags:
+        - Tenants
+      parameters:
+        - name: tenant_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantUpdate'
+      responses:
+        '200':
+          description: Tenant updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '404':
+          description: Tenant not found
+
+    delete:
+      summary: Delete tenant
+      description: Delete a tenant (soft delete)
+      tags:
+        - Tenants
+      parameters:
+        - name: tenant_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Tenant deleted successfully
+        '404':
+          description: Tenant not found
+
+  /tenants/{tenant_id}/instances:
+    get:
+      summary: List instances
+      description: List all instances for a tenant
+      tags:
+        - Instances
+      parameters:
+        - name: tenant_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of instances
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServerInstance'
+
+    post:
+      summary: Create instance
+      description: Create a new server instance
+      tags:
+        - Instances
+      parameters:
+        - name: tenant_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - config
+              properties:
+                name:
+                  type: string
+                  example: Main Server
+                config:
+                  $ref: '#/components/schemas/InstanceConfig'
+      responses:
+        '201':
+          description: Instance created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerInstance'
+        '400':
+          description: Invalid request data
+        '403':
+          description: Instance limit reached
+
+  /instances/{instance_id}/start:
+    post:
+      summary: Start instance
+      description: Start a server instance
+      tags:
+        - Instances
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Instance started successfully
+        '404':
+          description: Instance not found
+        '409':
+          description: Instance already running
+
+  /instances/{instance_id}/stop:
+    post:
+      summary: Stop instance
+      description: Stop a server instance
+      tags:
+        - Instances
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Instance stopped successfully
+        '404':
+          description: Instance not found
+        '409':
+          description: Instance already stopped
+
+  /plugins:
+    get:
+      summary: List plugins
+      description: List all available plugins
+      tags:
+        - Plugins
+      parameters:
+        - name: status
+          in: query
+          description: Filter by plugin status
+          schema:
+            type: string
+            enum: [installed, enabled, disabled, error]
+        - name: search
+          in: query
+          description: Search plugins by name or description
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of plugins
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Plugin'
+
+    post:
+      summary: Install plugin
+      description: Install a new plugin
+      tags:
+        - Plugins
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - package
+              properties:
+                package:
+                  type: string
+                  format: binary
+                  description: Plugin package file
+      responses:
+        '201':
+          description: Plugin installed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plugin'
+        '400':
+          description: Invalid plugin package
+
+  /plugins/{plugin_id}/enable:
+    post:
+      summary: Enable plugin
+      description: Enable a plugin
+      tags:
+        - Plugins
+      parameters:
+        - name: plugin_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Plugin enabled successfully
+        '404':
+          description: Plugin not found
+        '409':
+          description: Plugin already enabled
+
+  /plugins/{plugin_id}/disable:
+    post:
+      summary: Disable plugin
+      description: Disable a plugin
+      tags:
+        - Plugins
+      parameters:
+        - name: plugin_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Plugin disabled successfully
+        '404':
+          description: Plugin not found
+        '409':
+          description: Plugin already disabled
+
+  /webhooks:
+    get:
+      summary: List webhooks
+      description: List all webhooks
+      tags:
+        - Webhooks
+      responses:
+        '200':
+          description: List of webhooks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Webhook'
+
+    post:
+      summary: Create webhook
+      description: Create a new webhook
+      tags:
+        - Webhooks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - url
+                - events
+              properties:
+                name:
+                  type: string
+                  example: Server Notifications
+                url:
+                  type: string
+                  format: uri
+                  example: https://example.com/webhook
+                events:
+                  type: array
+                  items:
+                    type: string
+                  example: ["server.start", "server.stop"]
+                secret:
+                  type: string
+                  description: Webhook secret for signature verification
+                headers:
+                  type: object
+                  additionalProperties:
+                    type: string
+      responses:
+        '201':
+          description: Webhook created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+
+  /webhooks/{webhook_id}/test:
+    post:
+      summary: Test webhook
+      description: Send a test event to a webhook
+      tags:
+        - Webhooks
+      parameters:
+        - name: webhook_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Test webhook sent successfully
+        '404':
+          description: Webhook not found
+
+  /compliance/reports/{framework}:
+    get:
+      summary: Get compliance report
+      description: Get compliance report for a specific framework
+      tags:
+        - Compliance
+      parameters:
+        - name: framework
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [GDPR, SOC2, CCPA, HIPAA, PCI_DSS, ISO27001]
+      responses:
+        '200':
+          description: Compliance report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComplianceReport'
+
+  /community/mods:
+    get:
+      summary: Search mods
+      description: Search the community mod database
+      tags:
+        - Community
+      parameters:
+        - name: query
+          in: query
+          description: Search query
+          schema:
+            type: string
+        - name: loader
+          in: query
+          description: Filter by mod loader
+          schema:
+            type: string
+            enum: [Forge, NeoForge, Fabric, Quilt, Bukkit, Spigot, Paper]
+        - name: minecraft_version
+          in: query
+          description: Filter by Minecraft version
+          schema:
+            type: string
+        - name: guardian_optimized
+          in: query
+          description: Filter by Guardian optimization
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: List of matching mods
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ModInfo'
+
+  /community/modpacks:
+    get:
+      summary: Search mod packs
+      description: Search the community mod pack database
+      tags:
+        - Community
+      parameters:
+        - name: query
+          in: query
+          description: Search query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of matching mod packs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ModPack'
+
+  /ai/insights/{server_id}:
+    get:
+      summary: Get AI insights
+      description: Get AI-powered insights for a server
+      tags:
+        - AI
+      parameters:
+        - name: server_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: AI insights
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIInsights'
+
+  /ai/predictions:
+    post:
+      summary: Predict crash probability
+      description: Predict crash probability based on current metrics
+      tags:
+        - AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - server_id
+                - metrics
+              properties:
+                server_id:
+                  type: string
+                  format: uuid
+                metrics:
+                  $ref: '#/components/schemas/PerformanceMetrics'
+      responses:
+        '200':
+          description: Crash prediction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CrashPrediction'
+
+  /ai/recommendations:
+    get:
+      summary: Get recommendations
+      description: Get AI-powered recommendations for a user
+      tags:
+        - AI
+      parameters:
+        - name: user_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: server_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of recommendations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Recommendation'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/UserRole'
+        tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+        permissions:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        last_login:
+          type: string
+          format: date-time
+          nullable: true
+        is_active:
+          type: boolean
+
+    UserRole:
+      type: string
+      enum:
+        - SuperAdmin
+        - Admin
+        - Operator
+        - Viewer
+        - Plugin
+
+    Tenant:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        owner_id:
+          type: string
+          format: uuid
+        config:
+          $ref: '#/components/schemas/TenantConfig'
+        resources:
+          $ref: '#/components/schemas/ResourceLimits'
+        status:
+          $ref: '#/components/schemas/TenantStatus'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    TenantConfig:
+      type: object
+      properties:
+        minecraft_version:
+          type: string
+        modpack_id:
+          type: string
+          nullable: true
+        server_properties:
+          type: object
+          additionalProperties:
+            type: string
+        guardian_config:
+          type: object
+        custom_rules:
+          type: string
+          nullable: true
+        plugins:
+          type: array
+          items:
+            type: string
+
+    ResourceLimits:
+      type: object
+      properties:
+        cpu_cores:
+          type: integer
+        memory_gb:
+          type: integer
+        disk_gb:
+          type: integer
+        network_bandwidth_mbps:
+          type: integer
+        max_players:
+          type: integer
+        max_instances:
+          type: integer
+
+    TenantStatus:
+      type: string
+      enum:
+        - Active
+        - Suspended
+        - Maintenance
+        - Deleted
+
+    TenantUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        config:
+          $ref: '#/components/schemas/TenantConfig'
+        resources:
+          $ref: '#/components/schemas/ResourceLimits'
+
+    ServerInstance:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        status:
+          $ref: '#/components/schemas/InstanceStatus'
+        config:
+          $ref: '#/components/schemas/InstanceConfig'
+        resources:
+          $ref: '#/components/schemas/ResourceUsage'
+        created_at:
+          type: string
+          format: date-time
+        last_activity:
+          type: string
+          format: date-time
+
+    InstanceStatus:
+      type: string
+      enum:
+        - Running
+        - Stopped
+        - Starting
+        - Stopping
+        - Error
+        - Maintenance
+
+    InstanceConfig:
+      type: object
+      properties:
+        port:
+          type: integer
+        world_name:
+          type: string
+        difficulty:
+          type: string
+        gamemode:
+          type: string
+        max_players:
+          type: integer
+        motd:
+          type: string
+        whitelist_enabled:
+          type: boolean
+        whitelist:
+          type: array
+          items:
+            type: string
+        ops:
+          type: array
+          items:
+            type: string
+
+    ResourceUsage:
+      type: object
+      properties:
+        cpu_percent:
+          type: number
+          format: float
+        memory_mb:
+          type: integer
+        disk_mb:
+          type: integer
+        network_rx_mb:
+          type: integer
+        network_tx_mb:
+          type: integer
+        players_online:
+          type: integer
+        tps:
+          type: number
+          format: float
+        uptime_seconds:
+          type: integer
+
+    Plugin:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        version:
+          type: string
+        description:
+          type: string
+          nullable: true
+        author:
+          type: string
+        license:
+          type: string
+        entry_point:
+          type: string
+        dependencies:
+          type: array
+          items:
+            type: string
+        permissions:
+          type: array
+          items:
+            type: string
+        config_schema:
+          type: object
+          nullable: true
+        status:
+          $ref: '#/components/schemas/PluginStatus'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    PluginStatus:
+      type: string
+      enum:
+        - Installed
+        - Enabled
+        - Disabled
+        - Error
+        - Loading
+        - Uninstalling
+
+    Webhook:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          items:
+            type: string
+        secret:
+          type: string
+          nullable: true
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        retry_config:
+          $ref: '#/components/schemas/RetryConfig'
+        status:
+          $ref: '#/components/schemas/WebhookStatus'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    RetryConfig:
+      type: object
+      properties:
+        max_attempts:
+          type: integer
+        initial_delay_ms:
+          type: integer
+        max_delay_ms:
+          type: integer
+        backoff_multiplier:
+          type: number
+          format: float
+
+    WebhookStatus:
+      type: string
+      enum:
+        - Active
+        - Inactive
+        - Suspended
+        - Error
+
+    ComplianceReport:
+      type: object
+      properties:
+        framework:
+          $ref: '#/components/schemas/ComplianceFramework'
+        generated_at:
+          type: string
+          format: date-time
+        policies:
+          type: array
+          items:
+            $ref: '#/components/schemas/CompliancePolicy'
+        audits:
+          type: array
+          items:
+            $ref: '#/components/schemas/ComplianceAudit'
+        compliance_score:
+          type: number
+          format: float
+        recommendations:
+          type: array
+          items:
+            type: string
+
+    ComplianceFramework:
+      type: string
+      enum:
+        - GDPR
+        - SOC2
+        - CCPA
+        - HIPAA
+        - PCI_DSS
+        - ISO27001
+
+    CompliancePolicy:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        framework:
+          $ref: '#/components/schemas/ComplianceFramework'
+        version:
+          type: string
+        description:
+          type: string
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/ComplianceRule'
+        effective_date:
+          type: string
+          format: date-time
+        review_date:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/PolicyStatus'
+
+    ComplianceRule:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        rule_type:
+          $ref: '#/components/schemas/RuleType'
+        conditions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuleCondition'
+        actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuleAction'
+        severity:
+          $ref: '#/components/schemas/RuleSeverity'
+        enabled:
+          type: boolean
+
+    RuleType:
+      type: string
+      enum:
+        - DataRetention
+        - DataAccess
+        - DataDeletion
+        - ConsentManagement
+        - AuditLogging
+        - Encryption
+        - AccessControl
+        - DataMinimization
+        - PurposeLimitation
+
+    RuleCondition:
+      type: object
+      properties:
+        field:
+          type: string
+        operator:
+          $ref: '#/components/schemas/ConditionOperator'
+        value:
+          type: object
+
+    RuleAction:
+      type: object
+      properties:
+        action_type:
+          $ref: '#/components/schemas/ActionType'
+        parameters:
+          type: object
+          additionalProperties:
+            type: object
+
+    ConditionOperator:
+      type: string
+      enum:
+        - Equals
+        - NotEquals
+        - GreaterThan
+        - LessThan
+        - Contains
+        - NotContains
+        - In
+        - NotIn
+        - IsNull
+        - IsNotNull
+
+    ActionType:
+      type: string
+      enum:
+        - LogEvent
+        - SendNotification
+        - BlockAccess
+        - EncryptData
+        - DeleteData
+        - AnonymizeData
+        - RequireConsent
+        - AuditTrail
+        - AlertAdmin
+
+    RuleSeverity:
+      type: string
+      enum:
+        - Low
+        - Medium
+        - High
+        - Critical
+
+    PolicyStatus:
+      type: string
+      enum:
+        - Draft
+        - Active
+        - Suspended
+        - Deprecated
+
+    ComplianceAudit:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        audit_type:
+          $ref: '#/components/schemas/AuditType'
+        framework:
+          $ref: '#/components/schemas/ComplianceFramework'
+        start_date:
+          type: string
+          format: date-time
+        end_date:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          $ref: '#/components/schemas/AuditStatus'
+        findings:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditFinding'
+        recommendations:
+          type: array
+          items:
+            type: string
+        auditor:
+          type: string
+        scope:
+          $ref: '#/components/schemas/AuditScope'
+
+    AuditType:
+      type: string
+      enum:
+        - Internal
+        - External
+        - SelfAssessment
+        - Continuous
+
+    AuditStatus:
+      type: string
+      enum:
+        - Planned
+        - InProgress
+        - Completed
+        - Failed
+
+    AuditFinding:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        severity:
+          $ref: '#/components/schemas/RuleSeverity'
+        category:
+          type: string
+        evidence:
+          type: array
+          items:
+            type: string
+        remediation:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/FindingStatus'
+
+    FindingStatus:
+      type: string
+      enum:
+        - Open
+        - InProgress
+        - Resolved
+        - Accepted
+
+    AuditScope:
+      type: object
+      properties:
+        systems:
+          type: array
+          items:
+            type: string
+        processes:
+          type: array
+          items:
+            type: string
+        data_types:
+          type: array
+          items:
+            type: string
+        time_period:
+          $ref: '#/components/schemas/TimePeriod'
+
+    TimePeriod:
+      type: object
+      properties:
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+
+    ModInfo:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+        description:
+          type: string
+        author:
+          type: string
+        license:
+          type: string
+        minecraft_version:
+          type: string
+        loader:
+          $ref: '#/components/schemas/ModLoader'
+        dependencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModDependency'
+        categories:
+          type: array
+          items:
+            type: string
+        tags:
+          type: array
+          items:
+            type: string
+        download_url:
+          type: string
+          format: uri
+          nullable: true
+        source_url:
+          type: string
+          format: uri
+          nullable: true
+        issues_url:
+          type: string
+          format: uri
+          nullable: true
+        compatibility_score:
+          type: number
+          format: float
+        popularity_score:
+          type: number
+          format: float
+        last_updated:
+          type: string
+          format: date-time
+        community_verified:
+          type: boolean
+        guardian_optimized:
+          type: boolean
+
+    ModLoader:
+      type: string
+      enum:
+        - Forge
+        - NeoForge
+        - Fabric
+        - Quilt
+        - Bukkit
+        - Spigot
+        - Paper
+
+    ModDependency:
+      type: object
+      properties:
+        mod_id:
+          type: string
+        version_range:
+          type: string
+        required:
+          type: boolean
+        side:
+          $ref: '#/components/schemas/DependencySide'
+
+    DependencySide:
+      type: string
+      enum:
+        - Client
+        - Server
+        - Both
+
+    ModPack:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        version:
+          type: string
+        author:
+          type: string
+        minecraft_version:
+          type: string
+        loader:
+          $ref: '#/components/schemas/ModLoader'
+        mods:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModPackEntry'
+        configs:
+          type: object
+          additionalProperties:
+            type: string
+        custom_rules:
+          type: array
+          items:
+            type: string
+        guardian_optimized:
+          type: boolean
+        performance_rating:
+          type: number
+          format: float
+        stability_rating:
+          type: number
+          format: float
+        download_count:
+          type: integer
+        rating:
+          type: number
+          format: float
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ModPackEntry:
+      type: object
+      properties:
+        mod_id:
+          type: string
+        version:
+          type: string
+        required:
+          type: boolean
+        config_overrides:
+          type: object
+          additionalProperties:
+            type: object
+          nullable: true
+
+    AIInsights:
+      type: object
+      properties:
+        server_id:
+          type: string
+          format: uuid
+        generated_at:
+          type: string
+          format: date-time
+        crash_risk_score:
+          type: number
+          format: float
+        anomaly_count:
+          type: integer
+        active_recommendations:
+          type: integer
+        performance_trend:
+          $ref: '#/components/schemas/PerformanceTrend'
+        top_risk_factors:
+          type: array
+          items:
+            type: string
+        optimization_opportunities:
+          type: array
+          items:
+            type: string
+
+    PerformanceTrend:
+      type: string
+      enum:
+        - Improving
+        - Stable
+        - Declining
+
+    CrashPrediction:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        server_id:
+          type: string
+          format: uuid
+        prediction_time:
+          type: string
+          format: date-time
+        crash_probability:
+          type: number
+          format: float
+        predicted_crash_time:
+          type: string
+          format: date-time
+          nullable: true
+        risk_factors:
+          type: array
+          items:
+            $ref: '#/components/schemas/RiskFactor'
+        confidence:
+          type: number
+          format: float
+        recommendations:
+          type: array
+          items:
+            type: string
+        actual_crash:
+          type: boolean
+          nullable: true
+        validated:
+          type: boolean
+
+    RiskFactor:
+      type: object
+      properties:
+        factor:
+          type: string
+        weight:
+          type: number
+          format: float
+        current_value:
+          type: number
+          format: float
+        threshold:
+          type: number
+          format: float
+        impact:
+          $ref: '#/components/schemas/RiskImpact'
+
+    RiskImpact:
+      type: string
+      enum:
+        - Low
+        - Medium
+        - High
+        - Critical
+
+    PerformanceMetrics:
+      type: object
+      properties:
+        tps:
+          type: number
+          format: float
+        tick_time_ms:
+          type: number
+          format: float
+        memory_usage_mb:
+          type: integer
+        cpu_usage_percent:
+          type: number
+          format: float
+        disk_io_mb_s:
+          type: number
+          format: float
+        network_io_mb_s:
+          type: number
+          format: float
+        player_count:
+          type: integer
+        chunk_count:
+          type: integer
+        entity_count:
+          type: integer
+
+    Recommendation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        server_id:
+          type: string
+          format: uuid
+        recommendation_type:
+          $ref: '#/components/schemas/RecommendationType'
+        title:
+          type: string
+        description:
+          type: string
+        confidence:
+          type: number
+          format: float
+        priority:
+          $ref: '#/components/schemas/RecommendationPriority'
+        actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecommendationAction'
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        applied:
+          type: boolean
+        applied_at:
+          type: string
+          format: date-time
+          nullable: true
+        feedback:
+          $ref: '#/components/schemas/RecommendationFeedback'
+          nullable: true
+
+    RecommendationType:
+      type: string
+      enum:
+        - PerformanceOptimization
+        - StabilityImprovement
+        - ResourceScaling
+        - ModCompatibility
+        - ConfigurationTuning
+        - SecurityEnhancement
+        - BackupStrategy
+        - MonitoringSetup
+
+    RecommendationPriority:
+      type: string
+      enum:
+        - Low
+        - Medium
+        - High
+        - Critical
+
+    RecommendationAction:
+      type: object
+      properties:
+        action_type:
+          type: string
+        description:
+          type: string
+        parameters:
+          type: object
+          additionalProperties:
+            type: object
+        estimated_impact:
+          type: string
+        risk_level:
+          $ref: '#/components/schemas/RiskImpact'
+
+    RecommendationFeedback:
+      type: object
+      properties:
+        recommendation_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        helpful:
+          type: boolean
+        applied:
+          type: boolean
+        comments:
+          type: string
+          nullable: true
+        feedback_at:
+          type: string
+          format: date-time
+
+  responses:
+    UnauthorizedError:
+      description: Authentication information is missing or invalid
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: Unauthorized
+              message:
+                type: string
+                example: Invalid or missing authentication token
+
+    ForbiddenError:
+      description: Access denied
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: Forbidden
+              message:
+                type: string
+                example: Insufficient permissions
+
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: Not Found
+              message:
+                type: string
+                example: The requested resource was not found
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: Validation Error
+              message:
+                type: string
+                example: Invalid request data
+              details:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    field:
+                      type: string
+                    message:
+                      type: string
+
+    RateLimitError:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: Rate Limit Exceeded
+              message:
+                type: string
+                example: Too many requests
+              retry_after:
+                type: integer
+                description: Seconds to wait before retrying
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: Internal Server Error
+              message:
+                type: string
+                example: An unexpected error occurred
+              request_id:
+                type: string
+                format: uuid
