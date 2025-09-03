@@ -58,7 +58,7 @@ export const PlayersTableLoading: React.FC<{ count?: number }> = ({ count = 5 })
 );
 
 export const StatsGridLoading: React.FC<{ count?: number }> = ({ count = 4 }) => (
-  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" data-testid="stats-grid-loading">
     {Array.from({ length: count }).map((_, i) => (
       <StatCardSkeleton key={i} />
     ))}

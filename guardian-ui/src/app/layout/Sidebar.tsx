@@ -146,7 +146,7 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <div className="w-80 bg-card border-r border-border flex flex-col">
+    <nav className="w-80 bg-card border-r border-border flex flex-col" role="navigation">
       {/* Header */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between mb-4">
@@ -331,7 +331,7 @@ export const Sidebar: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
+    </nav>
   );
 };
 

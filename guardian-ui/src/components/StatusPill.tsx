@@ -9,7 +9,7 @@ interface StatusPillProps {
   showIcon?: boolean;
 }
 
-export const StatusPill: React.FC<StatusPillProps> = ({ 
+export const StatusPill: React.FC<StatusPillProps> = React.memo(({ 
   status, 
   className = '', 
   showIcon = true 
@@ -55,11 +55,14 @@ export const StatusPill: React.FC<StatusPillProps> = ({
     <Badge 
       variant="outline" 
       className={`${config.className} ${className} flex items-center gap-1`}
+      data-testid="status-pill"
+      role="status"
+      aria-label={`Server status: ${status}`}
     >
       {showIcon && config.icon}
       {config.label}
     </Badge>
   );
-};
+});
 
 export default StatusPill;

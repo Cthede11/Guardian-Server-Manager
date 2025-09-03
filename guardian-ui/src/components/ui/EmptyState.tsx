@@ -43,7 +43,7 @@ const defaultIcons = {
   refresh: <RefreshCw className="h-12 w-12 text-muted-foreground" />,
 };
 
-export const EmptyState: React.FC<EmptyStateProps> = ({
+export const EmptyState: React.FC<EmptyStateProps> = React.memo(({
   icon,
   title,
   description,
@@ -99,6 +99,12 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
               onClick={action.onClick}
               variant={action.variant || 'default'}
               size={size === 'sm' ? 'sm' : 'default'}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  action.onClick()
+                }
+              }}
             >
               {action.label}
             </Button>
@@ -116,7 +122,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       )}
     </div>
   );
-};
+});
 
 // Predefined empty states for common scenarios
 export const NoServersEmptyState: React.FC<{ onCreateServer: () => void }> = ({ onCreateServer }) => (

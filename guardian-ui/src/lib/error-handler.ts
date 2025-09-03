@@ -1,3 +1,4 @@
+import React from 'react';
 import { notifications } from './notifications';
 
 export interface ApiError {
@@ -206,7 +207,7 @@ export const withErrorHandling = <P extends object>(
 ) => {
   return (props: P) => {
     try {
-      return <Component {...props} />;
+      return React.createElement(Component, props);
     } catch (error) {
       const guardianError = handleApiError(error, errorContext);
       throw guardianError;

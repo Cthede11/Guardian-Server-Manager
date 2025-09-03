@@ -280,10 +280,10 @@ export const useRealtimeSubscription = (serverId?: string) => {
 };
 
 // Hook for real-time data with automatic updates
-export const useRealtimeData = <T>(
+export function useRealtimeData<T>(
   serverId: string,
   dataType: keyof ReturnType<typeof useRealtimeStore.getState>['serverData'][string]
-): T | null => {
+): T | null {
   const { serverData } = useRealtimeStore();
   const [data, setData] = useState<T | null>(null);
 
@@ -295,7 +295,7 @@ export const useRealtimeData = <T>(
   }, [serverId, dataType, serverData]);
 
   return data;
-};
+}
 
 // Export all providers and hooks
 export {

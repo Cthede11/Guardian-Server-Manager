@@ -13,7 +13,7 @@ interface StatCardProps {
   className?: string;
 }
 
-export const StatCard: React.FC<StatCardProps> = ({
+export const StatCard: React.FC<StatCardProps> = React.memo(({
   title,
   value,
   subtitle,
@@ -22,9 +22,9 @@ export const StatCard: React.FC<StatCardProps> = ({
   className = '',
 }) => {
   return (
-    <Card className={`server-card ${className}`}>
+    <Card className={`server-card ${className}`} data-testid="stat-card" role="region" aria-labelledby={`stat-${title.toLowerCase().replace(/\s+/g, '-')}`}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
+        <CardTitle id={`stat-${title.toLowerCase().replace(/\s+/g, '-')}`} className="text-sm font-medium text-muted-foreground">
           {title}
         </CardTitle>
         {icon && (
@@ -43,13 +43,13 @@ export const StatCard: React.FC<StatCardProps> = ({
         {trend && (
           <div className={`text-xs mt-1 ${
             trend.isPositive ? 'text-green-400' : 'text-red-400'
-          }`}>
+          }`} data-testid="trend-indicator">
             {trend.isPositive ? '+' : ''}{trend.value}%
           </div>
         )}
       </CardContent>
     </Card>
   );
-};
+});
 
 export default StatCard;

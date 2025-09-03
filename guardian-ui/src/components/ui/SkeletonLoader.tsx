@@ -73,7 +73,7 @@ export const SkeletonLoader: React.FC<SkeletonLoaderProps> = ({
 
   if (count === 1) {
     return (
-      <div className={cn("animate-pulse", className)}>
+      <div className={cn("animate-pulse", className)} data-testid="skeleton-loader">
         {renderSkeleton()}
       </div>
     );
@@ -82,7 +82,7 @@ export const SkeletonLoader: React.FC<SkeletonLoaderProps> = ({
   return (
     <div className={cn("space-y-4", className)}>
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="animate-pulse">
+        <div key={i} className="animate-pulse" data-testid="skeleton-loader">
           {renderSkeleton()}
         </div>
       ))}
@@ -92,7 +92,7 @@ export const SkeletonLoader: React.FC<SkeletonLoaderProps> = ({
 
 // Specific skeleton components for common patterns
 export const ServerCardSkeleton: React.FC = () => (
-  <div className="border rounded-lg p-4 space-y-3">
+  <div className="border rounded-lg p-4 space-y-3" data-testid="server-card-skeleton">
     <div className="flex items-center justify-between">
       <Skeleton className="h-5 w-32" />
       <Skeleton className="h-6 w-16 rounded-full" />

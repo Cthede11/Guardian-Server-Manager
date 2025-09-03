@@ -1,5 +1,5 @@
 # GPU Worker Dockerfile
-FROM rust:1.75-slim as builder
+FROM rust:latest as builder
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -13,7 +13,9 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy Cargo files
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml ./
+# Copy Cargo.lock if it exists
+COPY Cargo.lock* ./
 
 # Copy source code
 COPY src ./src
