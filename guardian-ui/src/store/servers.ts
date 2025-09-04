@@ -255,7 +255,10 @@ export const useSelectedServer = () => {
 };
 
 export const useServerHealth = (serverId: string) => {
-  return useServersStore((state) => state.serverHealth[serverId] || null);
+  return useServersStore((state) => {
+    if (!serverId) return null;
+    return state.serverHealth[serverId] || null;
+  });
 };
 
 export const useServerSettings = (serverId: string) => {

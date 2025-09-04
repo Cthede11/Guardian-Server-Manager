@@ -1,11 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { Search, Plus, Server, Settings, Users, MoreVertical, Copy, Trash2, FolderOpen } from 'lucide-react';
+import { Link, useParams, useLocation } from 'react-router-dom';
+import { 
+  Search, 
+  Plus, 
+  Server, 
+  Settings, 
+  Users, 
+  MoreVertical, 
+  Copy, 
+  Trash2, 
+  FolderOpen,
+  Database,
+  Key,
+  Palette,
+  Building2,
+  ChevronDown,
+  ChevronRight,
+  Play,
+  Square,
+  ArrowUp,
+  Folder
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-// import { Badge } from '@/components/ui/badge';
+import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useServersStore } from '@/store/servers';
 import { StatusPill } from '@/components/StatusPill';
 
@@ -85,8 +106,10 @@ const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 export const Sidebar: React.FC = () => {
   const { servers, selectedServerId, selectServer, loading, startServer, stopServer, promoteServer } = useServersStore();
   const { id: currentServerId } = useParams<{ id: string }>();
+  const location = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddServer, setShowAddServer] = useState(false);
+  const [workspaceExpanded, setWorkspaceExpanded] = useState(false);
 
   // Filter servers based on search query
   const filteredServers = servers.filter(server =>
@@ -146,7 +169,8 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <nav className="w-64 bg-card border-r border-border flex flex-col shadow-xl" role="navigation">
+    <TooltipProvider delayDuration={500}>
+      <nav className="w-72 bg-card border-r border-border flex flex-col shadow-xl" role="navigation">
       {/* Header */}
       <div className="p-6 border-b border-border/30">
         <div className="flex items-center justify-between mb-6">
@@ -188,14 +212,17 @@ export const Sidebar: React.FC = () => {
       <div className="flex-1 overflow-y-auto">
         {/* Servers Section */}
         <div className="p-4">
-          <div className="nav-section-header">
-            <div className="nav-section-icon">
+          <div className="flex items-center gap-3 mb-4 px-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-lg flex items-center justify-center border border-primary/20">
               <Server className="h-4 w-4 text-primary" />
             </div>
-            <span className="nav-section-title">Servers</span>
-            <div className="nav-section-badge">
-              {servers.length}
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-foreground">Servers</h3>
+              <p className="text-xs text-muted-foreground">Manage your Minecraft servers</p>
             </div>
+            <Badge variant="secondary" className="bg-primary/15 text-primary border-primary/20">
+              {servers.length}
+            </Badge>
           </div>
           
           {loading ? (
@@ -257,34 +284,96 @@ export const Sidebar: React.FC = () => {
                              <MoreVertical className="h-3 w-3" />
                            </Button>
                          </DropdownMenuTrigger>
-                         <DropdownMenuContent align="end" className="modern-card">
-                           <DropdownMenuItem onClick={() => handleServerAction('start', server.id)}>
-                             <Server className="h-4 w-4 mr-2" />
-                             Start
-                           </DropdownMenuItem>
-                           <DropdownMenuItem onClick={() => handleServerAction('stop', server.id)}>
-                             <Server className="h-4 w-4 mr-2" />
-                             Stop
-                           </DropdownMenuItem>
-                           <DropdownMenuItem onClick={() => handleServerAction('promote', server.id)}>
-                             <Server className="h-4 w-4 mr-2" />
-                             Promote
-                           </DropdownMenuItem>
-                           <DropdownMenuItem onClick={() => handleServerAction('clone', server.id)}>
-                             <Copy className="h-4 w-4 mr-2" />
-                             Clone
-                           </DropdownMenuItem>
-                           <DropdownMenuItem onClick={() => handleServerAction('open-folder', server.id)}>
-                             <FolderOpen className="h-4 w-4 mr-2" />
-                             Open Folder
-                           </DropdownMenuItem>
-                           <DropdownMenuItem 
-                             onClick={() => handleServerAction('delete', server.id)}
-                             className="text-destructive"
-                           >
-                             <Trash2 className="h-4 w-4 mr-2" />
-                             Delete
-                           </DropdownMenuItem>
+                         <DropdownMenuContent align="end" className="w-56 p-1 bg-card border border-border shadow-xl">
+                           <Tooltip>
+                             <TooltipTrigger asChild>
+                               <DropdownMenuItem 
+                                 onClick={() => handleServerAction('start', server.id)}
+                                 className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-muted/60 hover:text-foreground focus:bg-muted/60 focus:text-foreground"
+                               >
+                                 <Play className="h-4 w-4 text-muted-foreground" />
+                                 <span>Start Server</span>
+                               </DropdownMenuItem>
+                             </TooltipTrigger>
+                             <TooltipContent side="left" className="bg-card text-foreground border border-border shadow-lg backdrop-blur-sm">
+                               <p>Start the Minecraft server</p>
+                             </TooltipContent>
+                           </Tooltip>
+
+                           <Tooltip>
+                             <TooltipTrigger asChild>
+                               <DropdownMenuItem 
+                                 onClick={() => handleServerAction('stop', server.id)}
+                                 className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-muted/60 hover:text-foreground focus:bg-muted/60 focus:text-foreground"
+                               >
+                                 <Square className="h-4 w-4 text-muted-foreground" />
+                                 <span>Stop Server</span>
+                               </DropdownMenuItem>
+                             </TooltipTrigger>
+                             <TooltipContent side="left" className="bg-card text-foreground border border-border shadow-lg backdrop-blur-sm">
+                               <p>Gracefully stop the server</p>
+                             </TooltipContent>
+                           </Tooltip>
+
+                           <Tooltip>
+                             <TooltipTrigger asChild>
+                               <DropdownMenuItem 
+                                 onClick={() => handleServerAction('promote', server.id)}
+                                 className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-muted/60 hover:text-foreground focus:bg-muted/60 focus:text-foreground"
+                               >
+                                 <ArrowUp className="h-4 w-4 text-muted-foreground" />
+                                 <span>Promote Server</span>
+                               </DropdownMenuItem>
+                             </TooltipTrigger>
+                             <TooltipContent side="left" className="bg-card text-foreground border border-border shadow-lg backdrop-blur-sm">
+                               <p>Promote to active deployment (Blue/Green)</p>
+                             </TooltipContent>
+                           </Tooltip>
+
+                           <Tooltip>
+                             <TooltipTrigger asChild>
+                               <DropdownMenuItem 
+                                 onClick={() => handleServerAction('clone', server.id)}
+                                 className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-muted/60 hover:text-foreground focus:bg-muted/60 focus:text-foreground"
+                               >
+                                 <Copy className="h-4 w-4 text-muted-foreground" />
+                                 <span>Clone Server</span>
+                               </DropdownMenuItem>
+                             </TooltipTrigger>
+                             <TooltipContent side="left" className="bg-card text-foreground border border-border shadow-lg backdrop-blur-sm">
+                               <p>Create a copy of this server configuration</p>
+                             </TooltipContent>
+                           </Tooltip>
+
+                           <Tooltip>
+                             <TooltipTrigger asChild>
+                               <DropdownMenuItem 
+                                 onClick={() => handleServerAction('open-folder', server.id)}
+                                 className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-muted/60 hover:text-foreground focus:bg-muted/60 focus:text-foreground"
+                               >
+                                 <Folder className="h-4 w-4 text-muted-foreground" />
+                                 <span>Open Folder</span>
+                               </DropdownMenuItem>
+                             </TooltipTrigger>
+                             <TooltipContent side="left" className="bg-card text-foreground border border-border shadow-lg backdrop-blur-sm">
+                               <p>Open server directory in file explorer</p>
+                             </TooltipContent>
+                           </Tooltip>
+
+                           <Tooltip>
+                             <TooltipTrigger asChild>
+                               <DropdownMenuItem 
+                                 onClick={() => handleServerAction('delete', server.id)}
+                                 className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-muted/60 hover:text-foreground focus:bg-muted/60 focus:text-foreground"
+                               >
+                                 <Trash2 className="h-4 w-4 text-muted-foreground" />
+                                 <span>Delete Server</span>
+                               </DropdownMenuItem>
+                             </TooltipTrigger>
+                             <TooltipContent side="left" className="bg-card text-foreground border border-border shadow-lg backdrop-blur-sm">
+                               <p>Permanently delete this server (cannot be undone)</p>
+                             </TooltipContent>
+                           </Tooltip>
                          </DropdownMenuContent>
                        </DropdownMenu>
                      </div>
@@ -305,56 +394,97 @@ export const Sidebar: React.FC = () => {
           )}
         </div>
 
-                {/* Workspace Section */}
-        <div className="p-4 border-t border-border/30 bg-gradient-to-br from-muted/20 to-muted/40">
-          <div className="nav-section-header">
-            <div className="nav-section-icon">
-              <Settings className="h-4 w-4 text-secondary" />
+        {/* Workspace Section */}
+        <div className="p-4 border-t border-border/30 bg-gradient-to-br from-muted/10 to-muted/20">
+          {/* Workspace Header - Non-clickable section title */}
+          <div className="flex items-center gap-3 mb-4 px-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-lg flex items-center justify-center border border-primary/20">
+              <Building2 className="h-4 w-4 text-primary" />
             </div>
-            <span className="nav-section-title">Workspace</span>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Workspace</h3>
+              <p className="text-xs text-muted-foreground">System settings & configuration</p>
+            </div>
           </div>
 
-          <div className="nav-section">
+          {/* Workspace Navigation Links */}
+          <div className="space-y-1">
             <Link
               to="/workspace/users-roles"
-              className={`nav-link ${location.pathname === '/workspace/users-roles' ? 'active' : ''}`}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                location.pathname === '/workspace/users-roles' 
+                  ? 'bg-primary/15 text-primary border border-primary/20 shadow-sm' 
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              }`}
             >
-              <div className="nav-link-icon">
-                <Users className="h-3.5 w-3.5 text-primary" />
+              <div className={`w-6 h-6 rounded-md flex items-center justify-center ${
+                location.pathname === '/workspace/users-roles' 
+                  ? 'bg-primary/20 text-primary' 
+                  : 'bg-muted/50 text-muted-foreground'
+              }`}>
+                <Users className="h-3.5 w-3.5" />
               </div>
               <span>Users & Roles</span>
             </Link>
+            
             <Link
               to="/workspace/backup-targets"
-              className={`nav-link ${location.pathname === '/workspace/backup-targets' ? 'active' : ''}`}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                location.pathname === '/workspace/backup-targets' 
+                  ? 'bg-primary/15 text-primary border border-primary/20 shadow-sm' 
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              }`}
             >
-              <div className="nav-link-icon">
-                <Server className="h-3.5 w-3.5 text-primary" />
+              <div className={`w-6 h-6 rounded-md flex items-center justify-center ${
+                location.pathname === '/workspace/backup-targets' 
+                  ? 'bg-primary/20 text-primary' 
+                  : 'bg-muted/50 text-muted-foreground'
+              }`}>
+                <Database className="h-3.5 w-3.5" />
               </div>
               <span>Backup Targets</span>
             </Link>
+            
             <Link
               to="/workspace/tokens"
-              className={`nav-link ${location.pathname === '/workspace/tokens' ? 'active' : ''}`}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                location.pathname === '/workspace/tokens' 
+                  ? 'bg-primary/15 text-primary border border-primary/20 shadow-sm' 
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              }`}
             >
-              <div className="nav-link-icon">
-                <Settings className="h-3.5 w-3.5 text-primary" />
+              <div className={`w-6 h-6 rounded-md flex items-center justify-center ${
+                location.pathname === '/workspace/tokens' 
+                  ? 'bg-primary/20 text-primary' 
+                  : 'bg-muted/50 text-muted-foreground'
+              }`}>
+                <Key className="h-3.5 w-3.5" />
               </div>
               <span>API Tokens</span>
             </Link>
+            
             <Link
               to="/workspace/theme"
-              className={`nav-link ${location.pathname === '/workspace/theme' ? 'active' : ''}`}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                location.pathname === '/workspace/theme' 
+                  ? 'bg-primary/15 text-primary border border-primary/20 shadow-sm' 
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              }`}
             >
-              <div className="nav-link-icon">
-                <Settings className="h-3.5 w-3.5 text-primary" />
+              <div className={`w-6 h-6 rounded-md flex items-center justify-center ${
+                location.pathname === '/workspace/theme' 
+                  ? 'bg-primary/20 text-primary' 
+                  : 'bg-muted/50 text-muted-foreground'
+              }`}>
+                <Palette className="h-3.5 w-3.5" />
               </div>
-              <span>Theme</span>
+              <span>Theme Settings</span>
             </Link>
           </div>
         </div>
       </div>
     </nav>
+    </TooltipProvider>
   );
 };
 

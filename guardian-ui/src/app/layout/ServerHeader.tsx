@@ -35,8 +35,9 @@ export const ServerHeader: React.FC = () => {
     clearError
   } = useServersStore();
 
+  // Always call hooks at the top level
   const server = serverId ? getServerById(serverId) : null;
-  const serverHealth = serverId ? useServerHealth(serverId) : null;
+  const serverHealth = useServerHealth(serverId || '');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   
   // Determine current tab from pathname
@@ -111,18 +112,8 @@ export const ServerHeader: React.FC = () => {
     }
   };
 
-  if (!server) {
-    return (
-      <div className="app-header h-20 flex items-center justify-center">
-        <div className="text-center animate-fade-in-up">
-          <div className="w-16 h-16 bg-gradient-to-br from-muted/30 to-muted/50 rounded-2xl flex items-center justify-center mx-auto mb-4 ring-1 ring-border/50">
-            <Circle className="h-8 w-8 text-muted-foreground" />
-          </div>
-          <p className="text-foreground text-xl font-semibold gradient-text">Select a server to view details</p>
-          <p className="text-muted-foreground text-sm mt-2">Choose a server from the sidebar to get started</p>
-        </div>
-      </div>
-    );
+  if (!serverId || !server) {
+    return null;
   }
 
   return (

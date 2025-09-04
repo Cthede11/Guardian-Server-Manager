@@ -155,9 +155,72 @@ export const Theme: React.FC = () => {
   const [hasChanges, setHasChanges] = useState(false);
   // const [previewMode, setPreviewMode] = useState(false); // Commented out
 
+  const applyThemeSettings = (themeSettings: ThemeSettings) => {
+    const root = document.documentElement;
+    
+    // Apply theme mode
+    if (themeSettings.theme === 'light') {
+      root.classList.remove('dark');
+    } else if (themeSettings.theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      // Auto - follow system preference
+      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
+    }
+    
+    // Apply custom colors if using custom scheme
+    if (themeSettings.colorScheme === 'custom') {
+      Object.entries(themeSettings.customColors).forEach(([key, value]) => {
+        root.style.setProperty(`--color-${key}`, value);
+      });
+    }
+    
+    // Apply layout settings
+    root.style.setProperty('--sidebar-width', `${themeSettings.layout.sidebarWidth}px`);
+    root.style.setProperty('--header-height', `${themeSettings.layout.headerHeight}px`);
+    root.style.setProperty('--border-radius', `${themeSettings.layout.borderRadius}px`);
+    root.style.setProperty('--spacing', `${themeSettings.layout.spacing}px`);
+    root.style.setProperty('--font-size', `${themeSettings.layout.fontSize}px`);
+    root.style.setProperty('--line-height', `${themeSettings.layout.lineHeight}`);
+    
+    // Apply accessibility settings
+    if (themeSettings.accessibility.reducedMotion) {
+      root.style.setProperty('--animation-duration', '0ms');
+    } else {
+      root.style.removeProperty('--animation-duration');
+    }
+    
+    if (themeSettings.accessibility.highContrast) {
+      root.classList.add('high-contrast');
+    } else {
+      root.classList.remove('high-contrast');
+    }
+    
+    // Apply custom CSS
+    let customStyleElement = document.getElementById('custom-theme-styles');
+    if (!customStyleElement) {
+      customStyleElement = document.createElement('style');
+      customStyleElement.id = 'custom-theme-styles';
+      document.head.appendChild(customStyleElement);
+    }
+    customStyleElement.textContent = themeSettings.advanced.customCSS;
+  };
+
   const fetchSettings = async () => {
     setIsLoading(true);
     try {
+      // Load from localStorage
+      const savedSettings = localStorage.getItem('guardian-theme-settings');
+      if (savedSettings) {
+        const parsedSettings = JSON.parse(savedSettings);
+        setSettings(parsedSettings);
+        applyThemeSettings(parsedSettings);
+      }
+      
       // Mock API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       setHasChanges(false);
@@ -191,6 +254,12 @@ export const Theme: React.FC = () => {
   const handleSave = async () => {
     setIsLoading(true);
     try {
+      // Apply theme changes to the document
+      applyThemeSettings(settings);
+      
+      // Save to localStorage
+      localStorage.setItem('guardian-theme-settings', JSON.stringify(settings));
+      
       // Mock API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       setHasChanges(false);
@@ -322,6 +391,12 @@ export const Theme: React.FC = () => {
   const handleSaveSettings = async () => {
     setIsLoading(true);
     try {
+      // Apply theme changes to the document
+      applyThemeSettings(settings);
+      
+      // Save to localStorage
+      localStorage.setItem('guardian-theme-settings', JSON.stringify(settings));
+      
       // Mock API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       setHasChanges(false);

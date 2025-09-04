@@ -7,26 +7,26 @@
 @import "tailwindcss";
 
 @theme {
-  --color-border: 218 12% 17%;
-  --color-background: 220 14% 6%;
-  --color-foreground: 220 14% 92%;
-  --color-card: 220 12% 9%;
-  --color-muted: 220 8% 64%;
-  --color-muted-foreground: 220 14% 92%;
-  --color-accent: 209 100% 56%;
-  --color-success: 142 76% 36%;
-  --color-warning: 38 92% 50%;
-  --color-danger: 0 84% 60%;
-  --color-primary: 209 100% 56%;
-  --color-primary-foreground: 220 14% 6%;
-  --color-secondary: 220 8% 64%;
-  --color-secondary-foreground: 220 14% 92%;
-  --color-destructive: 0 84% 60%;
-  --color-destructive-foreground: 220 14% 92%;
-  --color-popover: 220 12% 9%;
-  --color-popover-foreground: 220 14% 92%;
-  --color-input: 218 12% 17%;
-  --color-ring: 209 100% 56%;
+  --color-border: 220 13% 18%;
+  --color-background: 220 15% 8%;
+  --color-foreground: 220 15% 88%;
+  --color-card: 220 13% 11%;
+  --color-muted: 220 9% 46%;
+  --color-muted-foreground: 220 9% 70%;
+  --color-accent: 220 13% 18%;
+  --color-success: 142 60% 45%;
+  --color-warning: 38 80% 55%;
+  --color-danger: 0 70% 55%;
+  --color-primary: 220 15% 65%;
+  --color-primary-foreground: 220 15% 8%;
+  --color-secondary: 220 9% 46%;
+  --color-secondary-foreground: 220 15% 88%;
+  --color-destructive: 0 70% 55%;
+  --color-destructive-foreground: 220 15% 88%;
+  --color-popover: 220 13% 11%;
+  --color-popover-foreground: 220 15% 88%;
+  --color-input: 220 13% 18%;
+  --color-ring: 220 15% 65%;
   
   --radius-xl: 14px;
   --radius-lg: 0.75rem;
@@ -456,56 +456,47 @@ body {
   }
   
   .status-running {
-    background: linear-gradient(135deg, hsl(var(--color-success) / 0.2), hsl(var(--color-success) / 0.1));
+    background: hsl(var(--color-success) / 0.15);
     color: hsl(var(--color-success));
-    border: 1px solid hsl(var(--color-success) / 0.4);
+    border: 1px solid hsl(var(--color-success) / 0.25);
   }
   
   .status-running::before {
-    background: linear-gradient(135deg, hsl(var(--color-success)), hsl(var(--color-success) / 0.8));
-    box-shadow: 
-      0 0 0 2px hsl(var(--color-success) / 0.3),
-      0 0 8px hsl(var(--color-success) / 0.4);
-    animation: pulse-success 2s infinite;
+    background: hsl(var(--color-success));
+    box-shadow: 0 0 0 1px hsl(var(--color-success) / 0.2);
   }
   
   .status-stopped {
-    background: linear-gradient(135deg, hsl(var(--color-destructive) / 0.2), hsl(var(--color-destructive) / 0.1));
-    color: hsl(var(--color-destructive));
-    border: 1px solid hsl(var(--color-destructive) / 0.4);
+    background: hsl(var(--color-muted) / 0.15);
+    color: hsl(var(--color-muted-foreground));
+    border: 1px solid hsl(var(--color-muted) / 0.25);
   }
   
   .status-stopped::before {
-    background: linear-gradient(135deg, hsl(var(--color-destructive)), hsl(var(--color-destructive) / 0.8));
-    box-shadow: 0 0 0 2px hsl(var(--color-destructive) / 0.3);
+    background: hsl(var(--color-muted));
+    box-shadow: 0 0 0 1px hsl(var(--color-muted) / 0.2);
   }
   
   .status-starting {
-    background: linear-gradient(135deg, hsl(var(--color-warning) / 0.2), hsl(var(--color-warning) / 0.1));
+    background: hsl(var(--color-warning) / 0.15);
     color: hsl(var(--color-warning));
-    border: 1px solid hsl(var(--color-warning) / 0.4);
+    border: 1px solid hsl(var(--color-warning) / 0.25);
   }
   
   .status-starting::before {
-    background: linear-gradient(135deg, hsl(var(--color-warning)), hsl(var(--color-warning) / 0.8));
-    box-shadow: 
-      0 0 0 2px hsl(var(--color-warning) / 0.3),
-      0 0 8px hsl(var(--color-warning) / 0.4);
-    animation: pulse-warning 1.5s infinite;
+    background: hsl(var(--color-warning));
+    box-shadow: 0 0 0 1px hsl(var(--color-warning) / 0.2);
   }
   
   .status-stopping {
-    background: linear-gradient(135deg, hsl(var(--color-warning) / 0.2), hsl(var(--color-warning) / 0.1));
+    background: hsl(var(--color-warning) / 0.15);
     color: hsl(var(--color-warning));
-    border: 1px solid hsl(var(--color-warning) / 0.4);
+    border: 1px solid hsl(var(--color-warning) / 0.25);
   }
   
   .status-stopping::before {
-    background: linear-gradient(135deg, hsl(var(--color-warning)), hsl(var(--color-warning) / 0.8));
-    box-shadow: 
-      0 0 0 2px hsl(var(--color-warning) / 0.3),
-      0 0 8px hsl(var(--color-warning) / 0.4);
-    animation: pulse-warning 1s infinite;
+    background: hsl(var(--color-warning));
+    box-shadow: 0 0 0 1px hsl(var(--color-warning) / 0.2);
   }
   
   /* Navigation Links */
@@ -687,5 +678,115 @@ body {
   
   .backdrop-blur-xl {
     backdrop-filter: blur(24px);
+  }
+
+  /* Dropdown and Popup Components - Subtle Backgrounds */
+  .dropdown-menu,
+  .popover-content,
+  .select-content,
+  .combobox-content,
+  .context-menu-content,
+  [data-radix-dropdown-menu-content],
+  [data-radix-select-content],
+  [data-radix-popover-content],
+  [data-radix-dialog-content],
+  [data-radix-select-viewport],
+  [data-radix-dropdown-menu-viewport],
+  [data-radix-popover-content-wrapper],
+  [role="listbox"],
+  [role="menu"],
+  [role="menubar"],
+  [role="combobox"],
+  [data-state="open"][data-side],
+  [data-radix-popper-content-wrapper] {
+    background-color: hsl(var(--color-card) / 0.95) !important;
+    border: 1px solid hsl(var(--color-border) / 0.6) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: blur(8px) !important;
+  }
+
+  .dropdown-menu-item,
+  .select-item,
+  .combobox-item {
+    background-color: transparent !important;
+    color: hsl(var(--color-foreground)) !important;
+  }
+
+  .dropdown-menu-item:hover,
+  .select-item:hover,
+  .combobox-item:hover {
+    background-color: hsl(var(--color-muted) / 0.6) !important;
+    color: hsl(var(--color-foreground)) !important;
+  }
+
+  .dropdown-menu-item[data-highlighted],
+  .select-item[data-highlighted],
+  .combobox-item[data-highlighted] {
+    background-color: hsl(var(--color-muted) / 0.6) !important;
+    color: hsl(var(--color-foreground)) !important;
+  }
+
+  /* Tooltip solid background */
+  .tooltip-content,
+  [data-radix-tooltip-content] {
+    background-color: hsl(var(--color-card)) !important;
+    color: hsl(var(--color-foreground)) !important;
+    border: 1px solid hsl(var(--color-border)) !important;
+    box-shadow: var(--shadow-lg) !important;
+    backdrop-filter: none !important;
+  }
+
+  /* Toast solid background */
+  [data-radix-toast-viewport] > * {
+    background-color: hsl(var(--color-card)) !important;
+    border: 1px solid hsl(var(--color-border)) !important;
+    box-shadow: var(--shadow-xl) !important;
+    backdrop-filter: none !important;
+  }
+
+  /* Any overlay with backdrop-blur should be solid */
+  [class*="backdrop-blur"] {
+    backdrop-filter: none !important;
+    background-color: hsl(var(--color-card)) !important;
+  }
+
+  /* Any element with transparency should be solid */
+  [class*="bg-"]:has([class*="/"]) {
+    background-color: hsl(var(--color-card)) !important;
+  }
+
+  /* Catch-all for ANY floating/positioned element that might be a dropdown */
+  .absolute[class*="z-"],
+  .fixed[class*="z-"],
+  [class*="absolute"][class*="z-"],
+  [class*="fixed"][class*="z-"],
+  [data-floating-ui-portal] *,
+  [data-radix-portal] *,
+  .radix-dropdown-menu-content,
+  .radix-select-content,
+  .radix-popover-content {
+    background-color: hsl(var(--color-card) / 0.95) !important;
+    border: 1px solid hsl(var(--color-border) / 0.6) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: blur(8px) !important;
+  }
+
+  /* Specific override for select and dropdown items */
+  [data-radix-select-item],
+  [data-radix-dropdown-menu-item],
+  .select-item,
+  .dropdown-menu-item {
+    background-color: transparent !important;
+    color: hsl(var(--color-foreground)) !important;
+  }
+
+  [data-radix-select-item]:hover,
+  [data-radix-dropdown-menu-item]:hover,
+  .select-item:hover,
+  .dropdown-menu-item:hover,
+  [data-radix-select-item][data-highlighted],
+  [data-radix-dropdown-menu-item][data-highlighted] {
+    background-color: hsl(var(--color-muted) / 0.3) !important;
+    color: hsl(var(--color-foreground)) !important;
   }
 }
