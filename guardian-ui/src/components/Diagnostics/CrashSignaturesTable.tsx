@@ -10,20 +10,12 @@ import {
   XCircle, 
   RefreshCw,
   Search,
-  Filter,
-  Calendar,
   TrendingUp,
   TrendingDown,
-  FileText,
   Download,
   Eye,
   Clock,
-  Activity,
-  HardDrive,
-  Cpu,
-  MemoryStick,
-  Network,
-  Zap
+  Activity
 } from 'lucide-react';
 
 interface CrashSignature {

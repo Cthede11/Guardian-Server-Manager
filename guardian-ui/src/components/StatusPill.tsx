@@ -1,5 +1,4 @@
 import React from 'react';
-import { Badge } from '@/components/ui/badge';
 import type { ServerStatus } from '@/lib/types';
 
 import { Loader2, Play, Square, RotateCcw } from 'lucide-react';
@@ -13,8 +12,9 @@ interface StatusPillProps {
 export const StatusPill: React.FC<StatusPillProps> = React.memo(({ 
   status, 
   className = '', 
-  showIcon = true 
+  showIcon: _showIcon = true 
 }) => {
+  // showIcon is kept for API compatibility but not used since we use CSS pseudo-elements
   const getStatusConfig = (status: ServerStatus) => {
     switch (status) {
       case 'running':
@@ -53,16 +53,14 @@ export const StatusPill: React.FC<StatusPillProps> = React.memo(({
   const config = getStatusConfig(status);
 
   return (
-    <Badge 
-      variant="outline" 
-      className={`${config.className} ${className} flex items-center gap-1`}
+    <div 
+      className={`status-pill ${config.className} ${className}`}
       data-testid="status-pill"
       role="status"
       aria-label={`Server status: ${status}`}
     >
-      {showIcon && config.icon}
       {config.label}
-    </Badge>
+    </div>
   );
 });
 

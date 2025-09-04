@@ -3,9 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
+// import { Label } from '@/components/ui/label';
+// import { Textarea } from '@/components/ui/textarea';
+// import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Key, 
@@ -14,36 +14,22 @@ import {
   Eye, 
   EyeOff, 
   Copy, 
-  Trash2, 
+  // Trash2, 
   Plus, 
   Edit, 
-  Save, 
   X, 
-  Settings, 
   AlertTriangle,
   CheckCircle,
   Info,
   Shield,
-  Database,
   Server,
-  Users,
-  Globe,
   Network,
-  Activity,
-  Clock,
   RefreshCw,
   TestTube,
   Download,
-  Upload,
-  FileText,
   Monitor,
   Zap,
-  Layers,
-  Package,
-  HardDrive,
-  Cloud,
-  Folder,
-  File
+  Layers
 } from 'lucide-react';
 
 interface WorkspaceTokenData {
@@ -136,9 +122,9 @@ export const WorkspaceTokens: React.FC = () => {
     }
   ]);
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
-  const [selectedToken, setSelectedToken] = useState<WorkspaceTokenData | null>(null);
+  // const [isLoading, setIsLoading] = useState(false);
+  // const [hasChanges, setHasChanges] = useState(false);
+  // const [selectedToken, setSelectedToken] = useState<WorkspaceTokenData | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [showToken, setShowToken] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -146,15 +132,15 @@ export const WorkspaceTokens: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
   const fetchData = async () => {
-    setIsLoading(true);
+    // setIsLoading(true);
     try {
       // Mock API call
       await new Promise(resolve => setTimeout(resolve, 1000));
-      setHasChanges(false);
+      // setHasChanges(false);
     } catch (error) {
       console.error('Failed to fetch workspace tokens:', error);
     } finally {
-      setIsLoading(false);
+      // setIsLoading(false);
     }
   };
 
@@ -272,9 +258,9 @@ export const WorkspaceTokens: React.FC = () => {
     }, 1000);
   };
 
-  const handleDeleteToken = (id: string) => {
-    setTokens(prev => prev.filter(token => token.id !== id));
-  };
+  // const handleDeleteToken = (id: string) => {
+  //   setTokens(prev => prev.filter(token => token.id !== id));
+  // };
 
   const handleToggleToken = (id: string) => {
     setTokens(prev => prev.map(token => 
@@ -407,7 +393,7 @@ export const WorkspaceTokens: React.FC = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setSelectedToken(token)}
+                      onClick={() => {/* setSelectedToken(token) */}}
                     >
                       <Edit className="h-4 w-4" />
                     </Button>

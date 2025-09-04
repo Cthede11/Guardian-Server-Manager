@@ -13,14 +13,10 @@ import {
   HardDrive,
   CheckCircle,
   XCircle,
-  AlertTriangle,
   Target,
   Layers,
   Activity,
-  Gauge,
-  Database,
-  Server,
-  Monitor
+  Database
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -53,10 +49,9 @@ export const PregenQueue: React.FC<PregenQueueProps> = ({
   onJobAction,
   onDelete,
   onEdit,
-  className = ''
 }) => {
-  const [sortBy, setSortBy] = useState('createdAt');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [sortBy] = useState('createdAt');
+  const [sortOrder] = useState<'asc' | 'desc'>('desc');
 
   // Filter and sort jobs
   const filteredJobs = jobs
@@ -91,24 +86,25 @@ export const PregenQueue: React.FC<PregenQueueProps> = ({
       }
     });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'queued':
-        return 'text-blue-400';
-      case 'running':
-        return 'text-green-400';
-      case 'paused':
-        return 'text-yellow-400';
-      case 'completed':
-        return 'text-gray-400';
-      case 'failed':
-        return 'text-red-400';
-      case 'cancelled':
-        return 'text-orange-400';
-      default:
-        return 'text-gray-400';
-    }
-  };
+  // Unused function removed
+  // const getStatusColor = (status: string) => {
+  //   switch (status) {
+  //     case 'queued':
+  //       return 'text-blue-400';
+  //     case 'running':
+  //       return 'text-green-400';
+  //     case 'paused':
+  //       return 'text-yellow-400';
+  //     case 'completed':
+  //       return 'text-gray-400';
+  //     case 'failed':
+  //       return 'text-red-400';
+  //     case 'cancelled':
+  //       return 'text-orange-400';
+  //     default:
+  //       return 'text-gray-400';
+  //   }
+  // };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -181,13 +177,14 @@ export const PregenQueue: React.FC<PregenQueueProps> = ({
     }
   };
 
-  const getProgressColor = (progress: number) => {
-    if (progress >= 100) return 'bg-green-500';
-    if (progress >= 75) return 'bg-blue-500';
-    if (progress >= 50) return 'bg-yellow-500';
-    if (progress >= 25) return 'bg-orange-500';
-    return 'bg-red-500';
-  };
+  // Unused function removed
+  // const getProgressColor = (progress: number) => {
+  //   if (progress >= 100) return 'bg-green-500';
+  //   if (progress >= 75) return 'bg-blue-500';
+  //   if (progress >= 50) return 'bg-yellow-500';
+  //   if (progress >= 25) return 'bg-orange-500';
+  //   return 'bg-red-500';
+  // };
 
   if (filteredJobs.length === 0) {
     return (

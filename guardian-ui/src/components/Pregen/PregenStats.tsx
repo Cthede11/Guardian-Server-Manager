@@ -2,21 +2,12 @@ import React from 'react';
 import { 
   Map, 
   Zap,
-  Cpu,
-  HardDrive,
   Clock,
   CheckCircle,
-  XCircle,
-  AlertTriangle,
-  Target,
   Layers,
   Activity,
   Gauge,
   Database,
-  Server,
-  Monitor,
-  TrendingUp,
-  TrendingDown,
   BarChart3
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,9 +26,9 @@ export const PregenStats: React.FC<PregenStatsProps> = ({
   // Calculate statistics
   const totalJobs = jobs.length;
   const runningJobs = jobs.filter(j => j.status === 'running').length;
-  const queuedJobs = jobs.filter(j => j.status === 'queued').length;
+  // const queuedJobs = jobs.filter(j => j.status === 'queued').length;
   const completedJobs = jobs.filter(j => j.status === 'completed').length;
-  const failedJobs = jobs.filter(j => j.status === 'failed').length;
+  // const failedJobs = jobs.filter(j => j.status === 'failed').length;
   const gpuAcceleratedJobs = jobs.filter(j => j.gpuAccelerated).length;
 
   const totalChunks = jobs.reduce((sum, j) => sum + j.totalChunks, 0);
@@ -273,7 +264,7 @@ export const PregenStats: React.FC<PregenStatsProps> = ({
                     }`} />
                     <span className="text-sm capitalize">{status}</span>
                   </div>
-                  <span className="text-sm font-medium">{statusJobs.length}</span>
+                  <span className="text-sm font-medium">{(statusJobs as any[]).length}</span>
                 </div>
               ))}
             </div>
@@ -292,8 +283,8 @@ export const PregenStats: React.FC<PregenStatsProps> = ({
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {Object.entries(jobsByDimension).map(([dimension, dimensionJobs]) => {
-              const dimensionChunks = dimensionJobs.reduce((sum, j) => sum + j.totalChunks, 0);
-              const dimensionCompleted = dimensionJobs.reduce((sum, j) => sum + j.completedChunks, 0);
+              const dimensionChunks = (dimensionJobs as any[]).reduce((sum: number, j: any) => sum + j.totalChunks, 0);
+              const dimensionCompleted = (dimensionJobs as any[]).reduce((sum: number, j: any) => sum + j.completedChunks, 0);
               const dimensionProgress = dimensionChunks > 0 ? (dimensionCompleted / dimensionChunks) * 100 : 0;
               
               return (
@@ -302,7 +293,7 @@ export const PregenStats: React.FC<PregenStatsProps> = ({
                     <Badge className={`text-xs ${getDimensionColor(dimension)}`}>
                       {dimension}
                     </Badge>
-                    <span className="text-sm font-medium">{dimensionJobs.length} jobs</span>
+                    <span className="text-sm font-medium">{(dimensionJobs as any[]).length} jobs</span>
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs">

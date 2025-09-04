@@ -41,10 +41,9 @@ export const RulesTable: React.FC<RulesTableProps> = ({
   onRuleToggle,
   onRuleEdit,
   onRuleDelete,
-  className = ''
 }) => {
-  const [sortBy, setSortBy] = useState('priority');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [sortBy] = useState('priority');
+  const [sortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Filter and sort rules
   const filteredRules = rules

@@ -1,43 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+// Unused imports removed
+// import { Button } from '@/components/ui/button';
+// import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
-  Cpu, 
-  MemoryStick, 
-  Settings as SettingsIcon,
   AlertTriangle,
   CheckCircle,
   Info,
   Zap,
-  HardDrive,
-  Activity,
-  Shield,
-  Network,
-  Monitor,
-  Layers,
-  Database,
-  FileText,
-  Server,
-  Users,
-  Clock,
-  RefreshCw,
   Package,
   Globe,
-  Folder,
-  FolderOpen,
-  File,
-  FolderPlus,
-  FolderMinus,
-  FolderX,
-  FolderCheck,
-  FolderUp,
-  FolderDown
+  Layers,
+  FileText
 } from 'lucide-react';
 
 interface ComposerSettingsData {
@@ -126,19 +105,18 @@ export const ComposerSettings: React.FC = () => {
     enableComposerDebug: false,
     composerDebugLevel: 'none'
   });
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
+  // Loading and changes tracking removed for now
 
   const fetchSettings = async () => {
-    setIsLoading(true);
+    // Loading state removed for now
     try {
       // Mock API call
       await new Promise(resolve => setTimeout(resolve, 1000));
-      setHasChanges(false);
+      // Changes tracking removed for now
     } catch (error) {
       console.error('Failed to fetch composer settings:', error);
     } finally {
-      setIsLoading(false);
+      // Loading state removed for now
     }
   };
 
@@ -148,19 +126,22 @@ export const ComposerSettings: React.FC = () => {
 
   const handleSettingChange = (key: keyof ComposerSettingsData, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }));
-    setHasChanges(true);
+    // Changes tracking removed for now
   };
 
   const getValidationStatus = (key: keyof ComposerSettingsData) => {
     const value = settings[key];
     
+    // Ensure value is a number for comparison
+    const numValue = typeof value === 'number' ? value : 0;
+    
     switch (key) {
       case 'composerTimeout':
-        return value < 1000 || value > 1800000 ? 'error' : 'success';
+        return numValue < 1000 || numValue > 1800000 ? 'error' : 'success';
       case 'composerRetries':
-        return value < 0 || value > 10 ? 'error' : 'success';
+        return numValue < 0 || numValue > 10 ? 'error' : 'success';
       case 'composerProfilingInterval':
-        return value < 1000 || value > 600000 ? 'error' : 'success';
+        return numValue < 1000 || numValue > 600000 ? 'error' : 'success';
       default:
         return 'success';
     }

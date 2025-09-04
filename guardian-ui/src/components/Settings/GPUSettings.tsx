@@ -1,28 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Cpu, 
   MemoryStick, 
-  Settings as SettingsIcon,
   AlertTriangle,
   CheckCircle,
   Info,
   Zap,
-  HardDrive,
   Activity,
-  Shield,
-  Network,
   Monitor,
   Layers,
-  Database,
-  FileText
+  Shield
 } from 'lucide-react';
 
 interface GPUSettingsData {
@@ -145,19 +137,24 @@ export const GPUSettings: React.FC = () => {
     gpuSandboxLevel: 'basic',
     gpuResourceLimits: true
   });
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
+  // Loading state removed for now
+  // const [isLoading, setIsLoading] = useState(false);
+  // Changes tracking removed for now
+  // const [hasChanges, setHasChanges] = useState(false);
 
   const fetchSettings = async () => {
-    setIsLoading(true);
+    // Loading state removed for now
+    // setIsLoading(true);
     try {
       // Mock API call
       await new Promise(resolve => setTimeout(resolve, 1000));
-      setHasChanges(false);
+      // Changes tracking removed for now
+      // setHasChanges(false);
     } catch (error) {
       console.error('Failed to fetch GPU settings:', error);
     } finally {
-      setIsLoading(false);
+      // Loading state removed for now
+      // setIsLoading(false);
     }
   };
 
@@ -167,35 +164,39 @@ export const GPUSettings: React.FC = () => {
 
   const handleSettingChange = (key: keyof GPUSettingsData, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }));
-    setHasChanges(true);
+    // Changes tracking removed for now
+    // setHasChanges(true);
   };
 
   const getValidationStatus = (key: keyof GPUSettingsData) => {
     const value = settings[key];
     
+    // Ensure value is a number for comparison
+    const numValue = typeof value === 'number' ? value : 0;
+    
     switch (key) {
       case 'gpuWorkerPort':
-        return value < 1 || value > 65535 ? 'error' : 'success';
+        return numValue < 1 || numValue > 65535 ? 'error' : 'success';
       case 'gpuThreads':
-        return value < 1 || value > 32 ? 'error' : 'success';
+        return numValue < 1 || numValue > 32 ? 'error' : 'success';
       case 'gpuBatchSize':
-        return value < 1 || value > 10000 ? 'error' : 'success';
+        return numValue < 1 || numValue > 10000 ? 'error' : 'success';
       case 'gpuQueueSize':
-        return value < 1 || value > 10000 ? 'error' : 'success';
+        return numValue < 1 || numValue > 10000 ? 'error' : 'success';
       case 'gpuMaxConcurrent':
-        return value < 1 || value > 16 ? 'error' : 'success';
+        return numValue < 1 || numValue > 16 ? 'error' : 'success';
       case 'gpuMemoryThreshold':
-        return value < 1 || value > 100 ? 'error' : 'success';
+        return numValue < 1 || numValue > 100 ? 'error' : 'success';
       case 'gpuProfilingInterval':
-        return value < 100 || value > 10000 ? 'error' : 'success';
+        return numValue < 100 || numValue > 10000 ? 'error' : 'success';
       case 'cpuFallbackThreshold':
-        return value < 1000 || value > 30000 ? 'error' : 'success';
+        return numValue < 1000 || numValue > 30000 ? 'error' : 'success';
       case 'cpuFallbackTimeout':
-        return value < 1000 || value > 60000 ? 'error' : 'success';
+        return numValue < 1000 || numValue > 60000 ? 'error' : 'success';
       case 'gpuMetricsInterval':
-        return value < 1000 || value > 60000 ? 'error' : 'success';
+        return numValue < 1000 || numValue > 60000 ? 'error' : 'success';
       case 'gpuMetricsRetention':
-        return value < 1 || value > 168 ? 'error' : 'success';
+        return numValue < 1 || numValue > 168 ? 'error' : 'success';
       default:
         return 'success';
     }

@@ -9,11 +9,9 @@ import {
   XCircle, 
   CheckCircle, 
   RefreshCw,
-  Settings,
   Zap,
   Users,
   Activity,
-  HardDrive,
   Cpu,
   Clock,
   ExternalLink

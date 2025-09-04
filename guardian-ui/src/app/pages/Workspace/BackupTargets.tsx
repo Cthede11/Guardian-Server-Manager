@@ -2,50 +2,31 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+// import { Input } from '@/components/ui/input';
+// import { Label } from '@/components/ui/label';
+// import { Textarea } from '@/components/ui/textarea';
+// import { Switch } from '@/components/ui/switch';
+// import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Database, 
   HardDrive, 
   Cloud, 
-  Server, 
-  Settings, 
   AlertTriangle,
   CheckCircle,
   Info,
   Edit,
   Trash2,
-  Save,
   X,
   Plus,
   TestTube,
   RefreshCw,
   Download,
-  Upload,
-  Folder,
-  FolderOpen,
-  File,
-  FileText,
-  Archive,
   Shield,
   Lock,
   Unlock,
-  Eye,
-  EyeOff,
-  Copy,
-  ExternalLink,
   Network,
-  Globe,
-  MapPin,
-  Clock,
-  Activity,
   Zap,
-  Layers,
-  Package,
-  Monitor
+  Package
 } from 'lucide-react';
 
 interface BackupTargetData {
@@ -159,23 +140,23 @@ export const BackupTargets: React.FC = () => {
     }
   ]);
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
-  const [selectedTarget, setSelectedTarget] = useState<BackupTargetData | null>(null);
+  // const [isLoading, setIsLoading] = useState(false);
+  // const [hasChanges, setHasChanges] = useState(false);
+  // const [selectedTarget, setSelectedTarget] = useState<BackupTargetData | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isTesting, setIsTesting] = useState<string | null>(null);
-  const [showCredentials, setShowCredentials] = useState<string | null>(null);
+  // const [showCredentials, setShowCredentials] = useState<string | null>(null);
 
   const fetchData = async () => {
-    setIsLoading(true);
+    // setIsLoading(true);
     try {
       // Mock API call
       await new Promise(resolve => setTimeout(resolve, 1000));
-      setHasChanges(false);
+      // setHasChanges(false);
     } catch (error) {
       console.error('Failed to fetch backup targets:', error);
     } finally {
-      setIsLoading(false);
+      // setIsLoading(false);
     }
   };
 
@@ -371,7 +352,7 @@ export const BackupTargets: React.FC = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setSelectedTarget(target)}
+                      onClick={() => {/* setSelectedTarget(target) */}}
                     >
                       <Edit className="h-4 w-4" />
                     </Button>

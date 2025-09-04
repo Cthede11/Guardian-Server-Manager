@@ -5,19 +5,13 @@ import {
   Target,
   Settings,
   Zap,
-  Cpu,
-  HardDrive,
-  Clock,
   CheckCircle,
   AlertTriangle,
   Plus,
-  Minus,
   Layers,
   Activity,
-  Gauge,
-  Database,
-  Server,
-  Monitor
+  // Gauge,
+  Database
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,7 +22,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Separator } from '@/components/ui/separator';
+// Unused import removed
+// import { Separator } from '@/components/ui/separator';
 
 interface RegionSelectorProps {
   isOpen: boolean;
@@ -41,7 +36,6 @@ export const RegionSelector: React.FC<RegionSelectorProps> = ({
   isOpen,
   onClose,
   onCreate,
-  className = ''
 }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [isCreating, setIsCreating] = useState(false);
@@ -154,10 +148,11 @@ export const RegionSelector: React.FC<RegionSelectorProps> = ({
     return dim?.icon || <Map className="h-4 w-4" />;
   };
 
-  const getDimensionDescription = (dimension: string) => {
-    const dim = dimensions.find(d => d.value === dimension);
-    return dim?.description || 'Main world dimension';
-  };
+  // Unused function removed
+  // const getDimensionDescription = (dimension: string) => {
+  //   const dim = dimensions.find(d => d.value === dimension);
+  //   return dim?.description || 'Main world dimension';
+  // };
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>

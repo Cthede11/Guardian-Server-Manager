@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+// Unused import removed
+// import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { 
   Server, 
   Users, 
@@ -47,7 +48,7 @@ export const ShardingTopology: React.FC = () => {
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
+  const [canvasSize] = useState({ width: 800, height: 600 });
 
   const fetchTopology = async () => {
     setIsLoading(true);

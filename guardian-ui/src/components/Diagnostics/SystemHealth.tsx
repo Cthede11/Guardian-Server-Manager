@@ -16,7 +16,6 @@ import {
   RefreshCw,
   TrendingUp,
   TrendingDown,
-  Clock,
   Thermometer,
   Database,
   Server
@@ -165,14 +164,14 @@ export const SystemHealth: React.FC = () => {
     }
   };
 
-  const getStatusColor = (status: SystemMetric['status']) => {
-    switch (status) {
-      case 'healthy': return 'text-green-500';
-      case 'warning': return 'text-yellow-500';
-      case 'critical': return 'text-red-500';
-      default: return 'text-gray-500';
-    }
-  };
+  // const getStatusColor = (status: SystemMetric['status']) => {
+  //   switch (status) {
+  //     case 'healthy': return 'text-green-500';
+  //     case 'warning': return 'text-yellow-500';
+  //     case 'critical': return 'text-red-500';
+  //     default: return 'text-gray-500';
+  //   }
+  // };
 
   const getTrendIcon = (trend: SystemMetric['trend']) => {
     switch (trend) {

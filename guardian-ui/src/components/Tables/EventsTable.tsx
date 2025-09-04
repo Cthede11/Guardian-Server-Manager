@@ -10,12 +10,10 @@ import {
   Clock,
   Timer,
   Repeat,
-  AlertTriangle,
   CheckCircle,
   XCircle,
   Zap,
   Server,
-  Users,
   HardDrive,
   Settings,
   Target,
@@ -51,10 +49,9 @@ export const EventsTable: React.FC<EventsTableProps> = ({
   onEventAction,
   onDelete,
   onEdit,
-  className = ''
 }) => {
-  const [sortBy, setSortBy] = useState('scheduledAt');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [sortBy] = useState('scheduledAt');
+  const [sortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Filter and sort events
   const filteredEvents = events
@@ -86,24 +83,25 @@ export const EventsTable: React.FC<EventsTableProps> = ({
       }
     });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'scheduled':
-        return 'text-blue-400';
-      case 'running':
-        return 'text-green-400';
-      case 'completed':
-        return 'text-gray-400';
-      case 'failed':
-        return 'text-red-400';
-      case 'cancelled':
-        return 'text-yellow-400';
-      case 'paused':
-        return 'text-orange-400';
-      default:
-        return 'text-gray-400';
-    }
-  };
+  // Unused function removed
+  // const getStatusColor = (status: string) => {
+  //   switch (status) {
+  //     case 'scheduled':
+  //       return 'text-blue-400';
+  //     case 'running':
+  //       return 'text-green-400';
+  //     case 'completed':
+  //       return 'text-gray-400';
+  //     case 'failed':
+  //       return 'text-red-400';
+  //     case 'cancelled':
+  //       return 'text-yellow-400';
+  //     case 'paused':
+  //       return 'text-orange-400';
+  //     default:
+  //       return 'text-gray-400';
+  //   }
+  // };
 
   const getStatusIcon = (status: string) => {
     switch (status) {

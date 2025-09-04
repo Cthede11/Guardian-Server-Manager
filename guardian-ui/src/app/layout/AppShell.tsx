@@ -8,7 +8,7 @@ import { Toaster } from '@/components/ui/toaster';
 export const AppShell: React.FC = () => {
   return (
     <ErrorBoundary>
-      <div className="flex h-screen bg-background">
+      <div className="flex h-screen bg-background text-foreground">
         {/* Left Sidebar */}
         <Sidebar />
         
@@ -21,8 +21,10 @@ export const AppShell: React.FC = () => {
           <ServerTabs />
           
           {/* Content */}
-          <main className="flex-1 overflow-auto">
-            <Outlet />
+          <main className="flex-1 overflow-auto p-6">
+            <div className="animate-fade-in-up">
+              <Outlet />
+            </div>
           </main>
         </div>
       </div>

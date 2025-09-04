@@ -355,17 +355,7 @@ export const useRealtimeConnection = () => {
 export const useRealtimeServer = (serverId: string) => {
   const { 
     serverData, 
-    updateConsole, 
-    updateMetrics, 
-    updateHealth, 
-    updatePlayers, 
-    updateWorld, 
-    updatePerformance, 
-    updateBackups, 
-    updateEvents, 
-    updatePregen, 
-    updateMods, 
-    updateDiagnostics,
+    
     clearConsole,
     getHealthScore,
     getPerformanceScore
@@ -442,17 +432,17 @@ export const useRealtimeSubscription = (serverId: string) => {
   
   // Set up subscriptions
   const unsubscribe = manager.subscribeToAllServerData({
-    console: updateConsole,
-    metrics: updateMetrics,
-    health: updateHealth,
-    players: updatePlayers,
-    world: updateWorld,
-    performance: updatePerformance,
-    backups: updateBackups,
-    events: updateEvents,
-    pregen: updatePregen,
-    mods: updateMods,
-    diagnostics: updateDiagnostics,
+    console: (message: ConsoleMessage) => updateConsole(serverId, message),
+    metrics: (metrics: RealtimeMetrics) => updateMetrics(serverId, metrics),
+    health: (health: RealtimeHealth) => updateHealth(serverId, health),
+    players: (players: Player[]) => updatePlayers(serverId, players),
+    world: (world: RealtimeWorldData) => updateWorld(serverId, world),
+    performance: (performance: RealtimePerformanceData) => updatePerformance(serverId, performance),
+    backups: (backups: RealtimeBackupData) => updateBackups(serverId, backups),
+    events: (events: RealtimeEventData) => updateEvents(serverId, events),
+    pregen: (pregen: RealtimePregenData) => updatePregen(serverId, pregen),
+    mods: (mods: RealtimeModsData) => updateMods(serverId, mods),
+    diagnostics: (diagnostics: RealtimeDiagnosticsData) => updateDiagnostics(serverId, diagnostics),
   });
   
   return {
@@ -468,19 +458,13 @@ export const useRealtimeGlobalSubscription = () => {
   const manager = createRealtimeManager();
   
   // Set up global subscriptions
-  const unsubscribe = manager.subscribeToAllServerData({
-    // Global subscriptions would go here
-  });
-  
-  // Add global subscriptions
-  const unsubscribeServers = manager.subscribe('servers', updateServers);
-  const unsubscribeSharding = manager.subscribe('sharding', updateSharding);
-  const unsubscribeWorkspace = manager.subscribe('workspace', updateWorkspace);
+  const unsubscribeServers = manager.subscribeToServers(updateServers);
+  const unsubscribeSharding = manager.subscribeToSharding(updateSharding);
+  const unsubscribeWorkspace = manager.subscribeToWorkspace(updateWorkspace);
   
   return {
     manager,
     unsubscribe: () => {
-      unsubscribe();
       unsubscribeServers();
       unsubscribeSharding();
       unsubscribeWorkspace();

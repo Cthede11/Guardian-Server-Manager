@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,7 +10,6 @@ import {
   RefreshCw, 
   Settings,
   Activity,
-  Clock,
   Server,
   Globe,
   Zap,
@@ -26,7 +25,7 @@ interface ConnectionStatusProps {
 }
 
 export const RealtimeConnectionStatus: React.FC<ConnectionStatusProps> = ({
-  showDetails = false,
+  // showDetails = false,
   compact = false,
   onReconnect
 }) => {
@@ -258,7 +257,7 @@ export const RealtimeConnectionStatus: React.FC<ConnectionStatusProps> = ({
 
 // Compact version for headers
 export const RealtimeConnectionBadge: React.FC = () => {
-  const { isConnected, connectionType, status } = useRealtimeConnection();
+  const { status } = useRealtimeConnection();
   
   const getStatusColor = () => {
     switch (status) {
@@ -302,7 +301,7 @@ export const RealtimeConnectionBadge: React.FC = () => {
 
 // Connection indicator for status bars
 export const RealtimeConnectionIndicator: React.FC = () => {
-  const { isConnected, connectionType } = useRealtimeConnection();
+  const { isConnected } = useRealtimeConnection();
   
   return (
     <div className="flex items-center space-x-1">

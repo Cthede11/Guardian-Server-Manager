@@ -1,5 +1,5 @@
 import React from 'react';
-import { SkeletonLoader, ServerCardSkeleton, PlayerRowSkeleton, StatCardSkeleton, ChartSkeleton } from './SkeletonLoader';
+import { ServerCardSkeleton, PlayerRowSkeleton, StatCardSkeleton, ChartSkeleton } from './SkeletonLoader';
 import { LoadingEmptyState } from './EmptyState';
 import { cn } from '@/lib/utils';
 

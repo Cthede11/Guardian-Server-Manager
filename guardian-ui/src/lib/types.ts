@@ -171,6 +171,31 @@ export const ShardingTopologySchema = z.object({
 });
 export type ShardingTopology = z.infer<typeof ShardingTopologySchema>;
 
+// Shard Assignment types
+export const ShardAssignmentSchema = z.object({
+  id: z.string(),
+  shardId: z.string(),
+  serverId: z.string(),
+  dimensions: z.array(z.string()),
+  playerCount: z.number(),
+  status: z.enum(['active', 'inactive', 'error']),
+});
+export type ShardAssignment = z.infer<typeof ShardAssignmentSchema>;
+
+// Crash Signature types
+export const CrashSignatureSchema = z.object({
+  id: z.string(),
+  pattern: z.string(),
+  severity: z.enum(['low', 'medium', 'high', 'critical']),
+  description: z.string(),
+  occurrences: z.number(),
+  lastSeen: z.string(),
+});
+export type CrashSignature = z.infer<typeof CrashSignatureSchema>;
+
+// Mod types (alias for ModInfo)
+export type Mod = ModInfo;
+
 // Settings types
 export const ServerSettingsSchema = z.object({
   general: z.object({

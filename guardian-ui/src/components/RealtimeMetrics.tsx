@@ -4,18 +4,15 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { 
   Activity, 
-  Cpu, 
-  Memory, 
   Users, 
-  HardDrive, 
   Zap, 
-  Clock, 
   TrendingUp, 
   TrendingDown, 
   Minus,
   AlertTriangle,
   CheckCircle,
-  Info
+  Info,
+  MemoryStick as Memory
 } from 'lucide-react';
 import { useRealtimeServer } from '@/store/realtime';
 import { realtimeHelpers } from '@/lib/realtime';
@@ -31,7 +28,7 @@ export const RealtimeMetrics: React.FC<RealtimeMetricsProps> = ({
   serverId,
   showDetails = false,
   compact = false,
-  refreshInterval = 1000
+  // refreshInterval = 1000 // TODO: Use this for auto-refresh functionality
 }) => {
   const { 
     metrics, 
@@ -356,7 +353,7 @@ export const RealtimeMetrics: React.FC<RealtimeMetricsProps> = ({
 
 // Compact metrics display for headers
 export const RealtimeMetricsBadge: React.FC<{ serverId: string }> = ({ serverId }) => {
-  const { metrics, performanceStatus } = useRealtimeServer(serverId);
+  const { metrics, performanceStatus: _performanceStatus } = useRealtimeServer(serverId);
   
   if (!metrics) {
     return (
@@ -376,7 +373,7 @@ export const RealtimeMetricsBadge: React.FC<{ serverId: string }> = ({ serverId 
 };
 
 // Metrics trend indicator
-export const RealtimeMetricsTrend: React.FC<{ serverId: string; metric: 'tps' | 'memory' | 'players' }> = ({ 
+export const RealtimeMetricsTrend: React.FC<{ serverId: string; metric: 'tps' | 'heapMb' | 'playersOnline' }> = ({ 
   serverId, 
   metric 
 }) => {
@@ -386,7 +383,7 @@ export const RealtimeMetricsTrend: React.FC<{ serverId: string; metric: 'tps' | 
 
   useEffect(() => {
     if (metrics) {
-      const currentValue = metrics[metric];
+      const currentValue = metrics[metric as keyof typeof metrics] as number;
       
       if (previousValue !== null) {
         if (currentValue > previousValue) {

@@ -3,44 +3,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
+// import { Label } from '@/components/ui/label';
+// import { Textarea } from '@/components/ui/textarea';
+// import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Users, 
   UserPlus, 
-  UserMinus, 
+  // UserMinus, 
   Shield, 
-  Crown, 
   User, 
-  Settings, 
   AlertTriangle,
   CheckCircle,
   Info,
   Edit,
   Trash2,
-  Save,
   X,
   Search,
-  Filter,
-  MoreHorizontal,
   Lock,
   Unlock,
-  Eye,
-  EyeOff,
-  Copy,
-  Mail,
-  Phone,
-  Calendar,
-  MapPin,
-  Globe,
-  Key,
-  Database,
-  Server,
-  Activity,
-  Clock,
-  RefreshCw
+  Clock
 } from 'lucide-react';
 
 interface UserData {
@@ -173,10 +155,10 @@ export const UsersRoles: React.FC = () => {
     }
   ]);
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
-  const [selectedRole, setSelectedRole] = useState<RoleData | null>(null);
+  // const [isLoading, setIsLoading] = useState(false);
+  // const [hasChanges, setHasChanges] = useState(false);
+  // const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
+  // const [selectedRole, setSelectedRole] = useState<RoleData | null>(null);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [isCreatingRole, setIsCreatingRole] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -184,15 +166,15 @@ export const UsersRoles: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
   const fetchData = async () => {
-    setIsLoading(true);
+    // setIsLoading(true);
     try {
       // Mock API call
       await new Promise(resolve => setTimeout(resolve, 1000));
-      setHasChanges(false);
+      // setHasChanges(false);
     } catch (error) {
       console.error('Failed to fetch users and roles:', error);
     } finally {
-      setIsLoading(false);
+      // setIsLoading(false);
     }
   };
 
@@ -415,7 +397,7 @@ export const UsersRoles: React.FC = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setSelectedUser(user)}
+                    onClick={() => {/* setSelectedUser(user) */}}
                   >
                     <Edit className="h-4 w-4" />
                   </Button>
@@ -475,7 +457,7 @@ export const UsersRoles: React.FC = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setSelectedRole(role)}
+                      onClick={() => {/* setSelectedRole(role) */}}
                     >
                       <Edit className="h-3 w-3" />
                     </Button>

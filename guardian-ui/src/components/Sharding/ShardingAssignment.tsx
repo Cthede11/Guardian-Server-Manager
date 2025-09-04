@@ -2,17 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
-  Users, 
   ArrowRight, 
   AlertTriangle, 
   CheckCircle, 
   XCircle,
   RefreshCw,
-  Settings,
   Target,
   Loader2
 } from 'lucide-react';
@@ -169,15 +166,16 @@ export const ShardingAssignment: React.FC = () => {
     }
   };
 
-  const getStatusColor = (status: PlayerAssignment['status']) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'in_progress': return 'bg-blue-100 text-blue-800';
-      case 'completed': return 'bg-green-100 text-green-800';
-      case 'failed': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
+  // Unused function removed
+  // const getStatusColor = (status: PlayerAssignment['status']) => {
+  //   switch (status) {
+  //     case 'pending': return 'bg-yellow-100 text-yellow-800';
+  //     case 'in_progress': return 'bg-blue-100 text-blue-800';
+  //     case 'completed': return 'bg-green-100 text-green-800';
+  //     case 'failed': return 'bg-red-100 text-red-800';
+  //     default: return 'bg-gray-100 text-gray-800';
+  //   }
+  // };
 
   const getPriorityColor = (priority: PlayerAssignment['priority']) => {
     switch (priority) {
@@ -192,17 +190,19 @@ export const ShardingAssignment: React.FC = () => {
     return shards.find(s => s.id === shardId)?.name || shardId;
   };
 
-  const getShardStatus = (shardId: string) => {
-    return shards.find(s => s.id === shardId)?.status || 'offline';
-  };
+  // Unused function removed
+  // const getShardStatus = (shardId: string) => {
+  //   return shards.find(s => s.id === shardId)?.status || 'offline';
+  // };
 
-  const handlePlayerSelect = (playerId: string) => {
-    setSelectedPlayers(prev => 
-      prev.includes(playerId) 
-        ? prev.filter(id => id !== playerId)
-        : [...prev, playerId]
-    );
-  };
+  // Unused function removed
+  // const handlePlayerSelect = (playerId: string) => {
+  //   setSelectedPlayers(prev => 
+  //     prev.includes(playerId) 
+  //       ? prev.filter(id => id !== playerId)
+  //       : [...prev, playerId]
+  //   );
+  // };
 
   const handleBulkAssign = async () => {
     if (selectedPlayers.length === 0 || !targetShard) return;

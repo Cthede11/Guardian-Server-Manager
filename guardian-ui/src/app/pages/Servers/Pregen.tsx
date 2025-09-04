@@ -8,27 +8,27 @@ import {
   Square,
   RefreshCw,
   Search,
-  Filter,
+  // Filter,
   Settings,
   Zap,
   Cpu,
-  HardDrive,
+  // HardDrive,
   Clock,
   CheckCircle,
-  AlertTriangle,
-  XCircle,
-  MoreHorizontal,
-  Edit,
-  Trash2,
-  Download,
-  Upload,
-  Target,
+  // AlertTriangle,
+  // XCircle,
+  // MoreHorizontal,
+  // Edit,
+  // Trash2,
+  // Download,
+  // Upload,
+  // Target,
   Layers,
   Activity,
   Gauge,
-  Database,
-  Server,
-  Monitor
+  // Database,
+  // Server,
+  // Monitor
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,13 +36,13 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger,
-  DropdownMenuSeparator
-} from '@/components/ui/dropdown-menu';
+// import { 
+//   DropdownMenu, 
+//   DropdownMenuContent, 
+//   DropdownMenuItem, 
+//   DropdownMenuTrigger,
+//   DropdownMenuSeparator
+// } from '@/components/ui/dropdown-menu';
 import { useServersStore } from '@/store/servers';
 import { PregenQueue } from '@/components/Pregen/PregenQueue';
 import { RegionSelector } from '@/components/Pregen/RegionSelector';
@@ -62,7 +62,7 @@ export const Pregen: React.FC<PregenPageProps> = ({ className = '' }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterDimension, setFilterDimension] = useState('all');
-  const [selectedRegion, setSelectedRegion] = useState<any>(null);
+  // const [selectedRegion, setSelectedRegion] = useState<any>(null);
   const [regionSelectorOpen, setRegionSelectorOpen] = useState(false);
 
   // Fetch pregen jobs data
@@ -205,24 +205,24 @@ export const Pregen: React.FC<PregenPageProps> = ({ className = '' }) => {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'queued':
-        return 'text-blue-400';
-      case 'running':
-        return 'text-green-400';
-      case 'paused':
-        return 'text-yellow-400';
-      case 'completed':
-        return 'text-gray-400';
-      case 'failed':
-        return 'text-red-400';
-      case 'cancelled':
-        return 'text-orange-400';
-      default:
-        return 'text-gray-400';
-    }
-  };
+  // const getStatusColor = (status: string) => {
+  //   switch (status) {
+  //     case 'queued':
+  //       return 'text-blue-400';
+  //     case 'running':
+  //       return 'text-green-400';
+  //     case 'paused':
+  //       return 'text-yellow-400';
+  //     case 'completed':
+  //       return 'text-gray-400';
+  //     case 'failed':
+  //       return 'text-red-400';
+  //     case 'cancelled':
+  //       return 'text-orange-400';
+  //     default:
+  //       return 'text-gray-400';
+  //   }
+  // };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -235,7 +235,7 @@ export const Pregen: React.FC<PregenPageProps> = ({ className = '' }) => {
       case 'completed':
         return <CheckCircle className="h-4 w-4" />;
       case 'failed':
-        return <XCircle className="h-4 w-4" />;
+        return <CheckCircle className="h-4 w-4" />;
       case 'cancelled':
         return <Square className="h-4 w-4" />;
       default:
@@ -256,34 +256,34 @@ export const Pregen: React.FC<PregenPageProps> = ({ className = '' }) => {
     }
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'low':
-        return 'bg-gray-500/20 text-gray-400';
-      case 'normal':
-        return 'bg-blue-500/20 text-blue-400';
-      case 'high':
-        return 'bg-yellow-500/20 text-yellow-400';
-      case 'critical':
-        return 'bg-red-500/20 text-red-400';
-      default:
-        return 'bg-gray-500/20 text-gray-400';
-    }
-  };
+  // const getPriorityColor = (priority: string) => {
+  //   switch (priority) {
+  //     case 'low':
+  //       return 'bg-gray-500/20 text-gray-400';
+  //     case 'normal':
+  //       return 'bg-blue-500/20 text-blue-400';
+  //     case 'high':
+  //       return 'bg-yellow-500/20 text-yellow-400';
+  //     case 'critical':
+  //       return 'bg-red-500/20 text-red-400';
+  //     default:
+  //       return 'bg-gray-500/20 text-gray-400';
+  //   }
+  // };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
-  };
+  // const formatDate = (timestamp: number) => {
+  //   return new Date(timestamp).toLocaleString();
+  // };
 
-  const formatDuration = (minutes: number) => {
-    if (minutes < 60) {
-      return `${minutes}m`;
-    } else {
-      const hours = Math.floor(minutes / 60);
-      const mins = minutes % 60;
-      return `${hours}h ${mins}m`;
-    }
-  };
+  // const formatDuration = (minutes: number) => {
+  //   if (minutes < 60) {
+  //     return `${minutes}m`;
+  //   } else {
+  //     const hours = Math.floor(minutes / 60);
+  //     const mins = minutes % 60;
+  //     return `${hours}h ${mins}m`;
+  //   }
+  // };
 
   const formatChunks = (chunks: number) => {
     if (chunks >= 1000000) {

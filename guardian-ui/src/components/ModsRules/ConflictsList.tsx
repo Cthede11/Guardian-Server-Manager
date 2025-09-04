@@ -32,7 +32,7 @@ export const ConflictsList: React.FC<ConflictsListProps> = ({
   conflicts,
   onResolve,
   onIgnore,
-  className = ''
+  // className = ''
 }) => {
   const getSeverityColor = (severity: string) => {
     switch (severity) {

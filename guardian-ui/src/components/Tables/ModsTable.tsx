@@ -3,7 +3,6 @@ import {
   Package, 
   Settings, 
   ToggleLeft, 
-  ToggleRight,
   MoreHorizontal,
   Download,
   Upload,
@@ -41,10 +40,9 @@ export const ModsTable: React.FC<ModsTableProps> = ({
   filterType,
   onModToggle,
   onModConfigure,
-  className = ''
 }) => {
-  const [sortBy, setSortBy] = useState('name');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [sortBy] = useState('name');
+  const [sortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Filter and sort mods
   const filteredMods = mods
@@ -75,18 +73,19 @@ export const ModsTable: React.FC<ModsTableProps> = ({
       }
     });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'enabled':
-        return 'text-green-400';
-      case 'disabled':
-        return 'text-gray-400';
-      case 'error':
-        return 'text-red-400';
-      default:
-        return 'text-gray-400';
-    }
-  };
+  // Unused function removed
+  // const getStatusColor = (status: string) => {
+  //   switch (status) {
+  //     case 'enabled':
+  //       return 'text-green-400';
+  //     case 'disabled':
+  //       return 'text-gray-400';
+  //     case 'error':
+  //       return 'text-red-400';
+  //     default:
+  //       return 'text-gray-400';
+  //   }
+  // };
 
   const getCategoryColor = (category: string) => {
     switch (category) {

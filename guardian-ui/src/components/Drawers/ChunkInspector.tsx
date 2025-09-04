@@ -5,11 +5,10 @@ import {
   Thermometer, 
   Users, 
   Grid3X3, 
-  Clock,
   MapPin,
   AlertTriangle,
   Activity,
-  Database,
+  // Database,
   Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';

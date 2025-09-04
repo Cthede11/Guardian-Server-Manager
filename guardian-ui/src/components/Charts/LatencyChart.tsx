@@ -2,31 +2,31 @@ import React, { useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useMetrics } from '@/store/live';
 
-interface PhaseChartProps {
+interface LatencyChartProps {
   serverId: string;
   className?: string;
 }
 
-export const PhaseChart: React.FC<PhaseChartProps> = React.memo(({ serverId, className = '' }) => {
+export const LatencyChart: React.FC<LatencyChartProps> = React.memo(({ serverId, className = '' }) => {
   const metrics = useMetrics(serverId);
   
   // Memoize chart data with time window (last 120 seconds)
   const chartData = useMemo(() => {
-    if (!metrics?.tickP95) return [];
+    if (!metrics?.gpuMs) return [];
     
     const now = Date.now();
     const timeWindow = 120000; // 2 minutes
     const cutoff = now - timeWindow;
     
-    return metrics.tickP95
+    return metrics.gpuMs
       .filter(point => point.timestamp > cutoff)
       .map(point => ({
         time: new Date(point.timestamp).toLocaleTimeString(),
-        tickP95: point.value,
+        gpuMs: point.value,
         timestamp: point.timestamp,
       }))
       .slice(-120); // Keep max 120 points
-  }, [metrics?.tickP95]);
+  }, [metrics?.gpuMs]);
 
   // Memoize chart configuration
   const chartConfig = useMemo(() => ({
@@ -37,9 +37,9 @@ export const PhaseChart: React.FC<PhaseChartProps> = React.memo(({ serverId, cla
   if (!chartData.length) {
     return (
       <div className={`panel p-4 ${className}`}>
-        <h3 className="text-lg font-semibold mb-4">Tick Phase (P95)</h3>
+        <h3 className="text-lg font-semibold mb-4">GPU Latency</h3>
         <div className="h-64 flex items-center justify-center text-muted-foreground">
-          No tick phase data available
+          No GPU latency data available
         </div>
       </div>
     );
@@ -47,7 +47,7 @@ export const PhaseChart: React.FC<PhaseChartProps> = React.memo(({ serverId, cla
 
   return (
     <div className={`panel p-4 ${className}`}>
-      <h3 className="text-lg font-semibold mb-4">Tick Phase (P95)</h3>
+      <h3 className="text-lg font-semibold mb-4">GPU Latency</h3>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart {...chartConfig}>
@@ -72,15 +72,15 @@ export const PhaseChart: React.FC<PhaseChartProps> = React.memo(({ serverId, cla
                 color: 'hsl(220 14% 92%)',
               }}
               labelStyle={{ color: 'hsl(220 14% 92%)' }}
-              formatter={(value: number) => [`${value.toFixed(2)} ms`, 'Tick P95']}
+              formatter={(value: number) => [`${value.toFixed(2)} ms`, 'GPU Latency']}
             />
             <Line
               type="monotone"
-              dataKey="tickP95"
-              stroke="hsl(38 92% 50%)"
+              dataKey="gpuMs"
+              stroke="hsl(0 84% 60%)"
               strokeWidth={2}
               dot={false}
-              activeDot={{ r: 4, fill: 'hsl(38 92% 50%)' }}
+              activeDot={{ r: 4, fill: 'hsl(0 84% 60%)' }}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -89,6 +89,6 @@ export const PhaseChart: React.FC<PhaseChartProps> = React.memo(({ serverId, cla
   );
 });
 
-PhaseChart.displayName = 'PhaseChart';
+LatencyChart.displayName = 'LatencyChart';
 
-export default PhaseChart;
+export default LatencyChart;

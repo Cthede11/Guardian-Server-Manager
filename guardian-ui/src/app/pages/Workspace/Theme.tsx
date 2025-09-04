@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+// import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,43 +13,21 @@ import {
   Moon, 
   Monitor, 
   Settings, 
-  AlertTriangle,
-  CheckCircle,
-  Info,
   Save,
   RefreshCw,
-  Eye,
   Download,
   Upload,
-  FileText,
   Brush,
-  Paintbrush,
   Layers,
   Zap,
-  Globe,
-  User,
   Shield,
-  Database,
-  Server,
-  Network,
-  Activity,
-  Clock,
-  Star,
   Heart,
-  Sparkles,
-  Rainbow,
   Droplets,
   Flame,
-  Snowflake,
   Leaf,
   Flower,
-  Mountain,
   Waves,
-  Cloud,
-  Sun as SunIcon,
-  Moon as MoonIcon,
-  Sunrise,
-  Sunset
+  Sun as SunIcon
 } from 'lucide-react';
 
 interface ThemeSettings {
@@ -175,7 +153,7 @@ export const Theme: React.FC = () => {
   
   const [isLoading, setIsLoading] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  const [previewMode, setPreviewMode] = useState(false);
+  // const [previewMode, setPreviewMode] = useState(false); // Commented out
 
   const fetchSettings = async () => {
     setIsLoading(true);
@@ -203,36 +181,113 @@ export const Theme: React.FC = () => {
     setSettings(prev => ({
       ...prev,
       [parentKey]: {
-        ...prev[parentKey],
+        ...(prev[parentKey] as any),
         [childKey]: value
       }
     }));
     setHasChanges(true);
   };
 
-  const getThemeIcon = (theme: string) => {
-    switch (theme) {
-      case 'light': return <Sun className="h-4 w-4" />;
-      case 'dark': return <Moon className="h-4 w-4" />;
-      case 'auto': return <Monitor className="h-4 w-4" />;
-      default: return <Palette className="h-4 w-4" />;
+  const handleSave = async () => {
+    setIsLoading(true);
+    try {
+      // Mock API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setHasChanges(false);
+    } catch (error) {
+      console.error('Failed to save theme settings:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const getColorSchemeIcon = (scheme: string) => {
-    switch (scheme) {
-      case 'default': return <Palette className="h-4 w-4" />;
-      case 'blue': return <Droplets className="h-4 w-4" />;
-      case 'green': return <Leaf className="h-4 w-4" />;
-      case 'purple': return <Flower className="h-4 w-4" />;
-      case 'orange': return <SunIcon className="h-4 w-4" />;
-      case 'red': return <Flame className="h-4 w-4" />;
-      case 'pink': return <Heart className="h-4 w-4" />;
-      case 'cyan': return <Waves className="h-4 w-4" />;
-      case 'custom': return <Brush className="h-4 w-4" />;
-      default: return <Palette className="h-4 w-4" />;
-    }
+  const handleReset = () => {
+    setSettings({
+      theme: 'dark',
+      colorScheme: 'default',
+      customColors: {
+        primary: '#00d4aa',
+        secondary: '#6366f1',
+        accent: '#f59e0b',
+        background: '#0a0a0a',
+        foreground: '#f8fafc',
+        muted: '#1a1a1a',
+        border: '#1e293b',
+        input: '#1a1a1a',
+        ring: '#00d4aa',
+      },
+      layout: {
+        sidebarWidth: 256,
+        headerHeight: 80,
+        borderRadius: 12,
+        spacing: 8,
+        fontSize: 14,
+        lineHeight: 1.6,
+      },
+      preferences: {
+        compactMode: false,
+        showAnimations: true,
+        showTooltips: true,
+        showNotifications: true,
+        showStatusIndicators: true,
+        showProgressBars: true,
+        showBreadcrumbs: true,
+        showSearchSuggestions: true,
+      },
+      accessibility: {
+        highContrast: false,
+        reducedMotion: false,
+        largeText: false,
+        screenReader: false,
+        keyboardNavigation: true,
+        focusIndicators: true,
+      },
+      advanced: {
+        customCSS: '',
+        customJS: '',
+        enableDevTools: false,
+        enableDebugMode: false,
+        enablePerformanceMode: false
+      }
+    });
+    setHasChanges(false);
   };
+
+  const handleExport = () => {
+    const dataStr = JSON.stringify(settings, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    const exportFileDefaultName = 'guardian-theme-settings.json';
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+  };
+
+  const handleImport = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const importedSettings = JSON.parse(e.target?.result as string);
+            setSettings(importedSettings);
+            setHasChanges(true);
+          } catch (error) {
+            console.error('Failed to import theme settings:', error);
+          }
+        };
+        reader.readAsText(file);
+      }
+    };
+    input.click();
+  };
+
+  // const getThemeIcon = (theme: string) => { /* ... */ }; // Commented out
+  // const getColorSchemeIcon = (scheme: string) => { /* ... */ }; // Commented out
 
   const getColorSchemeColor = (scheme: string) => {
     switch (scheme) {
@@ -331,15 +386,45 @@ export const Theme: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col space-y-6">
+    <div className="h-full flex flex-col space-y-8 p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl font-bold gradient-text">Theme Settings</h1>
+          <p className="text-muted-foreground mt-3 text-lg">
+            Customize the appearance and behavior of your Guardian interface
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <Button variant="outline" onClick={handleReset} className="shadow-sm hover:shadow-md transition-all duration-200">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Reset
+          </Button>
+          <Button variant="outline" onClick={handleExport} className="shadow-sm hover:shadow-md transition-all duration-200">
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+          <Button variant="outline" onClick={handleImport} className="shadow-sm hover:shadow-md transition-all duration-200">
+            <Upload className="h-4 w-4 mr-2" />
+            Import
+          </Button>
+          <Button onClick={handleSave} disabled={!hasChanges} className="bg-primary hover:bg-primary/90 shadow-md hover:shadow-lg transition-all duration-200">
+            <Save className="h-4 w-4 mr-2" />
+            Save Changes
+          </Button>
+        </div>
+      </div>
+
       {/* Theme Selection */}
-      <Card>
+      <Card className="modern-card">
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Palette className="h-5 w-5" />
+          <CardTitle className="flex items-center space-x-3 text-xl">
+            <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
+              <Palette className="h-5 w-5 text-primary" />
+            </div>
             <span>Theme Selection</span>
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-base">
             Choose your preferred theme and color scheme
           </CardDescription>
         </CardHeader>
@@ -496,13 +581,15 @@ export const Theme: React.FC = () => {
       )}
 
       {/* Layout Settings */}
-      <Card>
+      <Card className="modern-card">
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Layers className="h-5 w-5" />
+          <CardTitle className="flex items-center space-x-3 text-xl">
+            <div className="w-8 h-8 bg-secondary/10 rounded-lg flex items-center justify-center">
+              <Layers className="h-5 w-5 text-secondary" />
+            </div>
             <span>Layout Settings</span>
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-base">
             Customize the layout and spacing
           </CardDescription>
         </CardHeader>
@@ -585,13 +672,15 @@ export const Theme: React.FC = () => {
       </Card>
 
       {/* UI Preferences */}
-      <Card>
+      <Card className="modern-card">
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Settings className="h-5 w-5" />
+          <CardTitle className="flex items-center space-x-3 text-xl">
+            <div className="w-8 h-8 bg-warning/10 rounded-lg flex items-center justify-center">
+              <Settings className="h-5 w-5 text-warning" />
+            </div>
             <span>UI Preferences</span>
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-base">
             Configure interface behavior and display options
           </CardDescription>
         </CardHeader>
@@ -701,13 +790,15 @@ export const Theme: React.FC = () => {
       </Card>
 
       {/* Accessibility */}
-      <Card>
+      <Card className="modern-card">
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Shield className="h-5 w-5" />
+          <CardTitle className="flex items-center space-x-3 text-xl">
+            <div className="w-8 h-8 bg-success/10 rounded-lg flex items-center justify-center">
+              <Shield className="h-5 w-5 text-success" />
+            </div>
             <span>Accessibility</span>
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-base">
             Configure accessibility features and options
           </CardDescription>
         </CardHeader>

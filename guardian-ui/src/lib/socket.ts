@@ -1,10 +1,31 @@
 import { io, Socket } from 'socket.io-client';
+import { liveStore } from '../store/live';
+import { useServersStore } from '../store/servers';
 
 export type SocketEvent = {
   type: string;
   data: any;
   timestamp: string;
 };
+
+// rAF batcher for preventing re-render storms
+let updateQueue: Array<() => void> = [];
+let scheduled = false;
+
+function batchUpdate(fn: () => void) {
+  updateQueue.push(fn);
+  if (!scheduled) {
+    scheduled = true;
+    requestAnimationFrame(() => {
+      const queue = updateQueue;
+      updateQueue = [];
+      scheduled = false;
+      
+      // Execute all updates in a single batch
+      liveStore.getState().batch(queue);
+    });
+  }
+}
 
 class SocketManager {
   private socket: Socket | null = null;
@@ -17,7 +38,7 @@ class SocketManager {
     this.useSSE = import.meta.env.VITE_USE_SSE === 'true' || !window.WebSocket;
   }
 
-  connect(serverUrl: string = '') {
+  connect(serverUrl: string = import.meta.env.VITE_API_URL || '') {
     if (this.useSSE) {
       this.connectSSE(serverUrl);
     } else {
@@ -27,16 +48,25 @@ class SocketManager {
 
   private connectSocket(serverUrl: string) {
     this.socket = io(serverUrl, {
-      transports: ['websocket', 'polling'],
+      transports: ['websocket'],
+      path: '/ws',
       timeout: 20000,
     });
 
     this.socket.on('connect', () => {
       console.log('Socket.IO connected');
+      batchUpdate(() => {
+        liveStore.getState().setConnected(true);
+        liveStore.getState().setConnectionType('socket');
+      });
     });
 
     this.socket.on('disconnect', () => {
       console.log('Socket.IO disconnected');
+      batchUpdate(() => {
+        liveStore.getState().setConnected(false);
+        liveStore.getState().setConnectionType('disconnected');
+      });
     });
 
     this.socket.on('error', (error) => {
@@ -45,7 +75,53 @@ class SocketManager {
       this.fallbackToSSE(serverUrl);
     });
 
-    // Forward all events to our listeners
+    // Handle server-specific events with batching
+    this.socket.on('metrics', (payload: { serverId: string; data: any }) => {
+      const selectedId = useServersStore.getState().selectedServerId;
+      if (payload.serverId === selectedId) {
+        batchUpdate(() => {
+          liveStore.getState().applyMetrics(payload.serverId, payload.data);
+        });
+      }
+    });
+
+    this.socket.on('console', (payload: { serverId: string; lines: any[] }) => {
+      const selectedId = useServersStore.getState().selectedServerId;
+      if (payload.serverId === selectedId) {
+        batchUpdate(() => {
+          liveStore.getState().appendConsole(payload.serverId, payload.lines);
+        });
+      }
+    });
+
+    this.socket.on('players', (payload: { serverId: string; players: any[] }) => {
+      const selectedId = useServersStore.getState().selectedServerId;
+      if (payload.serverId === selectedId) {
+        batchUpdate(() => {
+          liveStore.getState().updatePlayers(payload.serverId, payload.players);
+        });
+      }
+    });
+
+    this.socket.on('freezes', (payload: { serverId: string; freezes: any[] }) => {
+      const selectedId = useServersStore.getState().selectedServerId;
+      if (payload.serverId === selectedId) {
+        batchUpdate(() => {
+          liveStore.getState().updateFreezes(payload.serverId, payload.freezes);
+        });
+      }
+    });
+
+    this.socket.on('pregen', (payload: { serverId: string; jobs: any[] }) => {
+      const selectedId = useServersStore.getState().selectedServerId;
+      if (payload.serverId === selectedId) {
+        batchUpdate(() => {
+          liveStore.getState().updatePregenJobs(payload.serverId, payload.jobs);
+        });
+      }
+    });
+
+    // Forward other events to listeners
     this.socket.onAny((eventName, data) => {
       this.emitToListeners(eventName, data);
     });
@@ -56,16 +132,50 @@ class SocketManager {
 
     this.eventSource.onopen = () => {
       console.log('SSE connected');
+      batchUpdate(() => {
+        liveStore.getState().setConnected(true);
+        liveStore.getState().setConnectionType('sse');
+      });
     };
 
     this.eventSource.onerror = (error) => {
       console.error('SSE error:', error);
+      batchUpdate(() => {
+        liveStore.getState().setConnected(false);
+        liveStore.getState().setConnectionType('disconnected');
+      });
     };
 
     this.eventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        this.emitToListeners(data.type, data.data);
+        
+        // Handle server-specific events with batching
+        if (data.type === 'metrics' && data.serverId) {
+          const selectedId = useServersStore.getState().selectedServerId;
+          if (data.serverId === selectedId) {
+            batchUpdate(() => {
+              liveStore.getState().applyMetrics(data.serverId, data.data);
+            });
+          }
+        } else if (data.type === 'console' && data.serverId) {
+          const selectedId = useServersStore.getState().selectedServerId;
+          if (data.serverId === selectedId) {
+            batchUpdate(() => {
+              liveStore.getState().appendConsole(data.serverId, data.lines);
+            });
+          }
+        } else if (data.type === 'players' && data.serverId) {
+          const selectedId = useServersStore.getState().selectedServerId;
+          if (data.serverId === selectedId) {
+            batchUpdate(() => {
+              liveStore.getState().updatePlayers(data.serverId, data.players);
+            });
+          }
+        } else {
+          // Forward other events to listeners
+          this.emitToListeners(data.type, data.data);
+        }
       } catch (error) {
         console.error('Failed to parse SSE message:', error);
       }
@@ -88,6 +198,11 @@ class SocketManager {
       this.eventSource.close();
       this.eventSource = null;
     }
+    
+    batchUpdate(() => {
+      liveStore.getState().setConnected(false);
+      liveStore.getState().setConnectionType('disconnected');
+    });
   }
 
   subscribe(eventName: string, callback: (data: any) => void) {
@@ -194,4 +309,9 @@ class SocketManager {
 }
 
 export const socketManager = new SocketManager();
+
+// Export the connect function for easy initialization
+export const connect = () => socketManager.connect();
+export const disconnect = () => socketManager.disconnect();
+
 export default socketManager;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+// Badge import removed - not used
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,9 +15,7 @@ import {
   CheckCircle,
   Info,
   Zap,
-  HardDrive,
   Activity,
-  Shield,
   Network
 } from 'lucide-react';
 
@@ -137,19 +135,18 @@ export const JVMSettings: React.FC = () => {
     useOptimizedFlags: true,
     customFlags: ''
   });
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
+  // Loading and changes tracking removed for now
 
   const fetchSettings = async () => {
-    setIsLoading(true);
+    // Loading state removed for now
     try {
       // Mock API call
       await new Promise(resolve => setTimeout(resolve, 1000));
-      setHasChanges(false);
+      // Changes tracking removed for now
     } catch (error) {
       console.error('Failed to fetch JVM settings:', error);
     } finally {
-      setIsLoading(false);
+      // Loading state removed for now
     }
   };
 
@@ -159,17 +156,20 @@ export const JVMSettings: React.FC = () => {
 
   const handleSettingChange = (key: keyof JVMSettingsData, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }));
-    setHasChanges(true);
+    // Changes tracking removed for now
   };
 
   const getValidationStatus = (key: keyof JVMSettingsData) => {
     const value = settings[key];
     
+    // Ensure value is a number for comparison
+    const numValue = typeof value === 'number' ? value : 0;
+    
     switch (key) {
       case 'jmxPort':
-        return value < 1 || value > 65535 ? 'error' : 'success';
+        return numValue < 1 || numValue > 65535 ? 'error' : 'success';
       case 'maxNetworkThreads':
-        return value < 1 || value > 32 ? 'error' : 'success';
+        return numValue < 1 || numValue > 32 ? 'error' : 'success';
       default:
         return 'success';
     }

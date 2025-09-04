@@ -33,13 +33,13 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger,
-  DropdownMenuSeparator
-} from '@/components/ui/dropdown-menu';
+// import { 
+//   DropdownMenu, 
+//   DropdownMenuContent, 
+//   DropdownMenuItem, 
+//   DropdownMenuTrigger,
+//   DropdownMenuSeparator
+// } from '@/components/ui/dropdown-menu';
 import { useServersStore } from '@/store/servers';
 import { EventsTable } from '@/components/Tables/EventsTable';
 import { CreateEventModal } from '@/components/Events/CreateEventModal';

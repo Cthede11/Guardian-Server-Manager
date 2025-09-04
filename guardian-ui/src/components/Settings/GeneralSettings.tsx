@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+// Unused imports removed
+// import { Button } from '@/components/ui/button';
+// import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,10 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Server, 
-  Users, 
-  Globe, 
   Shield, 
-  Clock,
   HardDrive,
   Network,
   Activity,
@@ -119,20 +117,19 @@ export const GeneralSettings: React.FC = () => {
     resourcePackSha1: '',
     resourcePackUrl: ''
   });
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
+  // Loading and changes tracking removed for now
 
   const fetchSettings = async () => {
-    setIsLoading(true);
+    // Loading state removed for now
     try {
       // Mock API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       // Settings are already set in state
-      setHasChanges(false);
+      // Changes tracking removed for now
     } catch (error) {
       console.error('Failed to fetch general settings:', error);
     } finally {
-      setIsLoading(false);
+      // Loading state removed for now
     }
   };
 
@@ -142,24 +139,27 @@ export const GeneralSettings: React.FC = () => {
 
   const handleSettingChange = (key: keyof GeneralSettingsData, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }));
-    setHasChanges(true);
+    // Changes tracking removed for now
   };
 
   const getValidationStatus = (key: keyof GeneralSettingsData) => {
     const value = settings[key];
     
+    // Ensure value is a number for comparison
+    const numValue = typeof value === 'number' ? value : 0;
+    
     switch (key) {
       case 'maxPlayers':
-        return value < 1 || value > 1000 ? 'error' : 'success';
+        return numValue < 1 || numValue > 1000 ? 'error' : 'success';
       case 'serverPort':
       case 'queryPort':
       case 'rconPort':
-        return value < 1 || value > 65535 ? 'error' : 'success';
+        return numValue < 1 || numValue > 65535 ? 'error' : 'success';
       case 'viewDistance':
       case 'simulationDistance':
-        return value < 3 || value > 32 ? 'error' : 'success';
+        return numValue < 3 || numValue > 32 ? 'error' : 'success';
       case 'maxTickTime':
-        return value < 1000 ? 'error' : 'success';
+        return numValue < 1000 ? 'error' : 'success';
       default:
         return 'success';
     }
@@ -672,3 +672,5 @@ export const GeneralSettings: React.FC = () => {
     </div>
   );
 };
+
+// export { GeneralSettings };

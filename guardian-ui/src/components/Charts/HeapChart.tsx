@@ -2,31 +2,31 @@ import React, { useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useMetrics } from '@/store/live';
 
-interface PhaseChartProps {
+interface HeapChartProps {
   serverId: string;
   className?: string;
 }
 
-export const PhaseChart: React.FC<PhaseChartProps> = React.memo(({ serverId, className = '' }) => {
+export const HeapChart: React.FC<HeapChartProps> = React.memo(({ serverId, className = '' }) => {
   const metrics = useMetrics(serverId);
   
   // Memoize chart data with time window (last 120 seconds)
   const chartData = useMemo(() => {
-    if (!metrics?.tickP95) return [];
+    if (!metrics?.heap) return [];
     
     const now = Date.now();
     const timeWindow = 120000; // 2 minutes
     const cutoff = now - timeWindow;
     
-    return metrics.tickP95
+    return metrics.heap
       .filter(point => point.timestamp > cutoff)
       .map(point => ({
         time: new Date(point.timestamp).toLocaleTimeString(),
-        tickP95: point.value,
+        heap: Math.round(point.value / 1024 / 1024), // Convert to MB
         timestamp: point.timestamp,
       }))
       .slice(-120); // Keep max 120 points
-  }, [metrics?.tickP95]);
+  }, [metrics?.heap]);
 
   // Memoize chart configuration
   const chartConfig = useMemo(() => ({
@@ -37,9 +37,9 @@ export const PhaseChart: React.FC<PhaseChartProps> = React.memo(({ serverId, cla
   if (!chartData.length) {
     return (
       <div className={`panel p-4 ${className}`}>
-        <h3 className="text-lg font-semibold mb-4">Tick Phase (P95)</h3>
+        <h3 className="text-lg font-semibold mb-4">Heap Usage</h3>
         <div className="h-64 flex items-center justify-center text-muted-foreground">
-          No tick phase data available
+          No heap data available
         </div>
       </div>
     );
@@ -47,7 +47,7 @@ export const PhaseChart: React.FC<PhaseChartProps> = React.memo(({ serverId, cla
 
   return (
     <div className={`panel p-4 ${className}`}>
-      <h3 className="text-lg font-semibold mb-4">Tick Phase (P95)</h3>
+      <h3 className="text-lg font-semibold mb-4">Heap Usage</h3>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart {...chartConfig}>
@@ -62,7 +62,7 @@ export const PhaseChart: React.FC<PhaseChartProps> = React.memo(({ serverId, cla
               stroke="hsl(220 14% 92%)"
               fontSize={12}
               tick={{ fill: 'hsl(220 8% 64%)' }}
-              label={{ value: 'ms', angle: -90, position: 'insideLeft' }}
+              label={{ value: 'MB', angle: -90, position: 'insideLeft' }}
             />
             <Tooltip
               contentStyle={{
@@ -72,15 +72,15 @@ export const PhaseChart: React.FC<PhaseChartProps> = React.memo(({ serverId, cla
                 color: 'hsl(220 14% 92%)',
               }}
               labelStyle={{ color: 'hsl(220 14% 92%)' }}
-              formatter={(value: number) => [`${value.toFixed(2)} ms`, 'Tick P95']}
+              formatter={(value: number) => [`${value} MB`, 'Heap Usage']}
             />
             <Line
               type="monotone"
-              dataKey="tickP95"
-              stroke="hsl(38 92% 50%)"
+              dataKey="heap"
+              stroke="hsl(142 76% 36%)"
               strokeWidth={2}
               dot={false}
-              activeDot={{ r: 4, fill: 'hsl(38 92% 50%)' }}
+              activeDot={{ r: 4, fill: 'hsl(142 76% 36%)' }}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -89,6 +89,6 @@ export const PhaseChart: React.FC<PhaseChartProps> = React.memo(({ serverId, cla
   );
 });
 
-PhaseChart.displayName = 'PhaseChart';
+HeapChart.displayName = 'HeapChart';
 
-export default PhaseChart;
+export default HeapChart;

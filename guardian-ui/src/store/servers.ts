@@ -1,4 +1,3 @@
-import React from 'react';
 import { create } from 'zustand';
 import { api } from '@/lib/api';
 import type { ServerSummary, ServerHealth, ServerSettings } from '@/lib/types';
@@ -247,28 +246,26 @@ export const useServersStore = create<ServersState>((set, get) => ({
   },
 }));
 
-// Helper hooks
+// Performance-optimized selectors
 export const useSelectedServer = () => {
-  const { selectedServerId, servers } = useServersStore();
-  return selectedServerId ? servers.find(s => s.id === selectedServerId) || null : null;
+  return useServersStore((state) => {
+    const { selectedServerId, servers } = state;
+    return selectedServerId ? servers.find(s => s.id === selectedServerId) || null : null;
+  });
 };
 
 export const useServerHealth = (serverId: string) => {
-  const { serverHealth, fetchServerHealth } = useServersStore();
-  
-  React.useEffect(() => {
-    fetchServerHealth(serverId);
-  }, [serverId, fetchServerHealth]);
-
-  return serverHealth[serverId] || null;
+  return useServersStore((state) => state.serverHealth[serverId] || null);
 };
 
 export const useServerSettings = (serverId: string) => {
-  const { serverSettings, fetchServerSettings } = useServersStore();
-  
-  React.useEffect(() => {
-    fetchServerSettings(serverId);
-  }, [serverId, fetchServerSettings]);
+  return useServersStore((state) => state.serverSettings[serverId] || null);
+};
 
-  return serverSettings[serverId] || null;
+export const useServerById = (serverId: string) => {
+  return useServersStore((state) => state.servers.find(s => s.id === serverId) || null);
+};
+
+export const useServersList = () => {
+  return useServersStore((state) => state.servers);
 };

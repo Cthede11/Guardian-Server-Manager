@@ -1,15 +1,13 @@
-import React from 'react';
 import { create } from 'zustand';
-import { socketManager } from '@/lib/socket';
 import type { ConsoleMessage, Player, FreezeTicket, PregenJob } from '@/lib/types';
 
 interface LiveState {
   // Connection state
-  isConnected: boolean;
+  connected: boolean;
   connectionType: 'socket' | 'sse' | 'disconnected';
   
-  // Console streams
-  consoleStreams: Record<string, ConsoleMessage[]>;
+  // Console streams - rolling buffer of 5000 lines per server
+  console: Record<string, ConsoleMessage[]>;
   
   // Player data
   players: Record<string, Player[]>;
@@ -17,152 +15,85 @@ interface LiveState {
   // World data
   freezes: Record<string, FreezeTicket[]>;
   
-  // Performance data
-  metrics: Record<string, any>;
+  // Performance data - time-series with max 120 points
+  metrics: Record<string, {
+    tps: Array<{ timestamp: number; value: number }>;
+    heap: Array<{ timestamp: number; value: number }>;
+    tickP95: Array<{ timestamp: number; value: number }>;
+    gpuMs: Array<{ timestamp: number; value: number }>;
+  }>;
   
   // Pregen data
   pregenJobs: Record<string, PregenJob[]>;
   
+  // Batched update system
+  batch: (fns: Array<() => void>) => void;
+  
   // Actions
-  connect: () => void;
-  disconnect: () => void;
-  subscribeToConsole: (serverId: string) => void;
-  subscribeToPlayers: (serverId: string) => void;
-  subscribeToWorld: (serverId: string) => void;
-  subscribeToMetrics: (serverId: string) => void;
-  subscribeToPregen: (serverId: string) => void;
+  setConnected: (connected: boolean) => void;
+  setConnectionType: (type: 'socket' | 'sse' | 'disconnected') => void;
+  
+  // Console actions
+  appendConsole: (serverId: string, lines: ConsoleMessage[]) => void;
   clearConsole: (serverId: string) => void;
-  addConsoleMessage: (serverId: string, message: ConsoleMessage) => void;
+  
+  // Player actions
   updatePlayers: (serverId: string, players: Player[]) => void;
+  
+  // World actions
   updateFreezes: (serverId: string, freezes: FreezeTicket[]) => void;
-  updateMetrics: (serverId: string, metrics: any) => void;
+  
+  // Metrics actions
+  applyMetrics: (serverId: string, data: Partial<LiveState['metrics'][string]>) => void;
+  
+  // Pregen actions
   updatePregenJobs: (serverId: string, jobs: PregenJob[]) => void;
 }
 
-export const useLiveStore = create<LiveState>((set, get) => ({
+export const liveStore = create<LiveState>((set) => ({
   // Initial state
-  isConnected: false,
+  connected: false,
   connectionType: 'disconnected',
-  consoleStreams: {},
+  console: {},
   players: {},
   freezes: {},
   metrics: {},
   pregenJobs: {},
 
-  // Actions
-  connect: () => {
-    socketManager.connect();
-    
-    // Update connection state periodically
-    const updateConnectionState = () => {
-      set({
-        isConnected: socketManager.isConnected(),
-        connectionType: socketManager.getConnectionType(),
-      });
-    };
-
-    updateConnectionState();
-    const interval = setInterval(updateConnectionState, 1000);
-
-    // Clean up interval when component unmounts
-    return () => clearInterval(interval);
+  // Batched update system - prevents re-render storms
+  batch: (fns: Array<() => void>) => {
+    // Execute all functions - they will update state directly
+    fns.forEach(fn => fn());
   },
 
-  disconnect: () => {
-    socketManager.disconnect();
-    set({
-      isConnected: false,
-      connectionType: 'disconnected',
-    });
-  },
+  // Connection actions
+  setConnected: (connected: boolean) => set({ connected }),
+  setConnectionType: (connectionType: 'socket' | 'sse' | 'disconnected') => set({ connectionType }),
 
-  subscribeToConsole: (serverId: string) => {
-    const unsubscribe = socketManager.subscribeToConsole(serverId, (message: ConsoleMessage) => {
-      set((state) => ({
-        consoleStreams: {
-          ...state.consoleStreams,
-          [serverId]: [...(state.consoleStreams[serverId] || []), message].slice(-1000), // Keep last 1000 messages
+  // Console actions with rolling buffer
+  appendConsole: (serverId: string, lines: ConsoleMessage[]) => {
+    set((state) => {
+      const currentLines = state.console[serverId] || [];
+      const newLines = [...currentLines, ...lines].slice(-5000); // Keep last 5000 lines
+      return {
+        console: {
+          ...state.console,
+          [serverId]: newLines,
         },
-      }));
+      };
     });
-
-    return unsubscribe;
-  },
-
-  subscribeToPlayers: (serverId: string) => {
-    const unsubscribe = socketManager.subscribeToPlayers(serverId, (players: Player[]) => {
-      set((state) => ({
-        players: {
-          ...state.players,
-          [serverId]: players,
-        },
-      }));
-    });
-
-    return unsubscribe;
-  },
-
-  subscribeToWorld: (serverId: string) => {
-    const unsubscribe = socketManager.subscribeToWorld(serverId, (worldData: any) => {
-      if (worldData.freezes) {
-        set((state) => ({
-          freezes: {
-            ...state.freezes,
-            [serverId]: worldData.freezes,
-          },
-        }));
-      }
-    });
-
-    return unsubscribe;
-  },
-
-  subscribeToMetrics: (serverId: string) => {
-    const unsubscribe = socketManager.subscribeToMetrics(serverId, (metrics: any) => {
-      set((state) => ({
-        metrics: {
-          ...state.metrics,
-          [serverId]: metrics,
-        },
-      }));
-    });
-
-    return unsubscribe;
-  },
-
-  subscribeToPregen: (serverId: string) => {
-    const unsubscribe = socketManager.subscribeToPregen(serverId, (pregenData: any) => {
-      if (pregenData.jobs) {
-        set((state) => ({
-          pregenJobs: {
-            ...state.pregenJobs,
-            [serverId]: pregenData.jobs,
-          },
-        }));
-      }
-    });
-
-    return unsubscribe;
   },
 
   clearConsole: (serverId: string) => {
     set((state) => ({
-      consoleStreams: {
-        ...state.consoleStreams,
+      console: {
+        ...state.console,
         [serverId]: [],
       },
     }));
   },
 
-  addConsoleMessage: (serverId: string, message: ConsoleMessage) => {
-    set((state) => ({
-      consoleStreams: {
-        ...state.consoleStreams,
-        [serverId]: [...(state.consoleStreams[serverId] || []), message].slice(-1000),
-      },
-    }));
-  },
-
+  // Player actions
   updatePlayers: (serverId: string, players: Player[]) => {
     set((state) => ({
       players: {
@@ -172,6 +103,7 @@ export const useLiveStore = create<LiveState>((set, get) => ({
     }));
   },
 
+  // World actions
   updateFreezes: (serverId: string, freezes: FreezeTicket[]) => {
     set((state) => ({
       freezes: {
@@ -181,15 +113,43 @@ export const useLiveStore = create<LiveState>((set, get) => ({
     }));
   },
 
-  updateMetrics: (serverId: string, metrics: any) => {
-    set((state) => ({
-      metrics: {
-        ...state.metrics,
-        [serverId]: metrics,
-      },
-    }));
+  // Metrics actions with time-series management
+  applyMetrics: (serverId: string, data: Partial<LiveState['metrics'][string]>) => {
+    set((state) => {
+      const currentMetrics = state.metrics[serverId] || {
+        tps: [],
+        heap: [],
+        tickP95: [],
+        gpuMs: [],
+      };
+
+      const now = Date.now();
+      const maxPoints = 120; // Keep last 2 minutes at 1Hz
+
+      const updateSeries = (series: Array<{ timestamp: number; value: number }>, newValue?: number) => {
+        if (newValue !== undefined) {
+          return [...series, { timestamp: now, value: newValue }].slice(-maxPoints);
+        }
+        return series;
+      };
+
+      const updatedMetrics = {
+        tps: updateSeries(currentMetrics.tps, data.tps?.[data.tps.length - 1]?.value),
+        heap: updateSeries(currentMetrics.heap, data.heap?.[data.heap.length - 1]?.value),
+        tickP95: updateSeries(currentMetrics.tickP95, data.tickP95?.[data.tickP95.length - 1]?.value),
+        gpuMs: updateSeries(currentMetrics.gpuMs, data.gpuMs?.[data.gpuMs.length - 1]?.value),
+      };
+
+      return {
+        metrics: {
+          ...state.metrics,
+          [serverId]: updatedMetrics,
+        },
+      };
+    });
   },
 
+  // Pregen actions
   updatePregenJobs: (serverId: string, jobs: PregenJob[]) => {
     set((state) => ({
       pregenJobs: {
@@ -200,63 +160,32 @@ export const useLiveStore = create<LiveState>((set, get) => ({
   },
 }));
 
-// Helper hooks for common subscriptions
+// Performance-optimized selectors
 export const useConsoleStream = (serverId: string) => {
-  const { consoleStreams, subscribeToConsole, clearConsole } = useLiveStore();
-  
-  React.useEffect(() => {
-    const unsubscribe = subscribeToConsole(serverId);
-    return unsubscribe;
-  }, [serverId, subscribeToConsole]);
-
-  return {
-    messages: consoleStreams[serverId] || [],
-    clear: () => clearConsole(serverId),
-  };
+  return liveStore((state) => state.console[serverId] || []);
 };
 
 export const usePlayerData = (serverId: string) => {
-  const { players, subscribeToPlayers } = useLiveStore();
-  
-  React.useEffect(() => {
-    const unsubscribe = subscribeToPlayers(serverId);
-    return unsubscribe;
-  }, [serverId, subscribeToPlayers]);
-
-  return players[serverId] || [];
+  return liveStore((state) => state.players[serverId] || []);
 };
 
 export const useWorldData = (serverId: string) => {
-  const { freezes, subscribeToWorld } = useLiveStore();
-  
-  React.useEffect(() => {
-    const unsubscribe = subscribeToWorld(serverId);
-    return unsubscribe;
-  }, [serverId, subscribeToWorld]);
-
-  return {
-    freezes: freezes[serverId] || [],
-  };
+  return liveStore((state) => ({
+    freezes: state.freezes[serverId] || [],
+  }));
 };
 
 export const useMetrics = (serverId: string) => {
-  const { metrics, subscribeToMetrics } = useLiveStore();
-  
-  React.useEffect(() => {
-    const unsubscribe = subscribeToMetrics(serverId);
-    return unsubscribe;
-  }, [serverId, subscribeToMetrics]);
-
-  return metrics[serverId] || null;
+  return liveStore((state) => state.metrics[serverId] || null);
 };
 
 export const usePregenJobs = (serverId: string) => {
-  const { pregenJobs, subscribeToPregen } = useLiveStore();
-  
-  React.useEffect(() => {
-    const unsubscribe = subscribeToPregen(serverId);
-    return unsubscribe;
-  }, [serverId, subscribeToPregen]);
+  return liveStore((state) => state.pregenJobs[serverId] || []);
+};
 
-  return pregenJobs[serverId] || [];
+export const useConnectionStatus = () => {
+  return liveStore((state) => ({
+    connected: state.connected,
+    connectionType: state.connectionType,
+  }));
 };

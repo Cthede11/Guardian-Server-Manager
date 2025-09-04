@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { Search, Plus, Server, Settings, Users, MoreVertical, Copy, Trash2, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
+// import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useServersStore } from '@/store/servers';
@@ -106,7 +106,7 @@ export const Sidebar: React.FC = () => {
     fetchServers();
   }, []);
 
-  const handleContextMenu = (e: React.MouseEvent, serverId: string) => {
+  const handleContextMenu = (e: React.MouseEvent, _serverId: string) => {
     e.preventDefault();
     // Context menu will be handled by the dropdown menu
   };
@@ -146,23 +146,24 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <nav className="w-80 bg-card border-r border-border flex flex-col shadow-lg" role="navigation">
+    <nav className="w-64 bg-card border-r border-border flex flex-col shadow-xl" role="navigation">
       {/* Header */}
-      <div className="p-4 border-b border-border bg-secondary/30">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-            <div className="w-6 h-6 bg-primary rounded-sm flex items-center justify-center">
-              <span className="text-primary-foreground text-sm font-bold">G</span>
+      <div className="p-6 border-b border-border/30">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-primary via-primary/80 to-secondary rounded-xl flex items-center justify-center shadow-lg ring-2 ring-primary/20">
+              <span className="text-white text-lg font-bold">G</span>
             </div>
-            Guardian
-          </h1>
+            <h1 className="text-xl font-bold text-foreground tracking-tight">Guardian</h1>
+          </div>
           <Dialog open={showAddServer} onOpenChange={setShowAddServer}>
             <DialogTrigger asChild>
-              <Button size="sm" variant="outline" className="bg-primary/10 hover:bg-primary/20 border-primary/30">
-                <Plus className="h-4 w-4" />
+              <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-lg transition-all duration-200">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Server
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="modern-card">
               <DialogHeader>
                 <DialogTitle>Add New Server</DialogTitle>
               </DialogHeader>
@@ -170,29 +171,31 @@ export const Sidebar: React.FC = () => {
             </DialogContent>
           </Dialog>
         </div>
-        
+
         {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search servers..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-background/50 border-border/50 focus:bg-background focus:border-primary/50"
-          />
-        </div>
+                  <div className="relative group">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors duration-200" />
+            <Input
+              placeholder="Search servers..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-12 pr-4 py-3 bg-background/60 border-border/40 focus:bg-background focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all duration-300 rounded-xl shadow-sm hover:shadow-md focus:shadow-lg"
+            />
+          </div>
       </div>
 
       {/* Navigation */}
       <div className="flex-1 overflow-y-auto">
         {/* Servers Section */}
-        <div className="p-3">
-          <div className="flex items-center gap-2 mb-3">
-            <Server className="h-4 w-4 text-primary" />
-            <span className="text-sm font-semibold text-foreground">Servers</span>
-            <Badge variant="secondary" className="ml-auto bg-primary/20 text-primary border-primary/30">
+        <div className="p-4">
+          <div className="nav-section-header">
+            <div className="nav-section-icon">
+              <Server className="h-4 w-4 text-primary" />
+            </div>
+            <span className="nav-section-title">Servers</span>
+            <div className="nav-section-badge">
               {servers.length}
-            </Badge>
+            </div>
           </div>
           
           {loading ? (
@@ -206,31 +209,36 @@ export const Sidebar: React.FC = () => {
             </div>
           ) : (
                          <div className="space-y-2">
-               {filteredServers.map((server) => (
-                 <div
-                   key={server.id}
-                   className={`server-card transition-all duration-200 ${
-                     selectedServerId === server.id
-                       ? 'bg-primary/20 border-primary/50 shadow-md'
-                       : 'hover:bg-accent/70 hover:shadow-sm'
-                   }`}
-                   onContextMenu={(e) => handleContextMenu(e, server.id)}
-                 >
-                   <div className="flex items-center justify-between">
-                     <Link
-                       to={`/servers/${server.id}/overview`}
-                       className="flex-1 min-w-0"
-                     >
-                       <h3 className="font-medium text-sm truncate">
-                         {server.name}
-                       </h3>
-                       <div className="flex items-center gap-2 mt-1">
-                         <StatusPill status={server.status} />
-                         <span className="text-xs text-muted-foreground">
-                           {server.playersOnline} players
-                         </span>
-                       </div>
-                     </Link>
+                                     {filteredServers.map((server) => (
+                        <div
+                          key={server.id}
+                          className={`server-card group ${
+                            selectedServerId === server.id ? 'selected' : ''
+                          }`}
+                          onContextMenu={(e) => handleContextMenu(e, server.id)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <Link
+                              to={`/servers/${server.id}/overview`}
+                              className="flex-1 min-w-0"
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="server-icon">
+                                  <Server className="h-4 w-4 text-primary" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <h3 className="server-name">
+                                    {server.name}
+                                  </h3>
+                                  <div className="server-meta">
+                                    <StatusPill status={server.status} />
+                                    <span className="text-xs text-muted-foreground font-medium">
+                                      {server.playersOnline} players
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </Link>
                      
                      <div className="flex items-center gap-1">
                        {server.blueGreen && (
@@ -244,12 +252,12 @@ export const Sidebar: React.FC = () => {
                            <Button
                              variant="ghost"
                              size="sm"
-                             className="h-6 w-6 p-0"
+                             className="h-7 w-7 p-0 hover:bg-accent/50"
                            >
                              <MoreVertical className="h-3 w-3" />
                            </Button>
                          </DropdownMenuTrigger>
-                         <DropdownMenuContent align="end">
+                         <DropdownMenuContent align="end" className="modern-card">
                            <DropdownMenuItem onClick={() => handleServerAction('start', server.id)}>
                              <Server className="h-4 w-4 mr-2" />
                              Start
@@ -297,41 +305,51 @@ export const Sidebar: React.FC = () => {
           )}
         </div>
 
-        {/* Workspace Section */}
-        <div className="p-3 border-t border-border bg-secondary/20">
-          <div className="flex items-center gap-2 mb-3">
-            <Settings className="h-4 w-4 text-primary" />
-            <span className="text-sm font-semibold text-foreground">Workspace</span>
+                {/* Workspace Section */}
+        <div className="p-4 border-t border-border/30 bg-gradient-to-br from-muted/20 to-muted/40">
+          <div className="nav-section-header">
+            <div className="nav-section-icon">
+              <Settings className="h-4 w-4 text-secondary" />
+            </div>
+            <span className="nav-section-title">Workspace</span>
           </div>
-          
-          <div className="space-y-1">
+
+          <div className="nav-section">
             <Link
               to="/workspace/users-roles"
-              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-accent/70 transition-colors text-muted-foreground hover:text-foreground"
+              className={`nav-link ${location.pathname === '/workspace/users-roles' ? 'active' : ''}`}
             >
-              <Users className="h-4 w-4" />
-              Users & Roles
+              <div className="nav-link-icon">
+                <Users className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <span>Users & Roles</span>
             </Link>
             <Link
               to="/workspace/backup-targets"
-              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-accent/70 transition-colors text-muted-foreground hover:text-foreground"
+              className={`nav-link ${location.pathname === '/workspace/backup-targets' ? 'active' : ''}`}
             >
-              <Server className="h-4 w-4" />
-              Backup Targets
+              <div className="nav-link-icon">
+                <Server className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <span>Backup Targets</span>
             </Link>
             <Link
               to="/workspace/tokens"
-              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-accent/70 transition-colors text-muted-foreground hover:text-foreground"
+              className={`nav-link ${location.pathname === '/workspace/tokens' ? 'active' : ''}`}
             >
-              <Settings className="h-4 w-4" />
-              API Tokens
+              <div className="nav-link-icon">
+                <Settings className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <span>API Tokens</span>
             </Link>
             <Link
               to="/workspace/theme"
-              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-accent/70 transition-colors text-muted-foreground hover:text-foreground"
+              className={`nav-link ${location.pathname === '/workspace/theme' ? 'active' : ''}`}
             >
-              <Settings className="h-4 w-4" />
-              Theme
+              <div className="nav-link-icon">
+                <Settings className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <span>Theme</span>
             </Link>
           </div>
         </div>

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+// import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Settings as SettingsIcon, 
@@ -13,17 +13,14 @@ import {
   XCircle,
   Server,
   Cpu,
-  Zap,
-  HardDrive,
+  // Zap,
+  // HardDrive,
   FolderOpen,
   Code,
   Key,
   Monitor,
-  MemoryStick,
-  Network,
   Shield,
-  Clock,
-  Activity
+  Clock
 } from 'lucide-react';
 import { GeneralSettings } from '@/components/Settings/GeneralSettings';
 import { JVMSettings } from '@/components/Settings/JVMSettings';
@@ -54,7 +51,7 @@ export const Settings: React.FC = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  // const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   const fetchStats = async () => {
     setIsLoading(true);
@@ -71,7 +68,7 @@ export const Settings: React.FC = () => {
         validationErrors: 1
       });
       
-      setLastRefresh(new Date());
+      // setLastRefresh(new Date());
     } catch (error) {
       console.error('Failed to fetch settings stats:', error);
     } finally {
@@ -114,7 +111,7 @@ export const Settings: React.FC = () => {
   const getStatusColor = () => {
     if (stats.validationErrors > 0) return 'destructive';
     if (stats.hasUnsavedChanges) return 'default';
-    return 'secondary';
+    return 'default';
   };
 
   const getStatusIcon = () => {

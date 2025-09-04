@@ -1,5 +1,5 @@
 import { socketManager } from './socket';
-import type { ConsoleMessage, Player, FreezeTicket, PregenJob, ServerSummary, Event, Snapshot, ModInfo, Rule, Shard } from './types';
+import type { ConsoleMessage, Player, FreezeTicket, PregenJob, ServerSummary, Event, Snapshot, Rule, ShardAssignment, CrashSignature, Mod } from './types';
 
 // Real-time data types
 export interface RealtimeMetrics {
@@ -442,16 +442,4 @@ export const realtimeHelpers = {
   }
 };
 
-// Export types for use in components
-export type {
-  RealtimeMetrics,
-  RealtimeHealth,
-  RealtimeWorldData,
-  RealtimePerformanceData,
-  RealtimeBackupData,
-  RealtimeEventData,
-  RealtimePregenData,
-  RealtimeShardingData,
-  RealtimeDiagnosticsData,
-  RealtimeModsData
-};
+// Types are already exported as interfaces above

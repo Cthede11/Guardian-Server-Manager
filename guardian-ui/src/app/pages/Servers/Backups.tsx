@@ -3,8 +3,8 @@ import { useParams } from 'react-router-dom';
 import { 
   HardDrive, 
   Plus, 
-  Download, 
-  Upload,
+    // Download,
+  // Upload,
   RefreshCw,
   Search,
   Filter,

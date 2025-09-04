@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { 
   Send, 
   Filter, 
@@ -7,7 +8,6 @@ import {
   Trash2, 
   Play, 
   Pause, 
-  Square,
   AlertTriangle,
   Info,
   Bug,
@@ -16,10 +16,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useServersStore } from '@/store/servers';
+import { useConsoleStream, useConnectionStatus, liveStore } from '@/store/live';
 import type { ConsoleMessage } from '@/lib/types';
 
 interface ConsoleStreamProps {
@@ -31,9 +31,10 @@ export const ConsoleStream: React.FC<ConsoleStreamProps> = ({ className = '' }) 
   const { getServerById } = useServersStore();
   const server = serverId ? getServerById(serverId) : null;
   
-  const [messages, setMessages] = useState<ConsoleMessage[]>([]);
+  // Use the live store for console messages
+  const messages = useConsoleStream(serverId || '');
+  
   const [command, setCommand] = useState('');
-  const [isConnected, setIsConnected] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [filters, setFilters] = useState({
     level: 'all' as 'all' | 'info' | 'warn' | 'error' | 'debug',
@@ -43,167 +44,39 @@ export const ConsoleStream: React.FC<ConsoleStreamProps> = ({ className = '' }) 
     autoScroll: true
   });
   
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const parentRef = useRef<HTMLDivElement>(null);
   const commandInputRef = useRef<HTMLInputElement>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-  const sseRef = useRef<EventSource | null>(null);
+
+  // Filter messages with memoization for performance
+  const filteredMessages = useMemo(() => {
+    return messages.filter(msg => {
+      if (filters.level !== 'all' && msg.level !== filters.level) return false;
+      if (filters.search && !msg.msg.toLowerCase().includes(filters.search.toLowerCase())) return false;
+      return true;
+    });
+  }, [messages, filters.level, filters.search]);
+
+  // Virtualizer for performance with large message lists
+  const rowVirtualizer = useVirtualizer({
+    count: filteredMessages.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 24, // Compact line height
+    overscan: 10,
+  });
 
   // Auto-scroll to bottom when new messages arrive
   const scrollToBottom = useCallback(() => {
-    if (filters.autoScroll && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (filters.autoScroll && filteredMessages.length > 0) {
+      rowVirtualizer.scrollToIndex(filteredMessages.length - 1, { align: 'end' });
     }
-  }, [filters.autoScroll]);
+  }, [filters.autoScroll, filteredMessages.length, rowVirtualizer]);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, scrollToBottom]);
+  }, [scrollToBottom]);
 
-  // Connect to console stream
-  useEffect(() => {
-    if (!serverId || !server) return;
-
-    const connectToStream = () => {
-      // Try WebSocket first
-      try {
-        const ws = new WebSocket(`ws://localhost:8080/api/v1/servers/${serverId}/console/stream`);
-        
-        ws.onopen = () => {
-          console.log('WebSocket connected');
-          setIsConnected(true);
-          wsRef.current = ws;
-        };
-
-        ws.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            const message: ConsoleMessage = {
-              id: Date.now() + Math.random(),
-              timestamp: new Date(data.ts || Date.now()),
-              level: data.level || 'info',
-              message: data.msg || data.message || '',
-              serverId: serverId
-            };
-            
-            if (!isPaused) {
-              setMessages(prev => [...prev.slice(-999), message]); // Keep last 1000 messages
-            }
-          } catch (error) {
-            console.error('Error parsing WebSocket message:', error);
-          }
-        };
-
-        ws.onclose = () => {
-          console.log('WebSocket disconnected, trying SSE fallback');
-          setIsConnected(false);
-          wsRef.current = null;
-          
-          // Fallback to SSE
-          trySSE();
-        };
-
-        ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
-          setIsConnected(false);
-          wsRef.current = null;
-          trySSE();
-        };
-
-      } catch (error) {
-        console.error('WebSocket connection failed:', error);
-        trySSE();
-      }
-    };
-
-    const trySSE = () => {
-      try {
-        const sse = new EventSource(`http://localhost:8080/api/v1/servers/${serverId}/console/stream`);
-        
-        sse.onopen = () => {
-          console.log('SSE connected');
-          setIsConnected(true);
-          sseRef.current = sse;
-        };
-
-        sse.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            const message: ConsoleMessage = {
-              id: Date.now() + Math.random(),
-              timestamp: new Date(data.ts || Date.now()),
-              level: data.level || 'info',
-              message: data.msg || data.message || '',
-              serverId: serverId
-            };
-            
-            if (!isPaused) {
-              setMessages(prev => [...prev.slice(-999), message]);
-            }
-          } catch (error) {
-            console.error('Error parsing SSE message:', error);
-          }
-        };
-
-        sse.onerror = (error) => {
-          console.error('SSE error:', error);
-          setIsConnected(false);
-          sseRef.current = null;
-        };
-
-      } catch (error) {
-        console.error('SSE connection failed:', error);
-        setIsConnected(false);
-      }
-    };
-
-    connectToStream();
-
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-      if (sseRef.current) {
-        sseRef.current.close();
-        sseRef.current = null;
-      }
-      setIsConnected(false);
-    };
-  }, [serverId, server, isPaused]);
-
-  // Simulate console messages for demo
-  useEffect(() => {
-    if (!server || server.status !== 'running') return;
-
-    const interval = setInterval(() => {
-      const demoMessages = [
-        { level: 'info', message: 'Player Steve joined the game' },
-        { level: 'info', message: 'Player Alex joined the game' },
-        { level: 'warn', message: 'Can\'t keep up! Is the server overloaded? Running 2000ms or 100 ticks behind' },
-        { level: 'info', message: 'Player Steve left the game' },
-        { level: 'error', message: 'Exception in thread "Server thread" java.lang.NullPointerException' },
-        { level: 'debug', message: 'Chunk [0, 0] in world minecraft:overworld loaded' },
-        { level: 'info', message: 'Saving chunks for level \'ServerLevel[world]\'' },
-        { level: 'info', message: 'Saving chunks for level \'ServerLevel[world_nether]\'' },
-        { level: 'info', message: 'Saving chunks for level \'ServerLevel[world_the_end]\'' }
-      ];
-
-      const randomMessage = demoMessages[Math.floor(Math.random() * demoMessages.length)];
-      const message: ConsoleMessage = {
-        id: Date.now() + Math.random(),
-        timestamp: new Date(),
-        level: randomMessage.level as any,
-        message: randomMessage.message,
-        serverId: serverId || ''
-      };
-
-      if (!isPaused) {
-        setMessages(prev => [...prev.slice(-999), message]);
-      }
-    }, 3000 + Math.random() * 2000); // Random interval between 3-5 seconds
-
-    return () => clearInterval(interval);
-  }, [server, serverId, isPaused]);
+  // Connection status from live store
+  const { connected: isConnected } = useConnectionStatus();
 
   const handleSendCommand = async () => {
     if (!command.trim() || !serverId) return;
@@ -218,15 +91,13 @@ export const ConsoleStream: React.FC<ConsoleStreamProps> = ({ className = '' }) 
       });
 
       if (response.ok) {
-        // Add command to console
+        // Add command to console via live store
         const commandMessage: ConsoleMessage = {
-          id: Date.now() + Math.random(),
-          timestamp: new Date(),
+          ts: new Date().toISOString(),
           level: 'info',
-          message: `> ${command.trim()}`,
-          serverId: serverId
+          msg: `> ${command.trim()}`,
         };
-        setMessages(prev => [...prev, commandMessage]);
+        liveStore.getState().appendConsole(serverId, [commandMessage]);
         setCommand('');
       } else {
         console.error('Failed to send command');
@@ -243,12 +114,14 @@ export const ConsoleStream: React.FC<ConsoleStreamProps> = ({ className = '' }) 
   };
 
   const clearMessages = () => {
-    setMessages([]);
+    if (serverId) {
+      liveStore.getState().clearConsole(serverId);
+    }
   };
 
   const downloadLogs = () => {
     const logContent = messages
-      .map(msg => `[${msg.timestamp.toISOString()}] [${msg.level.toUpperCase()}] ${msg.message}`)
+      .map(msg => `[${msg.ts}] [${msg.level.toUpperCase()}] ${msg.msg}`)
       .join('\n');
     
     const blob = new Blob([logContent], { type: 'text/plain' });
@@ -292,11 +165,10 @@ export const ConsoleStream: React.FC<ConsoleStreamProps> = ({ className = '' }) 
     }
   };
 
-  const filteredMessages = messages.filter(msg => {
-    if (filters.level !== 'all' && msg.level !== filters.level) return false;
-    if (filters.search && !msg.message.toLowerCase().includes(filters.search.toLowerCase())) return false;
-    return true;
-  });
+  // Get virtual items for rendering
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const paddingTop = virtualItems.length ? virtualItems[0].start : 0;
+  // const paddingBottom = virtualItems.length ? rowVirtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end : 0;
 
   if (!server) {
     return (
@@ -411,40 +283,66 @@ export const ConsoleStream: React.FC<ConsoleStreamProps> = ({ className = '' }) 
         </div>
       </div>
 
-      {/* Console Output */}
-      <div className="flex-1 overflow-auto bg-black text-green-400 font-mono text-sm p-4">
+      {/* Console Output - Virtualized */}
+      <div 
+        ref={parentRef}
+        className="flex-1 overflow-auto bg-black text-green-400 font-mono text-sm"
+        style={{ height: '100%' }}
+      >
         {filteredMessages.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
+          <div className="text-center py-8 text-muted-foreground p-4">
             No console messages to display
           </div>
         ) : (
-          filteredMessages.map((msg) => (
-            <div key={msg.id} className="flex items-start gap-2 py-1 hover:bg-white/5 rounded">
-              {filters.showTimestamps && (
-                <span className="text-gray-500 text-xs whitespace-nowrap">
-                  {msg.timestamp.toLocaleTimeString()}
-                </span>
-              )}
-              
-              {filters.showLevels && (
-                <div className="flex items-center gap-1 min-w-0">
-                  {getLevelIcon(msg.level)}
-                  <Badge 
-                    variant="outline" 
-                    className={`text-xs ${getLevelColor(msg.level)} border-current`}
+          <div
+            style={{
+              height: rowVirtualizer.getTotalSize(),
+              position: 'relative',
+            }}
+          >
+            <div style={{ transform: `translateY(${paddingTop}px)` }}>
+              {virtualItems.map((virtualItem) => {
+                const msg = filteredMessages[virtualItem.index];
+                return (
+                  <div
+                    key={virtualItem.key}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: `${virtualItem.size}px`,
+                      transform: `translateY(${virtualItem.start - paddingTop}px)`,
+                    }}
+                    className="flex items-start gap-2 px-4 py-1 hover:bg-white/5 rounded"
                   >
-                    {msg.level.toUpperCase()}
-                  </Badge>
-                </div>
-              )}
-              
-              <span className="flex-1 break-words">
-                {msg.message}
-              </span>
+                    {filters.showTimestamps && (
+                      <span className="text-gray-500 text-xs whitespace-nowrap">
+                        {new Date(msg.ts).toLocaleTimeString()}
+                      </span>
+                    )}
+                    
+                    {filters.showLevels && (
+                      <div className="flex items-center gap-1 min-w-0">
+                        {getLevelIcon(msg.level)}
+                        <Badge 
+                          variant="outline" 
+                          className={`text-xs ${getLevelColor(msg.level)} border-current`}
+                        >
+                          {msg.level.toUpperCase()}
+                        </Badge>
+                      </div>
+                    )}
+                    
+                    <span className="flex-1 break-words">
+                      {msg.msg}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
-          ))
+          </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Command Input */}

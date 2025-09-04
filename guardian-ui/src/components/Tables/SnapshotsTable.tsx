@@ -8,11 +8,9 @@ import {
   Eye,
   Shield,
   Clock,
-  FileText,
   AlertTriangle,
   CheckCircle,
   Play,
-  Pause,
   Archive,
   Calendar,
   Database
@@ -46,11 +44,10 @@ export const SnapshotsTable: React.FC<SnapshotsTableProps> = ({
   onRestore,
   onDelete,
   onDownload,
-  onVerify,
-  className = ''
+  onVerify
 }) => {
-  const [sortBy, setSortBy] = useState('timestamp');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [sortBy] = useState('timestamp');
+  const [sortOrder] = useState<'asc' | 'desc'>('desc');
 
   // Filter and sort snapshots
   const filteredSnapshots = snapshots
@@ -81,20 +78,7 @@ export const SnapshotsTable: React.FC<SnapshotsTableProps> = ({
       }
     });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'text-green-400';
-      case 'in_progress':
-        return 'text-blue-400';
-      case 'failed':
-        return 'text-red-400';
-      case 'verifying':
-        return 'text-yellow-400';
-      default:
-        return 'text-gray-400';
-    }
-  };
+
 
   const getStatusIcon = (status: string) => {
     switch (status) {

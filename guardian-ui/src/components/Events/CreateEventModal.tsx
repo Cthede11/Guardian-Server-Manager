@@ -3,18 +3,15 @@ import {
   X, 
   Calendar, 
   Clock,
-  Timer,
   Repeat,
   Target,
   Settings,
   HardDrive,
   Server,
   Zap,
-  Users,
   AlertTriangle,
   CheckCircle,
-  Plus,
-  Minus
+  Plus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,7 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Separator } from '@/components/ui/separator';
+// import { Separator } from '@/components/ui/separator';
 
 interface CreateEventModalProps {
   isOpen: boolean;
@@ -38,7 +35,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   isOpen,
   onClose,
   onCreate,
-  className = ''
+  // className = ''
 }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [isCreating, setIsCreating] = useState(false);
@@ -162,10 +159,10 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     return eventType?.icon || <Target className="h-4 w-4" />;
   };
 
-  const getTypeDescription = (type: string) => {
-    const eventType = eventTypes.find(t => t.value === type);
-    return eventType?.description || 'Custom event';
-  };
+  // const getTypeDescription = (type: string) => {
+  //   const eventType = eventTypes.find(t => t.value === type);
+  //   return eventType?.description || 'Custom event';
+  // };
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>

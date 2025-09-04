@@ -4,40 +4,15 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+// Textarea import removed - not used
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
-  Cpu, 
-  MemoryStick, 
-  Settings as SettingsIcon,
   AlertTriangle,
   CheckCircle,
   Info,
-  Zap,
-  HardDrive,
-  Activity,
   Shield,
-  Network,
   Monitor,
-  Layers,
-  Database,
-  FileText,
-  Server,
-  Users,
-  Clock,
-  RefreshCw,
-  Package,
-  Globe,
-  Folder,
-  FolderOpen,
-  File,
-  FolderPlus,
-  FolderMinus,
-  FolderX,
-  FolderCheck,
-  FolderUp,
-  FolderDown,
   Key,
   Lock,
   Unlock,
@@ -46,8 +21,6 @@ import {
   Copy,
   Trash2,
   Plus,
-  Edit,
-  Save,
   X
 } from 'lucide-react';
 
@@ -166,21 +139,20 @@ export const TokensSettings: React.FC = () => {
     }
   ]);
   
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
+
   const [showToken, setShowToken] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
   const fetchSettings = async () => {
-    setIsLoading(true);
+    // Loading state removed for now
     try {
       // Mock API call
       await new Promise(resolve => setTimeout(resolve, 1000));
-      setHasChanges(false);
+      // Changes tracking removed for now
     } catch (error) {
       console.error('Failed to fetch tokens settings:', error);
     } finally {
-      setIsLoading(false);
+      // Loading state removed for now
     }
   };
 
@@ -190,25 +162,28 @@ export const TokensSettings: React.FC = () => {
 
   const handleSettingChange = (key: keyof TokensSettingsData, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }));
-    setHasChanges(true);
+    // Changes tracking removed for now
   };
 
   const getValidationStatus = (key: keyof TokensSettingsData) => {
     const value = settings[key];
     
+    // Ensure value is a number for comparison
+    const numValue = typeof value === 'number' ? value : Number(value);
+    
     switch (key) {
       case 'tokenExpiration':
-        return value < 60 || value > 31536000 ? 'error' : 'success';
+        return numValue < 60 || numValue > 31536000 ? 'error' : 'success';
       case 'tokenRotationInterval':
-        return value < 60 || value > 86400 ? 'error' : 'success';
+        return numValue < 60 || numValue > 86400 ? 'error' : 'success';
       case 'tokenMonitoringInterval':
-        return value < 1000 || value > 3600000 ? 'error' : 'success';
+        return numValue < 1000 || numValue > 3600000 ? 'error' : 'success';
       case 'tokenCleanupInterval':
-        return value < 3600000 || value > 604800000 ? 'error' : 'success';
+        return numValue < 3600000 || numValue > 604800000 ? 'error' : 'success';
       case 'tokenCleanupAge':
-        return value < 1 || value > 365 ? 'error' : 'success';
+        return numValue < 1 || numValue > 365 ? 'error' : 'success';
       case 'tokenProfilingInterval':
-        return value < 1000 || value > 600000 ? 'error' : 'success';
+        return numValue < 1000 || numValue > 600000 ? 'error' : 'success';
       default:
         return 'success';
     }

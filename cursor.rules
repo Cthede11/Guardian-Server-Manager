@@ -1,0 +1,9 @@
+# Nudge policy for stalled actions
+If a tool/command produces no useful output, stalls, or exceeds 20s without a heartbeat:
+1) Post a short status update to the user (e.g., "⏳ Still working...")
+2) Try one of:
+   - Reduce scope and run a smaller sub-step
+   - Propose an alternative approach
+   - Ask for one clarifying detail if truly necessary (prefer action)
+3) If two attempts fail, summarize what was tried and suggest a concrete next best step.
+Always keep nudges brief and action-oriented (one or two sentences).

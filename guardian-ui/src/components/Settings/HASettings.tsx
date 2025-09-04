@@ -1,32 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
-  Cpu, 
-  MemoryStick, 
-  Settings as SettingsIcon,
   AlertTriangle,
   CheckCircle,
   Info,
-  Zap,
-  HardDrive,
   Activity,
-  Shield,
-  Network,
-  Monitor,
-  Layers,
   Database,
-  FileText,
   Server,
   Users,
-  Clock,
-  RefreshCw
+  RefreshCw,
+  Network,
+  Shield
 } from 'lucide-react';
 
 interface HASettingsData {
@@ -167,19 +155,24 @@ export const HASettings: React.FC = () => {
     enableHADebug: false,
     haDebugLevel: 'none'
   });
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
+  // Loading state removed for now
+  // const [isLoading, setIsLoading] = useState(false);
+  // Changes tracking removed for now
+  // const [hasChanges, setHasChanges] = useState(false);
 
   const fetchSettings = async () => {
-    setIsLoading(true);
+    // Loading state removed for now
+    // setIsLoading(true);
     try {
       // Mock API call
       await new Promise(resolve => setTimeout(resolve, 1000));
-      setHasChanges(false);
+      // Changes tracking removed for now
+      // setHasChanges(false);
     } catch (error) {
       console.error('Failed to fetch HA settings:', error);
     } finally {
-      setIsLoading(false);
+      // Loading state removed for now
+      // setIsLoading(false);
     }
   };
 
@@ -189,55 +182,59 @@ export const HASettings: React.FC = () => {
 
   const handleSettingChange = (key: keyof HASettingsData, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }));
-    setHasChanges(true);
+    // Changes tracking removed for now
+    // setHasChanges(true);
   };
 
   const getValidationStatus = (key: keyof HASettingsData) => {
     const value = settings[key];
     
+    // Ensure value is a number for comparison
+    const numValue = typeof value === 'number' ? value : 0;
+    
     switch (key) {
       case 'haNodes':
-        return value < 2 || value > 10 ? 'error' : 'success';
+        return numValue < 2 || numValue > 10 ? 'error' : 'success';
       case 'haReplicationFactor':
-        return value < 1 || value > 5 ? 'error' : 'success';
+        return numValue < 1 || numValue > 5 ? 'error' : 'success';
       case 'nodePriority':
-        return value < 1 || value > 1000 ? 'error' : 'success';
+        return numValue < 1 || numValue > 1000 ? 'error' : 'success';
       case 'nodeWeight':
-        return value < 1 || value > 100 ? 'error' : 'success';
+        return numValue < 1 || numValue > 100 ? 'error' : 'success';
       case 'failoverTimeout':
-        return value < 1000 || value > 300000 ? 'error' : 'success';
+        return numValue < 1000 || numValue > 300000 ? 'error' : 'success';
       case 'failoverThreshold':
-        return value < 1 || value > 10 ? 'error' : 'success';
+        return numValue < 1 || numValue > 10 ? 'error' : 'success';
       case 'failoverCooldown':
-        return value < 1000 || value > 600000 ? 'error' : 'success';
+        return numValue < 1000 || numValue > 600000 ? 'error' : 'success';
       case 'healthCheckInterval':
-        return value < 1000 || value > 60000 ? 'error' : 'success';
+        return numValue < 1000 || numValue > 60000 ? 'error' : 'success';
       case 'healthCheckTimeout':
-        return value < 1000 || value > 60000 ? 'error' : 'success';
+        return numValue < 1000 || numValue > 60000 ? 'error' : 'success';
       case 'healthCheckRetries':
-        return value < 1 || value > 10 ? 'error' : 'success';
+        return numValue < 1 || numValue > 10 ? 'error' : 'success';
       case 'loadBalancingWeight':
-        return value < 1 || value > 100 ? 'error' : 'success';
+        return numValue < 1 || numValue > 100 ? 'error' : 'success';
       case 'loadBalancingThreshold':
-        return value < 1 || value > 100 ? 'error' : 'success';
+        return numValue < 1 || numValue > 100 ? 'error' : 'success';
       case 'replicationLag':
-        return value < 0 || value > 10000 ? 'error' : 'success';
+        return numValue < 0 || numValue > 10000 ? 'error' : 'success';
       case 'replicationTimeout':
-        return value < 1000 || value > 300000 ? 'error' : 'success';
+        return numValue < 1000 || numValue > 300000 ? 'error' : 'success';
       case 'backupInterval':
-        return value < 60000 || value > 86400000 ? 'error' : 'success';
+        return numValue < 60000 || numValue > 86400000 ? 'error' : 'success';
       case 'backupRetention':
-        return value < 1 || value > 365 ? 'error' : 'success';
+        return numValue < 1 || numValue > 365 ? 'error' : 'success';
       case 'haNetworkPort':
-        return value < 1 || value > 65535 ? 'error' : 'success';
+        return numValue < 1 || numValue > 65535 ? 'error' : 'success';
       case 'haNetworkTimeout':
-        return value < 1000 || value > 300000 ? 'error' : 'success';
+        return numValue < 1000 || numValue > 300000 ? 'error' : 'success';
       case 'haMonitoringInterval':
-        return value < 1000 || value > 60000 ? 'error' : 'success';
+        return numValue < 1000 || numValue > 60000 ? 'error' : 'success';
       case 'haLogRetention':
-        return value < 1 || value > 365 ? 'error' : 'success';
+        return numValue < 1 || numValue > 365 ? 'error' : 'success';
       case 'haProfilingInterval':
-        return value < 1000 || value > 600000 ? 'error' : 'success';
+        return numValue < 1000 || numValue > 600000 ? 'error' : 'success';
       default:
         return 'success';
     }

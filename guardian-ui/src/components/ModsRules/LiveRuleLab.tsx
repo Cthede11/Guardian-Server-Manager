@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
 import { 
-  X, 
   Plus, 
   Trash2, 
-  Play, 
   Pause,
   Settings,
   TestTube,
@@ -19,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+// import { Badge } from '@/components/ui/badge';
 
 interface LiveRuleLabProps {
   isOpen: boolean;
@@ -32,7 +30,7 @@ export const LiveRuleLab: React.FC<LiveRuleLabProps> = ({
   isOpen,
   onClose,
   onSave,
-  className = ''
+  // className = ''
 }) => {
   const [ruleName, setRuleName] = useState('');
   const [ruleDescription, setRuleDescription] = useState('');

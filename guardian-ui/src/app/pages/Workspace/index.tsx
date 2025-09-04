@@ -31,6 +31,15 @@ export const WorkspaceTokens: React.FC = () => {
   );
 };
 
+// Tokens (alias for WorkspaceTokens)
+export const Tokens: React.FC = () => {
+  return (
+    <div className="h-full">
+      <WorkspaceTokensComponent />
+    </div>
+  );
+};
+
 // Theme
 export const Theme: React.FC = () => {
   return (

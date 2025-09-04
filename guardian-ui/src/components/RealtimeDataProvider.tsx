@@ -13,13 +13,13 @@ interface RealtimeDataProviderProps {
 
 export const RealtimeDataProvider: React.FC<RealtimeDataProviderProps> = ({
   children,
-  serverId,
+  // serverId,
   autoConnect = true,
   showConnectionStatus = false,
   onConnectionChange,
   onDataUpdate
 }) => {
-  const { isConnected, connectionType } = useRealtimeConnection();
+  const { isConnected } = useRealtimeConnection();
   const { connect, disconnect } = useRealtimeStore();
   const { unsubscribe: unsubscribeGlobal } = useRealtimeGlobalSubscription();
   const [isInitialized, setIsInitialized] = useState(false);
@@ -116,37 +116,37 @@ export const ServerRealtimeProvider: React.FC<ServerRealtimeProviderProps> = ({
         const manager = createRealtimeManager(serverId);
         
         const unsubscribe = manager.subscribeToAllServerData({
-          console: (message) => {
+          console: (_message: any) => {
             // Console messages are handled by the store
           },
-          metrics: (metrics) => {
+          metrics: (_metrics: any) => {
             // Metrics are handled by the store
           },
-          health: (health) => {
+          health: (_health: any) => {
             // Health data is handled by the store
           },
-          players: (players) => {
+          players: (_players: any) => {
             // Player data is handled by the store
           },
-          world: (world) => {
+          world: (_world: any) => {
             // World data is handled by the store
           },
-          performance: (performance) => {
+          performance: (_performance: any) => {
             // Performance data is handled by the store
           },
-          backups: (backups) => {
+          backups: (_backups: any) => {
             // Backup data is handled by the store
           },
-          events: (events) => {
+          events: (_events: any) => {
             // Event data is handled by the store
           },
-          pregen: (pregen) => {
+          pregen: (_pregen: any) => {
             // Pregen data is handled by the store
           },
-          mods: (mods) => {
+          mods: (_mods: any) => {
             // Mods data is handled by the store
           },
-          diagnostics: (diagnostics) => {
+          diagnostics: (_diagnostics: any) => {
             // Diagnostics data is handled by the store
           },
         });
@@ -297,11 +297,11 @@ export function useRealtimeData<T>(
   return data;
 }
 
-// Export all providers and hooks
-export {
-  RealtimeDataProvider,
-  ServerRealtimeProvider,
-  WorkspaceRealtimeProvider,
-  useRealtimeSubscription,
-  useRealtimeData,
-};
+// Export all providers and hooks - removed duplicate exports
+// export {
+//   RealtimeDataProvider,
+//   ServerRealtimeProvider,
+//   WorkspaceRealtimeProvider,
+//   useRealtimeSubscription,
+//   useRealtimeData,
+// };

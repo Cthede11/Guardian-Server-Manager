@@ -1,17 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { 
   MessageSquare, 
   UserX, 
   Ban, 
   MapPin, 
-  Gauge,
   MoreHorizontal,
   Search,
   RefreshCw,
   Users,
   Clock,
-  Shield,
   AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -25,12 +24,13 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useServersStore } from '@/store/servers';
+import { usePlayerData, liveStore } from '@/store/live';
 import type { Player } from '@/lib/types';
-import { PlayersTableLoading, LoadingState } from '@/components/ui/LoadingStates';
+import { PlayersTableLoading } from '@/components/ui/LoadingStates';
 import { NoPlayersEmptyState, SearchEmptyState, ErrorEmptyState } from '@/components/ui/EmptyState';
 import { useLoadingState } from '@/components/ui/LoadingStates';
 import { notifications } from '@/lib/notifications';
@@ -45,10 +45,14 @@ export const PlayersTable: React.FC<PlayersTableProps> = ({ className = '' }) =>
   const { getServerById } = useServersStore();
   const server = serverId ? getServerById(serverId) : null;
   
-  const [players, setPlayers] = useState<Player[]>([]);
+  // Use live store for player data
+  const players = usePlayerData(serverId || '');
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const { isLoading, error, startLoading, stopLoading, setLoadingError } = useLoadingState();
+  
+  const parentRef = useRef<HTMLDivElement>(null);
   
   // Dialog states
   const [messageDialog, setMessageDialog] = useState<{ open: boolean; player: Player | null }>({ open: false, player: null });
@@ -64,8 +68,121 @@ export const PlayersTable: React.FC<PlayersTableProps> = ({ className = '' }) =>
   const [teleportCoords, setTeleportCoords] = useState({ x: '', y: '', z: '' });
   const [throttleDuration, setThrottleDuration] = useState('');
 
-  // Fetch players data
-  const fetchPlayers = async () => {
+  // Filter players with memoization for performance
+  const filteredPlayers = useMemo(() => {
+    return players.filter(player =>
+      player.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [players, searchQuery]);
+
+  // Virtualizer for performance with large player lists
+  const rowVirtualizer = useVirtualizer({
+    count: filteredPlayers.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 80, // Player row height
+    overscan: 5,
+  });
+
+  // Memoized player row component to prevent unnecessary re-renders
+  const PlayerRow = React.memo<{ player: Player; virtualItem: any }>(({ player, virtualItem }) => {
+    return (
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: `${virtualItem.size}px`,
+          transform: `translateY(${virtualItem.start}px)`,
+        }}
+        className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+            <span className="text-sm font-medium">
+              {player.name.charAt(0).toUpperCase()}
+            </span>
+          </div>
+          
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="font-medium">{player.name}</span>
+            </div>
+            
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {player.online ? 'Online' : 'Offline'}
+              </span>
+              
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {formatPlaytime(player.playtime || 0)}
+              </span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={actionLoading === player.uuid}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => setMessageDialog({ open: true, player })}
+              >
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Send Message
+              </DropdownMenuItem>
+              
+              <DropdownMenuItem
+                onClick={() => setTeleportDialog({ open: true, player })}
+              >
+                <MapPin className="h-4 w-4 mr-2" />
+                Teleport
+              </DropdownMenuItem>
+              
+              <DropdownMenuSeparator />
+              
+              <DropdownMenuItem
+                onClick={() => setKickDialog({ open: true, player })}
+                className="text-yellow-600"
+              >
+                <UserX className="h-4 w-4 mr-2" />
+                Kick Player
+              </DropdownMenuItem>
+              
+              <DropdownMenuItem
+                onClick={() => setBanDialog({ open: true, player })}
+                className="text-red-600"
+              >
+                <Ban className="h-4 w-4 mr-2" />
+                Ban Player
+              </DropdownMenuItem>
+              
+              <DropdownMenuItem
+                onClick={() => setThrottleDialog({ open: true, player })}
+                className="text-orange-600"
+              >
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                Throttle
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+    );
+  });
+
+  // Fetch players data (for initial load and refresh)
+  const fetchPlayers = useCallback(async () => {
     if (!serverId) return;
     
     startLoading();
@@ -73,36 +190,39 @@ export const PlayersTable: React.FC<PlayersTableProps> = ({ className = '' }) =>
       const response = await fetch(`/api/v1/servers/${serverId}/players/online`);
       if (response.ok) {
         const data = await response.json();
-        setPlayers(data);
+        // Update live store instead of local state
+        liveStore.getState().updatePlayers(serverId, data);
       } else {
         // Use mock data for demo
-        setPlayers(generateMockPlayers());
+        const mockPlayers = generateMockPlayers();
+        liveStore.getState().updatePlayers(serverId, mockPlayers);
       }
     } catch (error) {
       console.error('Error fetching players:', error);
       setLoadingError(handleApiError(error, 'fetching players'));
       // Use mock data for demo
-      setPlayers(generateMockPlayers());
+      const mockPlayers = generateMockPlayers();
+      liveStore.getState().updatePlayers(serverId, mockPlayers);
     } finally {
       stopLoading();
     }
-  };
+  }, [serverId, startLoading, stopLoading, setLoadingError]);
 
   // Generate mock players for demo
-  const generateMockPlayers = (): Player[] => {
+  const generateMockPlayers = useCallback((): Player[] => {
     const mockPlayers = [
-      { uuid: '1', name: 'Steve', ping: 45, location: { x: 100, y: 64, z: 200, dimension: 'overworld' }, playtime: 3600, isOp: true },
-      { uuid: '2', name: 'Alex', ping: 32, location: { x: -150, y: 70, z: 300, dimension: 'overworld' }, playtime: 2400, isOp: false },
-      { uuid: '3', name: 'Notch', ping: 67, location: { x: 0, y: 120, z: 0, dimension: 'overworld' }, playtime: 7200, isOp: true },
-      { uuid: '4', name: 'Herobrine', ping: 23, location: { x: 50, y: 64, z: -100, dimension: 'nether' }, playtime: 1800, isOp: false },
-      { uuid: '5', name: 'Dinnerbone', ping: 89, location: { x: 200, y: 80, z: 150, dimension: 'overworld' }, playtime: 4800, isOp: true },
-      { uuid: '6', name: 'Jeb_', ping: 12, location: { x: -50, y: 64, z: 250, dimension: 'overworld' }, playtime: 6000, isOp: true },
-      { uuid: '7', name: 'Grumm', ping: 156, location: { x: 75, y: 65, z: -75, dimension: 'overworld' }, playtime: 1200, isOp: false },
-      { uuid: '8', name: 'CaptainSparklez', ping: 34, location: { x: 300, y: 90, z: 400, dimension: 'overworld' }, playtime: 9000, isOp: false }
+      { uuid: '1', name: 'Steve', online: true, lastSeen: new Date().toISOString(), playtime: 3600 },
+      { uuid: '2', name: 'Alex', online: true, lastSeen: new Date().toISOString(), playtime: 2400 },
+      { uuid: '3', name: 'Notch', online: false, lastSeen: new Date(Date.now() - 3600000).toISOString(), playtime: 7200 },
+      { uuid: '4', name: 'Herobrine', online: true, lastSeen: new Date().toISOString(), playtime: 1800 },
+      { uuid: '5', name: 'Dinnerbone', online: false, lastSeen: new Date(Date.now() - 7200000).toISOString(), playtime: 4800 },
+      { uuid: '6', name: 'Jeb_', online: true, lastSeen: new Date().toISOString(), playtime: 6000 },
+      { uuid: '7', name: 'Grumm', online: false, lastSeen: new Date(Date.now() - 1800000).toISOString(), playtime: 1200 },
+      { uuid: '8', name: 'CaptainSparklez', online: true, lastSeen: new Date().toISOString(), playtime: 9000 }
     ];
     
     return mockPlayers;
-  };
+  }, []);
 
   useEffect(() => {
     fetchPlayers();
@@ -110,7 +230,7 @@ export const PlayersTable: React.FC<PlayersTableProps> = ({ className = '' }) =>
     // Refresh players every 10 seconds
     const interval = setInterval(fetchPlayers, 10000);
     return () => clearInterval(interval);
-  }, [serverId]);
+  }, [fetchPlayers]);
 
   // Handle player actions
   const handlePlayerAction = async (action: string, player: Player, data?: any) => {
@@ -176,9 +296,10 @@ export const PlayersTable: React.FC<PlayersTableProps> = ({ className = '' }) =>
     }
   };
 
-  const filteredPlayers = players.filter(player =>
-    player.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Get virtual items for rendering
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const paddingTop = virtualItems.length ? virtualItems[0].start : 0;
+  // const paddingBottom = virtualItems.length ? rowVirtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end : 0;
 
   const formatPlaytime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
@@ -186,24 +307,7 @@ export const PlayersTable: React.FC<PlayersTableProps> = ({ className = '' }) =>
     return `${hours}h ${minutes}m`;
   };
 
-  const getPingColor = (ping: number) => {
-    if (ping < 50) return 'text-green-400';
-    if (ping < 100) return 'text-yellow-400';
-    return 'text-red-400';
-  };
-
-  const getDimensionColor = (dimension: string) => {
-    switch (dimension) {
-      case 'overworld':
-        return 'text-green-400';
-      case 'nether':
-        return 'text-red-400';
-      case 'end':
-        return 'text-purple-400';
-      default:
-        return 'text-gray-400';
-    }
-  };
+  // Ping and dimension color functions removed - not used
 
   if (!server) {
     return (
@@ -223,7 +327,7 @@ export const PlayersTable: React.FC<PlayersTableProps> = ({ className = '' }) =>
           title="Failed to load players"
           description={error.message}
           onRetry={() => {
-            setLoadingError(null);
+            setLoadingError(new Error('Retrying...'));
             fetchPlayers();
           }}
         />
@@ -300,108 +404,29 @@ export const PlayersTable: React.FC<PlayersTableProps> = ({ className = '' }) =>
               <NoPlayersEmptyState onRefresh={fetchPlayers} />
             )
           ) : (
-            <div className="space-y-2">
-              {filteredPlayers.map((player) => (
-                <div
-                  key={player.uuid}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                      <span className="text-sm font-medium">
-                        {player.name.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{player.name}</span>
-                        {player.isOp && (
-                          <Badge variant="secondary" className="text-xs">
-                            <Shield className="h-3 w-3 mr-1" />
-                            OP
-                          </Badge>
-                        )}
-                      </div>
-                      
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <span className={`flex items-center gap-1 ${getPingColor(player.ping)}`}>
-                          <Gauge className="h-3 w-3" />
-                          {player.ping}ms
-                        </span>
-                        
-                        <span className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          <span className={getDimensionColor(player.location.dimension)}>
-                            {player.location.dimension}
-                          </span>
-                          ({player.location.x}, {player.location.y}, {player.location.z})
-                        </span>
-                        
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {formatPlaytime(player.playtime)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={actionLoading === player.uuid}
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => setMessageDialog({ open: true, player })}
-                        >
-                          <MessageSquare className="h-4 w-4 mr-2" />
-                          Send Message
-                        </DropdownMenuItem>
-                        
-                        <DropdownMenuItem
-                          onClick={() => setTeleportDialog({ open: true, player })}
-                        >
-                          <MapPin className="h-4 w-4 mr-2" />
-                          Teleport
-                        </DropdownMenuItem>
-                        
-                        <DropdownMenuSeparator />
-                        
-                        <DropdownMenuItem
-                          onClick={() => setKickDialog({ open: true, player })}
-                          className="text-yellow-600"
-                        >
-                          <UserX className="h-4 w-4 mr-2" />
-                          Kick Player
-                        </DropdownMenuItem>
-                        
-                        <DropdownMenuItem
-                          onClick={() => setBanDialog({ open: true, player })}
-                          className="text-red-600"
-                        >
-                          <Ban className="h-4 w-4 mr-2" />
-                          Ban Player
-                        </DropdownMenuItem>
-                        
-                        <DropdownMenuItem
-                          onClick={() => setThrottleDialog({ open: true, player })}
-                          className="text-orange-600"
-                        >
-                          <AlertTriangle className="h-4 w-4 mr-2" />
-                          Throttle
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
+            <div 
+              ref={parentRef}
+              className="h-96 overflow-auto"
+            >
+              <div
+                style={{
+                  height: rowVirtualizer.getTotalSize(),
+                  position: 'relative',
+                }}
+              >
+                <div style={{ transform: `translateY(${paddingTop}px)` }}>
+                  {virtualItems.map((virtualItem) => {
+                    const player = filteredPlayers[virtualItem.index];
+                    return (
+                      <PlayerRow
+                        key={player.uuid}
+                        player={player}
+                        virtualItem={virtualItem}
+                      />
+                    );
+                  })}
                 </div>
-              ))}
+              </div>
             </div>
           )}
         </CardContent>

@@ -1,38 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
-  Cpu, 
-  MemoryStick, 
-  Settings as SettingsIcon,
   AlertTriangle,
   CheckCircle,
   Info,
-  Zap,
-  HardDrive,
-  Activity,
   Shield,
-  Network,
   Monitor,
-  Layers,
   Database,
-  FileText,
+  Server,
   Folder,
-  FolderOpen,
-  File,
-  FolderPlus,
-  FolderMinus,
   FolderX,
   FolderCheck,
-  FolderClock,
-  FolderUp,
-  FolderDown
+  Cpu,
+  Settings as SettingsIcon
 } from 'lucide-react';
 
 interface PathsSettingsData {
@@ -209,19 +193,18 @@ export const PathsSettings: React.FC = () => {
     pathCleanupSize: '1G',
     pathCleanupPattern: '*.tmp,*.log,*.cache'
   });
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
+  // Loading and changes tracking removed for now
 
   const fetchSettings = async () => {
-    setIsLoading(true);
+    // Loading state removed for now
     try {
       // Mock API call
       await new Promise(resolve => setTimeout(resolve, 1000));
-      setHasChanges(false);
+      // Changes tracking removed for now
     } catch (error) {
       console.error('Failed to fetch paths settings:', error);
     } finally {
-      setIsLoading(false);
+      // Loading state removed for now
     }
   };
 
@@ -231,25 +214,28 @@ export const PathsSettings: React.FC = () => {
 
   const handleSettingChange = (key: keyof PathsSettingsData, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }));
-    setHasChanges(true);
+    // Changes tracking removed for now
   };
 
   const getValidationStatus = (key: keyof PathsSettingsData) => {
     const value = settings[key];
     
+    // Ensure value is a number for comparison
+    const numValue = typeof value === 'number' ? value : 0;
+    
     switch (key) {
       case 'pathMonitoringInterval':
-        return value < 1000 || value > 3600000 ? 'error' : 'success';
+        return numValue < 1000 || numValue > 3600000 ? 'error' : 'success';
       case 'pathMonitoringDepth':
-        return value < 1 || value > 100 ? 'error' : 'success';
+        return numValue < 1 || numValue > 100 ? 'error' : 'success';
       case 'pathBackupInterval':
-        return value < 60000 || value > 86400000 ? 'error' : 'success';
+        return numValue < 60000 || numValue > 86400000 ? 'error' : 'success';
       case 'pathBackupRetention':
-        return value < 1 || value > 365 ? 'error' : 'success';
+        return numValue < 1 || numValue > 365 ? 'error' : 'success';
       case 'pathCleanupInterval':
-        return value < 3600000 || value > 604800000 ? 'error' : 'success';
+        return numValue < 3600000 || numValue > 604800000 ? 'error' : 'success';
       case 'pathCleanupAge':
-        return value < 1 || value > 365 ? 'error' : 'success';
+        return numValue < 1 || numValue > 365 ? 'error' : 'success';
       default:
         return 'success';
     }
@@ -263,20 +249,7 @@ export const PathsSettings: React.FC = () => {
     }
   };
 
-  const getPathIcon = (path: string) => {
-    if (path.includes('server')) return <Server className="h-4 w-4" />;
-    if (path.includes('world')) return <Globe className="h-4 w-4" />;
-    if (path.includes('mod')) return <Package className="h-4 w-4" />;
-    if (path.includes('config')) return <SettingsIcon className="h-4 w-4" />;
-    if (path.includes('log')) return <FileText className="h-4 w-4" />;
-    if (path.includes('backup')) return <Database className="h-4 w-4" />;
-    if (path.includes('temp')) return <Clock className="h-4 w-4" />;
-    if (path.includes('cache')) return <HardDrive className="h-4 w-4" />;
-    if (path.includes('data')) return <Database className="h-4 w-4" />;
-    if (path.includes('system')) return <Cpu className="h-4 w-4" />;
-    if (path.includes('network')) return <Network className="h-4 w-4" />;
-    return <Folder className="h-4 w-4" />;
-  };
+
 
   const getPathStatus = (path: string) => {
     // Mock path validation

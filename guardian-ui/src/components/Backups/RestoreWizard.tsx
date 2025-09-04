@@ -1,28 +1,25 @@
 import React, { useState } from 'react';
 import { 
-  X, 
   Upload, 
   AlertTriangle, 
   CheckCircle,
-  Clock,
   HardDrive,
   Database,
   Shield,
-  Settings,
-  Play,
-  Pause,
-  RotateCcw
+  Settings
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+// Unused import removed
+// import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Separator } from '@/components/ui/separator';
+// Unused import removed
+// import { Separator } from '@/components/ui/separator';
 
 interface RestoreWizardProps {
   isOpen: boolean;
@@ -37,7 +34,6 @@ export const RestoreWizard: React.FC<RestoreWizardProps> = ({
   onClose,
   snapshot,
   onRestore,
-  className = ''
 }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [isRestoring, setIsRestoring] = useState(false);

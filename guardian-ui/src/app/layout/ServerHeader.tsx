@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Play, Square, RotateCcw, ArrowUpDown, Circle, Loader2, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,7 +24,7 @@ const serverTabs = [
 
 export const ServerHeader: React.FC = () => {
   const { id: serverId } = useParams<{ id: string }>();
-  const location = useLocation();
+  // const location = useLocation();
   const { 
     getServerById, 
     startServer, 
@@ -40,11 +40,11 @@ export const ServerHeader: React.FC = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   
   // Determine current tab from pathname
-  const currentTab = React.useMemo(() => {
-    const pathParts = location.pathname.split('/');
-    const tabIndex = pathParts.findIndex(part => part === serverId) + 1;
-    return pathParts[tabIndex] || 'overview';
-  }, [location.pathname, serverId]);
+  // const currentTab = React.useMemo(() => {
+  //   const pathParts = location.pathname.split('/');
+  //   const tabIndex = pathParts.findIndex(part => part === serverId) + 1;
+  //   return pathParts[tabIndex] || 'overview';
+  // }, [location.pathname, serverId]);
 
   const handleServerAction = async (action: 'start' | 'stop' | 'restart' | 'promote') => {
     if (!serverId) return;
@@ -113,25 +113,31 @@ export const ServerHeader: React.FC = () => {
 
   if (!server) {
     return (
-      <div className="h-16 bg-card border-b border-border flex items-center justify-center">
-        <p className="text-muted-foreground text-lg">Select a server to view details</p>
+      <div className="app-header h-20 flex items-center justify-center">
+        <div className="text-center animate-fade-in-up">
+          <div className="w-16 h-16 bg-gradient-to-br from-muted/30 to-muted/50 rounded-2xl flex items-center justify-center mx-auto mb-4 ring-1 ring-border/50">
+            <Circle className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <p className="text-foreground text-xl font-semibold gradient-text">Select a server to view details</p>
+          <p className="text-muted-foreground text-sm mt-2">Choose a server from the sidebar to get started</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-card border-b border-border shadow-sm">
+    <div className="app-header border-b border-border/50 shadow-lg">
       {/* Error Display */}
       {error && (
-        <div className="px-6 py-2 bg-destructive/10 border-b border-destructive/20">
-          <div className="flex items-center gap-2 text-destructive text-sm">
-            <AlertTriangle className="h-4 w-4" />
-            <span>{error}</span>
+        <div className="px-6 py-3 bg-destructive/10 border-b border-destructive/20">
+          <div className="flex items-center gap-3 text-destructive text-sm">
+            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+            <span className="flex-1">{error}</span>
             <Button
               size="sm"
               variant="ghost"
               onClick={clearError}
-              className="ml-auto h-6 w-6 p-0"
+              className="h-6 w-6 p-0 hover:bg-destructive/20"
             >
               ×
             </Button>
@@ -139,41 +145,44 @@ export const ServerHeader: React.FC = () => {
         </div>
       )}
       
-      <div className="h-16 flex items-center justify-between px-6 bg-secondary/20">
+      <div className="h-20 flex items-center justify-between px-6">
       {/* Server Info */}
       <div className="flex items-center gap-4">
+        <div className="w-14 h-14 bg-gradient-to-br from-primary/25 to-secondary/25 rounded-2xl flex items-center justify-center ring-1 ring-primary/20">
+          <Play className="h-7 w-7 text-primary" />
+        </div>
         <div>
-          <h1 className="text-lg font-semibold">{server.name}</h1>
-          <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold gradient-text">{server.name}</h1>
+          <div className="flex items-center gap-4 mt-2">
             <StatusPill status={server.status} />
             {server.blueGreen && (
-              <Badge variant="outline" className="text-xs">
+              <Badge variant="outline" className="text-xs bg-primary/15 border-primary/40 text-primary px-3 py-1">
                 {server.blueGreen.active === 'blue' ? 'Blue' : 'Green'}
                 {server.blueGreen.candidateHealthy && (
-                  <Circle className="h-2 w-2 ml-1 text-green-400" />
+                  <Circle className="h-2 w-2 ml-2 text-success" />
                 )}
               </Badge>
             )}
-            {serverHealth && (
-              <div className="flex items-center gap-1">
-                {serverHealth.rcon ? (
-                  <CheckCircle className="h-3 w-3 text-green-400" title="RCON Connected" />
+            {serverHealth && typeof serverHealth === 'object' && (
+              <div className="flex items-center gap-3">
+                {(serverHealth as any).rcon ? (
+                  <CheckCircle className="h-4 w-4 text-success" />
                 ) : (
-                  <AlertTriangle className="h-3 w-3 text-yellow-400" title="RCON Disconnected" />
+                  <AlertTriangle className="h-4 w-4 text-warning" />
                 )}
-                {serverHealth.query ? (
-                  <CheckCircle className="h-3 w-3 text-green-400" title="Query Connected" />
+                {(serverHealth as any).query ? (
+                  <CheckCircle className="h-4 w-4 text-success" />
                 ) : (
-                  <AlertTriangle className="h-3 w-3 text-yellow-400" title="Query Disconnected" />
+                  <AlertTriangle className="h-4 w-4 text-warning" />
                 )}
-                {serverHealth.crashTickets > 0 && (
-                  <Badge variant="destructive" className="text-xs">
-                    {serverHealth.crashTickets} crashes
+                {(serverHealth as any).crashTickets > 0 && (
+                  <Badge variant="destructive" className="text-xs px-2 py-1">
+                    {(serverHealth as any).crashTickets} crashes
                   </Badge>
                 )}
-                {serverHealth.freezeTickets > 0 && (
-                  <Badge variant="secondary" className="text-xs">
-                    {serverHealth.freezeTickets} freezes
+                {(serverHealth as any).freezeTickets > 0 && (
+                  <Badge variant="secondary" className="text-xs px-2 py-1">
+                    {(serverHealth as any).freezeTickets} freezes
                   </Badge>
                 )}
               </div>
@@ -183,17 +192,17 @@ export const ServerHeader: React.FC = () => {
       </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         <Button
           size="sm"
           onClick={() => handleServerAction('start')}
           disabled={getActionButtonState('start').disabled}
-          className="bg-green-600 hover:bg-green-700"
+          className="btn-primary"
         >
           {getActionButtonState('start').loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
           ) : (
-            <Play className="h-4 w-4" />
+            <Play className="h-4 w-4 mr-2" />
           )}
           Start
         </Button>
@@ -203,11 +212,12 @@ export const ServerHeader: React.FC = () => {
           variant="destructive"
           onClick={() => handleServerAction('stop')}
           disabled={getActionButtonState('stop').disabled}
+          className="px-4 py-2 rounded-xl font-semibold text-sm transition-all duration-300 ease-out bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-md hover:shadow-lg hover:-translate-y-0.5"
         >
           {getActionButtonState('stop').loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
           ) : (
-            <Square className="h-4 w-4" />
+            <Square className="h-4 w-4 mr-2" />
           )}
           Stop
         </Button>
@@ -217,6 +227,7 @@ export const ServerHeader: React.FC = () => {
           variant="outline"
           onClick={() => handleServerAction('restart')}
           disabled={getActionButtonState('restart').disabled}
+          className="border-border hover:bg-accent/50 shadow-sm hover:shadow-md transition-all duration-200"
         >
           {getActionButtonState('restart').loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -231,6 +242,7 @@ export const ServerHeader: React.FC = () => {
           variant="outline"
           onClick={() => handleServerAction('promote')}
           disabled={getActionButtonState('promote').disabled}
+          className="border-secondary/50 hover:bg-secondary/10 shadow-sm hover:shadow-md transition-all duration-200"
         >
           {getActionButtonState('promote').loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -247,7 +259,7 @@ export const ServerHeader: React.FC = () => {
 
 export const ServerTabs: React.FC = () => {
   const { id: serverId } = useParams<{ id: string }>();
-  const location = useLocation();
+  // const location = useLocation();
   const navigate = useNavigate();
   
   // Determine current tab from pathname
@@ -266,12 +278,12 @@ export const ServerTabs: React.FC = () => {
   return (
     <div className="bg-card border-b border-border px-6 shadow-sm">
       <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-12 bg-secondary/30 h-10">
+        <TabsList className="grid w-full grid-cols-12 bg-muted/30 h-12 rounded-lg p-1">
           {serverTabs.map((tab) => (
             <TabsTrigger
               key={tab.id}
               value={tab.id}
-              className="text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+              className="text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md rounded-md transition-all duration-200 hover:bg-accent/50"
             >
               {tab.label}
             </TabsTrigger>
