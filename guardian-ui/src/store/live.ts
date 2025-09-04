@@ -32,9 +32,11 @@ interface LiveState {
   // Actions
   setConnected: (connected: boolean) => void;
   setConnectionType: (type: 'socket' | 'sse' | 'disconnected') => void;
+  setConnectionStatus: (connected: boolean, type: 'socket' | 'sse' | 'disconnected' | 'websocket' | 'error') => void;
   
   // Console actions
   appendConsole: (serverId: string, lines: ConsoleMessage[]) => void;
+  addConsoleMessage: (serverId: string, message: ConsoleMessage) => void;
   clearConsole: (serverId: string) => void;
   
   // Player actions
@@ -42,11 +44,14 @@ interface LiveState {
   
   // World actions
   updateFreezes: (serverId: string, freezes: FreezeTicket[]) => void;
+  updateWorldData: (serverId: string, worldData: any) => void;
   
   // Metrics actions
   applyMetrics: (serverId: string, data: Partial<LiveState['metrics'][string]>) => void;
   
   // Pregen actions
+  addPregenJob: (serverId: string, job: PregenJob) => void;
+  updatePregenJob: (serverId: string, jobId: string, updates: Partial<PregenJob>) => void;
   updatePregenJobs: (serverId: string, jobs: PregenJob[]) => void;
 }
 
@@ -69,12 +74,33 @@ export const liveStore = create<LiveState>((set) => ({
   // Connection actions
   setConnected: (connected: boolean) => set({ connected }),
   setConnectionType: (connectionType: 'socket' | 'sse' | 'disconnected') => set({ connectionType }),
+  setConnectionStatus: (connected: boolean, connectionType: 'socket' | 'sse' | 'disconnected' | 'websocket' | 'error') => {
+    set({ connected, connectionType: connectionType === 'websocket' ? 'socket' : (connectionType === 'error' ? 'disconnected' : connectionType) });
+  },
+
+  updateServerStatus: (serverId: string, status: string) => {
+    // This will be handled by the servers store
+    console.log(`Server ${serverId} status updated to: ${status}`);
+  },
 
   // Console actions with rolling buffer
   appendConsole: (serverId: string, lines: ConsoleMessage[]) => {
     set((state) => {
       const currentLines = state.console[serverId] || [];
       const newLines = [...currentLines, ...lines].slice(-5000); // Keep last 5000 lines
+      return {
+        console: {
+          ...state.console,
+          [serverId]: newLines,
+        },
+      };
+    });
+  },
+
+  addConsoleMessage: (serverId: string, message: ConsoleMessage) => {
+    set((state) => {
+      const currentLines = state.console[serverId] || [];
+      const newLines = [...currentLines, message].slice(-5000); // Keep last 5000 lines
       return {
         console: {
           ...state.console,
@@ -113,8 +139,17 @@ export const liveStore = create<LiveState>((set) => ({
     }));
   },
 
+  updateWorldData: (serverId: string, worldData: any) => {
+    set((state) => ({
+      freezes: {
+        ...state.freezes,
+        [serverId]: worldData.freezes || [],
+      },
+    }));
+  },
+
   // Pregen actions
-  addPregenJob: (serverId: string, job: any) => {
+  addPregenJob: (serverId: string, job: PregenJob) => {
     set((state) => ({
       pregenJobs: {
         ...state.pregenJobs,
@@ -123,7 +158,7 @@ export const liveStore = create<LiveState>((set) => ({
     }));
   },
 
-  updatePregenJob: (serverId: string, jobId: string, updates: any) => {
+  updatePregenJob: (serverId: string, jobId: string, updates: Partial<PregenJob>) => {
     set((state) => ({
       pregenJobs: {
         ...state.pregenJobs,
@@ -191,9 +226,7 @@ export const usePlayerData = (serverId: string) => {
 };
 
 export const useWorldData = (serverId: string) => {
-  return liveStore((state) => ({
-    freezes: state.freezes[serverId] || [],
-  }));
+  return liveStore((state) => state.freezes[serverId] || []);
 };
 
 export const useMetrics = (serverId: string) => {
@@ -205,8 +238,7 @@ export const usePregenJobs = (serverId: string) => {
 };
 
 export const useConnectionStatus = () => {
-  return liveStore((state) => ({
-    connected: state.connected,
-    connectionType: state.connectionType,
-  }));
+  const connected = liveStore((state) => state.connected);
+  const connectionType = liveStore((state) => state.connectionType);
+  return { connected, connectionType };
 };

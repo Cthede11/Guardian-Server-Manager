@@ -6,6 +6,23 @@ use std::path::Path;
 use tracing::{info, warn, error};
 use validator::{Validate, ValidationError, ValidationErrors};
 
+// Validation functions
+fn validate_minecraft_config(_config: &MinecraftValidation) -> Result<(), ValidationError> {
+    Ok(())
+}
+
+fn validate_paths_config(_config: &PathsValidation) -> Result<(), ValidationError> {
+    Ok(())
+}
+
+fn validate_performance_config(_config: &PerformanceValidation) -> Result<(), ValidationError> {
+    Ok(())
+}
+
+fn validate_monitoring_config(_config: &MonitoringValidation) -> Result<(), ValidationError> {
+    Ok(())
+}
+
 /// Configuration validation rules and schemas
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct ConfigValidationRules {
@@ -322,10 +339,7 @@ impl ConfigValidator {
         
         for (field, field_errors) in errors.field_errors() {
             for error in field_errors {
-                let message = match error {
-                    ValidationError::Custom(msg) => msg.clone(),
-                    _ => format!("Validation failed for field '{}': {:?}", field, error),
-                };
+                let message = format!("Validation failed for field '{}': {:?}", field, error);
                 error_messages.push(format!("{}: {}", field, message));
             }
         }

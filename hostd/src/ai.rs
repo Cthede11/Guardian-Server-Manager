@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use std::path::PathBuf;
 
 /// AI/ML system for predictive crash prevention and performance optimization
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct AIManager {
     pub crash_predictor: Arc<RwLock<CrashPredictor>>,
     pub performance_optimizer: Arc<RwLock<PerformanceOptimizer>>,
@@ -698,7 +698,7 @@ impl AIManager {
 
     /// Calculate crash probability using simple heuristics
     fn calculate_crash_probability(&self, metrics: &PerformanceMetrics) -> f64 {
-        let mut probability = 0.0;
+        let mut probability: f64 = 0.0;
         
         // TPS-based risk
         if metrics.tps < 15.0 {

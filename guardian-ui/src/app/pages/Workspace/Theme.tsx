@@ -158,7 +158,7 @@ export const Theme: React.FC = () => {
   const applyThemeSettings = (themeSettings: ThemeSettings) => {
     const root = document.documentElement;
     
-    // Apply theme mode
+    // Apply theme mode (light/dark) - this is the main theme change
     if (themeSettings.theme === 'light') {
       root.classList.remove('dark');
     } else if (themeSettings.theme === 'dark') {
@@ -179,35 +179,8 @@ export const Theme: React.FC = () => {
       });
     }
     
-    // Apply layout settings
-    root.style.setProperty('--sidebar-width', `${themeSettings.layout.sidebarWidth}px`);
-    root.style.setProperty('--header-height', `${themeSettings.layout.headerHeight}px`);
-    root.style.setProperty('--border-radius', `${themeSettings.layout.borderRadius}px`);
-    root.style.setProperty('--spacing', `${themeSettings.layout.spacing}px`);
-    root.style.setProperty('--font-size', `${themeSettings.layout.fontSize}px`);
-    root.style.setProperty('--line-height', `${themeSettings.layout.lineHeight}`);
-    
-    // Apply accessibility settings
-    if (themeSettings.accessibility.reducedMotion) {
-      root.style.setProperty('--animation-duration', '0ms');
-    } else {
-      root.style.removeProperty('--animation-duration');
-    }
-    
-    if (themeSettings.accessibility.highContrast) {
-      root.classList.add('high-contrast');
-    } else {
-      root.classList.remove('high-contrast');
-    }
-    
-    // Apply custom CSS
-    let customStyleElement = document.getElementById('custom-theme-styles');
-    if (!customStyleElement) {
-      customStyleElement = document.createElement('style');
-      customStyleElement.id = 'custom-theme-styles';
-      document.head.appendChild(customStyleElement);
-    }
-    customStyleElement.textContent = themeSettings.advanced.customCSS;
+    // Note: Layout settings, preferences, and custom CSS are not applied
+    // to prevent UI restructuring. Theme changes should only affect colors.
   };
 
   const fetchSettings = async () => {

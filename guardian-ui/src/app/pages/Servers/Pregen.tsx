@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { 
   Map, 
@@ -66,6 +66,7 @@ export const Pregen: React.FC<PregenPageProps> = ({ className = '' }) => {
   const [filterDimension, setFilterDimension] = useState('all');
   // const [selectedRegion, setSelectedRegion] = useState<any>(null);
   const [regionSelectorOpen, setRegionSelectorOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // No need for fetchPregenJobs since we're using the live store
 
@@ -260,7 +261,7 @@ export const Pregen: React.FC<PregenPageProps> = ({ className = '' }) => {
             </Badge>
             <Badge variant="outline" className="flex items-center gap-1">
               <Zap className="h-3 w-3" />
-              {pregenJobs.filter(j => j.gpuAccelerated).length} GPU Assisted
+              {pregenJobs.filter(j => j.gpuAssist).length} GPU Assisted
             </Badge>
           </div>
         </div>
@@ -277,16 +278,24 @@ export const Pregen: React.FC<PregenPageProps> = ({ className = '' }) => {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => {
-              // Refresh pregen jobs from live store
-              const currentJobs = liveStore.getState().pregenJobs[serverId || ''] || [];
-              // Trigger a refresh by updating the store
-              liveStore.setState(state => ({
-                pregenJobs: {
-                  ...state.pregenJobs,
-                  [serverId || '']: [...currentJobs],
-                },
-              }));
+            onClick={async () => {
+              setIsLoading(true);
+              try {
+                // Simulate a refresh operation
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Refresh pregen jobs from live store
+                const currentJobs = liveStore.getState().pregenJobs[serverId || ''] || [];
+                // Trigger a refresh by updating the store
+                liveStore.setState(state => ({
+                  pregenJobs: {
+                    ...state.pregenJobs,
+                    [serverId || '']: [...currentJobs],
+                  },
+                }));
+              } finally {
+                setIsLoading(false);
+              }
             }}
             disabled={isLoading}
           >
@@ -396,9 +405,9 @@ export const Pregen: React.FC<PregenPageProps> = ({ className = '' }) => {
                             {getStatusIcon(job.status)}
                           </div>
                           <div>
-                            <p className="font-medium text-sm">{job.name}</p>
+                            <p className="font-medium text-sm">Region {job.id}</p>
                             <p className="text-xs text-muted-foreground">
-                              {job.region.centerX}, {job.region.centerZ} (r{job.region.radius})
+                              {job.region.x}, {job.region.z} (r{job.region.radius})
                             </p>
                           </div>
                         </div>
@@ -406,7 +415,7 @@ export const Pregen: React.FC<PregenPageProps> = ({ className = '' }) => {
                           <Badge className={`text-xs ${getDimensionColor(job.dimension)}`}>
                             {job.dimension}
                           </Badge>
-                          {job.gpuAccelerated && (
+                          {job.gpuAssist && (
                             <Badge variant="outline" className="text-xs text-blue-400">
                               <Zap className="h-3 w-3 mr-1" />
                               GPU
@@ -431,25 +440,25 @@ export const Pregen: React.FC<PregenPageProps> = ({ className = '' }) => {
                   <div className="flex items-center justify-between">
                     <span className="text-sm">Total Chunks Processed</span>
                     <span className="text-sm font-medium">
-                      {formatChunks(pregenJobs.reduce((sum, j) => sum + j.completedChunks, 0))}
+                      {formatChunks(pregenJobs.reduce((sum, j) => sum + (j.progress || 0), 0))}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Average Speed</span>
+                    <span className="text-sm">Average Progress</span>
                     <span className="text-sm font-medium">
-                      {Math.floor(pregenJobs.reduce((sum, j) => sum + j.chunksPerSecond, 0) / pregenJobs.length)} chunks/s
+                      {Math.floor(pregenJobs.reduce((sum, j) => sum + (j.progress || 0), 0) / pregenJobs.length)}%
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm">GPU Acceleration</span>
                     <span className="text-sm font-medium">
-                      {Math.floor((pregenJobs.filter(j => j.gpuAccelerated).length / pregenJobs.length) * 100)}%
+                      {pregenJobs.length > 0 ? Math.floor((pregenJobs.filter(j => j.gpuAssist).length / pregenJobs.length) * 100) : 0}%
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Memory Usage</span>
+                    <span className="text-sm">Active Jobs</span>
                     <span className="text-sm font-medium">
-                      {Math.floor(pregenJobs.reduce((sum, j) => sum + j.memoryUsage, 0) / pregenJobs.length)} MB
+                      {pregenJobs.filter(j => j.status === 'running').length}
                     </span>
                   </div>
                 </div>

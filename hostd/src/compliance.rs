@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use std::path::PathBuf;
 
 /// Compliance framework for GDPR, SOC2, and data privacy
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ComplianceManager {
     pub policies: Arc<RwLock<HashMap<String, CompliancePolicy>>>,
     pub audits: Arc<RwLock<Vec<ComplianceAudit>>>,
@@ -643,7 +643,7 @@ impl ComplianceManager {
         let rule_score = (active_rules as f64 / total_rules as f64) * 100.0;
         
         // Factor in audit findings
-        let total_findings: usize = audits.iter().map(|a| a.findings.len()).sum();
+        let _total_findings: usize = audits.iter().map(|a| a.findings.len()).sum();
         let critical_findings: usize = audits.iter()
             .flat_map(|a| &a.findings)
             .filter(|f| f.severity == RuleSeverity::Critical)

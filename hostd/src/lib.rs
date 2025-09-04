@@ -13,6 +13,11 @@ pub mod config;
 pub mod process;
 pub mod snapshot;
 pub mod metrics;
+pub mod websocket;
+pub mod api;
+pub mod database;
+pub mod minecraft;
+pub mod rcon;
 
 pub mod auth;
 pub mod tenant;
@@ -69,7 +74,7 @@ pub struct HostDaemon {
     state: Arc<RwLock<DaemonState>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct DaemonState {
     pub start_time: Instant,
     pub uptime: Duration,

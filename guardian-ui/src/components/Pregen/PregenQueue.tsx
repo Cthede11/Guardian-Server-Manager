@@ -167,7 +167,10 @@ export const PregenQueue: React.FC<PregenQueueProps> = ({
     }
   };
 
-  const formatChunks = (chunks: number) => {
+  const formatChunks = (chunks: number | undefined) => {
+    if (chunks === undefined || chunks === null) {
+      return 'N/A';
+    }
     if (chunks >= 1000000) {
       return `${(chunks / 1000000).toFixed(1)}M`;
     } else if (chunks >= 1000) {
@@ -265,9 +268,9 @@ export const PregenQueue: React.FC<PregenQueueProps> = ({
                           GPU
                         </Badge>
                       )}
-                      {job.tags && job.tags.length > 0 && (
+                      {job.dimension && (
                         <Badge variant="outline" className="text-xs">
-                          {job.tags.join(', ')}
+                          {job.dimension}
                         </Badge>
                       )}
                     </div>
@@ -275,20 +278,20 @@ export const PregenQueue: React.FC<PregenQueueProps> = ({
                     <div className="flex items-center gap-4 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Target className="h-3 w-3" />
-                        {job.region.centerX}, {job.region.centerZ} (r{job.region.radius})
+                        {job.region.x}, {job.region.z} (r{job.region.radius})
                       </span>
                       <span className="flex items-center gap-1">
                         <Database className="h-3 w-3" />
-                        {formatChunks(job.totalChunks)} chunks
+                        {formatChunks(job.progress)}% complete
                       </span>
                       <span className="flex items-center gap-1">
                         <Clock className="h-3 w-3" />
-                        {formatDate(job.createdAt)}
+                        {job.eta || 'N/A'}
                       </span>
                       {job.status === 'running' && (
                         <span className="flex items-center gap-1">
                           <Activity className="h-3 w-3" />
-                          {job.chunksPerSecond} chunks/s
+                          {job.progress}% complete
                         </span>
                       )}
                     </div>
@@ -376,10 +379,10 @@ export const PregenQueue: React.FC<PregenQueueProps> = ({
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">
-                      Progress: {formatChunks(job.completedChunks)} / {formatChunks(job.totalChunks)} chunks
+                      Progress: {job.progress.toFixed(1)}%
                     </span>
                     <span className="font-medium">
-                      {job.progress.toFixed(1)}%
+                      {job.status}
                     </span>
                   </div>
                   <Progress 
@@ -392,9 +395,9 @@ export const PregenQueue: React.FC<PregenQueueProps> = ({
                        job.status === 'paused' ? 'Paused' : 
                        job.status === 'completed' ? 'Completed' : 'Unknown'}
                     </span>
-                    {job.status === 'running' && (
+                    {job.status === 'running' && job.eta && (
                       <span>
-                        ETA: {formatDuration(job.estimatedTime - Math.floor((Date.now() - job.startTime) / 60000))}
+                        ETA: {job.eta}
                       </span>
                     )}
                   </div>
@@ -404,28 +407,16 @@ export const PregenQueue: React.FC<PregenQueueProps> = ({
               {/* Performance Metrics */}
               {job.status === 'running' && (
                 <div className="mt-3 pt-3 border-t">
-                  <div className="grid grid-cols-4 gap-4 text-xs">
+                  <div className="grid grid-cols-2 gap-4 text-xs">
                     <div className="flex items-center gap-1">
                       <Cpu className="h-3 w-3 text-blue-400" />
-                      <span className="text-muted-foreground">CPU:</span>
-                      <span className="font-medium">{job.chunksPerSecond} chunks/s</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <HardDrive className="h-3 w-3 text-green-400" />
-                      <span className="text-muted-foreground">Memory:</span>
-                      <span className="font-medium">{job.memoryUsage} MB</span>
+                      <span className="text-muted-foreground">Progress:</span>
+                      <span className="font-medium">{job.progress.toFixed(1)}%</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <Zap className="h-3 w-3 text-yellow-400" />
                       <span className="text-muted-foreground">GPU:</span>
-                      <span className="font-medium">{job.gpuAccelerated ? 'Active' : 'Inactive'}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-3 w-3 text-purple-400" />
-                      <span className="text-muted-foreground">Runtime:</span>
-                      <span className="font-medium">
-                        {formatDuration(Math.floor((Date.now() - job.startTime) / 60000))}
-                      </span>
+                      <span className="font-medium">{job.gpuAssist ? 'Active' : 'Inactive'}</span>
                     </div>
                   </div>
                 </div>

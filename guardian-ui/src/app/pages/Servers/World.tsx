@@ -28,6 +28,35 @@ export const World: React.FC = () => {
         </p>
       </div>
 
+      {/* World Heatmap Description */}
+      <div className="panel p-6">
+        <h3 className="text-lg font-semibold mb-3">World Activity Heatmap</h3>
+        <div className="space-y-3 text-sm text-muted-foreground">
+          <p>
+            The heatmap below visualizes world activity and performance issues across your server's world. 
+            This tool helps you identify problem areas and optimize your server's performance.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <h4 className="font-medium text-foreground mb-2">What the colors mean:</h4>
+              <ul className="space-y-1">
+                <li>• <span className="text-red-400">Red areas</span> - High activity or performance issues</li>
+                <li>• <span className="text-orange-400">Orange areas</span> - Medium activity</li>
+                <li>• <span className="text-gray-400">Gray areas</span> - Low activity or unloaded chunks</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-medium text-foreground mb-2">What to look for:</h4>
+              <ul className="space-y-1">
+                <li>• Concentrated red spots may indicate lag sources</li>
+                <li>• Large red areas suggest heavy player activity</li>
+                <li>• Use this data to optimize chunk loading and performance</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* World Heatmap */}
       <WorldHeatmap />
     </div>

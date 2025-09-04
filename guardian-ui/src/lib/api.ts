@@ -1,6 +1,6 @@
 import type { ApiResponse } from './types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
 class ApiClient {
   private baseUrl: string;
@@ -32,8 +32,17 @@ class ApiClient {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const data = await response.json();
-      return { ok: true, data };
+      const result = await response.json();
+      
+      // Handle the new API response format
+      if (result.success) {
+        return { ok: true, data: result.data };
+      } else {
+        return {
+          ok: false,
+          error: result.error || 'Unknown error',
+        };
+      }
     } catch (error) {
       return {
         ok: false,
@@ -63,31 +72,70 @@ class ApiClient {
     });
   }
 
-  async getServerSummary(id: string) {
-    return this.request(`/servers/${id}/summary`);
+  async getServer(id: string) {
+    return this.request(`/servers/${id}`);
   }
 
   async getServerHealth(id: string) {
     return this.request(`/servers/${id}/health`);
   }
 
-  async serverAction(id: string, action: 'start' | 'stop' | 'restart' | 'promote') {
-    return this.request(`/servers/${id}/actions/${action}`, {
+  async startServer(id: string) {
+    return this.request(`/servers/${id}/start`, {
       method: 'POST',
+    });
+  }
+
+  async stopServer(id: string) {
+    return this.request(`/servers/${id}/stop`, {
+      method: 'POST',
+    });
+  }
+
+  async restartServer(id: string) {
+    return this.request(`/servers/${id}/restart`, {
+      method: 'POST',
+    });
+  }
+
+  async sendServerCommand(id: string, command: string) {
+    return this.request(`/servers/${id}/command`, {
+      method: 'POST',
+      body: JSON.stringify({ command }),
     });
   }
 
   // Console endpoints
+  async getConsoleMessages(id: string) {
+    return this.request(`/servers/${id}/console`);
+  }
+
   async sendConsoleCommand(id: string, cmd: string) {
-    return this.request(`/servers/${id}/console/command`, {
+    return this.request(`/servers/${id}/console`, {
       method: 'POST',
-      body: JSON.stringify({ cmd }),
+      body: JSON.stringify({ command: cmd }),
     });
   }
 
   // Player endpoints
-  async getOnlinePlayers(id: string) {
-    return this.request(`/servers/${id}/players/online`);
+  async getPlayers(id: string) {
+    return this.request(`/servers/${id}/players`);
+  }
+
+  async getPlayer(id: string, uuid: string) {
+    return this.request(`/servers/${id}/players/${uuid}`);
+  }
+
+  async kickPlayer(id: string, uuid: string) {
+    return this.request(`/servers/${id}/players/${uuid}/kick`, {
+      method: 'POST',
+    });
+  }
+
+  async banPlayer(id: string, uuid: string) {
+    return this.request(`/servers/${id}/players/${uuid}/ban`, {
+      method: 'POST',
+    });
   }
 
   async playerAction(
@@ -103,12 +151,12 @@ class ApiClient {
   }
 
   // World endpoints
-  async getWorldHeatmap(id: string, metric: string = 'tickCost') {
-    return this.request(`/servers/${id}/world/heatmap?metric=${metric}`);
+  async getWorldHeatmap(id: string) {
+    return this.request(`/servers/${id}/world/heatmap`);
   }
 
-  async getFreezes(id: string) {
-    return this.request(`/servers/${id}/freezes`);
+  async getWorldFreezes(id: string) {
+    return this.request(`/servers/${id}/world/freezes`);
   }
 
   async thawFreeze(id: string, actorId: string) {
@@ -172,20 +220,29 @@ class ApiClient {
   }
 
   // Backup endpoints
-  async getSnapshots(id: string) {
-    return this.request(`/servers/${id}/snapshots`);
+  async getBackups(id: string) {
+    return this.request(`/servers/${id}/backups`);
   }
 
-  async createSnapshot(id: string) {
-    return this.request(`/servers/${id}/snapshots/create`, {
+  async createBackup(id: string) {
+    return this.request(`/servers/${id}/backups`, {
       method: 'POST',
     });
   }
 
-  async restoreSnapshot(id: string, scope: string, params: any) {
-    return this.request(`/servers/${id}/snapshots/restore`, {
+  async getBackup(id: string, backupId: string) {
+    return this.request(`/servers/${id}/backups/${backupId}`);
+  }
+
+  async restoreBackup(id: string, backupId: string) {
+    return this.request(`/servers/${id}/backups/${backupId}/restore`, {
       method: 'POST',
-      body: JSON.stringify({ scope, params }),
+    });
+  }
+
+  async deleteBackup(id: string, backupId: string) {
+    return this.request(`/servers/${id}/backups/${backupId}`, {
+      method: 'DELETE',
     });
   }
 
@@ -202,7 +259,11 @@ class ApiClient {
   }
 
   // Pregen endpoints
-  async startPregen(id: string, data: {
+  async getPregenJobs(id: string) {
+    return this.request(`/servers/${id}/pregen`);
+  }
+
+  async createPregenJob(id: string, data: {
     region: { x: number; z: number; radius: number };
     dimension: string;
     priority: 'low' | 'normal' | 'high';
@@ -213,8 +274,33 @@ class ApiClient {
     });
   }
 
-  async getPregenStatus(id: string) {
-    return this.request(`/servers/${id}/pregen/status`);
+  async getPregenJob(id: string, jobId: string) {
+    return this.request(`/servers/${id}/pregen/${jobId}`);
+  }
+
+  async updatePregenJob(id: string, jobId: string, data: any) {
+    return this.request(`/servers/${id}/pregen/${jobId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deletePregenJob(id: string, jobId: string) {
+    return this.request(`/servers/${id}/pregen/${jobId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async startPregenJob(id: string, jobId: string) {
+    return this.request(`/servers/${id}/pregen/${jobId}/start`, {
+      method: 'POST',
+    });
+  }
+
+  async stopPregenJob(id: string, jobId: string) {
+    return this.request(`/servers/${id}/pregen/${jobId}/stop`, {
+      method: 'POST',
+    });
   }
 
   // Sharding endpoints

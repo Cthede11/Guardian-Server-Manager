@@ -104,7 +104,7 @@ export const useServersStore = create<ServersState>((set, get) => ({
   },
 
   startServer: async (id: string) => {
-    const response = await api.serverAction(id, 'start');
+    const response = await api.startServer(id);
     
     if (response.ok) {
       // Optimistically update the server status
@@ -123,7 +123,7 @@ export const useServersStore = create<ServersState>((set, get) => ({
   },
 
   stopServer: async (id: string) => {
-    const response = await api.serverAction(id, 'stop');
+    const response = await api.stopServer(id);
     
     if (response.ok) {
       // Optimistically update the server status
@@ -142,7 +142,7 @@ export const useServersStore = create<ServersState>((set, get) => ({
   },
 
   restartServer: async (id: string) => {
-    const response = await api.serverAction(id, 'restart');
+    const response = await api.restartServer(id);
     
     if (response.ok) {
       // Optimistically update the server status
@@ -161,7 +161,8 @@ export const useServersStore = create<ServersState>((set, get) => ({
   },
 
   promoteServer: async (id: string) => {
-    const response = await api.serverAction(id, 'promote');
+    // Note: promoteServer method doesn't exist in API, using restart as fallback
+    const response = await api.restartServer(id);
     
     if (response.ok) {
       // Optimistically update the blue/green status

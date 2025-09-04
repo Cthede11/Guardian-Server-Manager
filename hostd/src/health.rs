@@ -31,7 +31,7 @@ pub struct HealthCheckResult {
 }
 
 /// Health check definition
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct HealthCheck {
     pub id: String,
     pub name: String,

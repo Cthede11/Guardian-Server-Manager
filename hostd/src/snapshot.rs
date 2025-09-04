@@ -333,6 +333,10 @@ impl SnapshotManager {
     
     /// Copy directory recursively
     async fn copy_directory(src: &Path, dst: &Path) -> Result<()> {
+        Box::pin(Self::copy_directory_recursive(src, dst)).await
+    }
+    
+    async fn copy_directory_recursive(src: &Path, dst: &Path) -> Result<()> {
         tokio::fs::create_dir_all(dst).await?;
         
         let mut entries = tokio::fs::read_dir(src).await?;
@@ -341,7 +345,7 @@ impl SnapshotManager {
             let dst_path = dst.join(entry.file_name());
             
             if src_path.is_dir() {
-                Self::copy_directory(&src_path, &dst_path).await?;
+                Box::pin(Self::copy_directory_recursive(&src_path, &dst_path)).await?;
             } else {
                 tokio::fs::copy(&src_path, &dst_path).await?;
             }
@@ -352,6 +356,10 @@ impl SnapshotManager {
     
     /// Calculate directory size
     async fn calculate_directory_size(path: &Path) -> Result<u64> {
+        Box::pin(Self::calculate_directory_size_recursive(path)).await
+    }
+    
+    async fn calculate_directory_size_recursive(path: &Path) -> Result<u64> {
         let mut total_size = 0u64;
         
         let mut entries = tokio::fs::read_dir(path).await?;
@@ -359,7 +367,7 @@ impl SnapshotManager {
             let entry_path = entry.path();
             
             if entry_path.is_dir() {
-                total_size += Self::calculate_directory_size(&entry_path).await?;
+                total_size += Box::pin(Self::calculate_directory_size_recursive(&entry_path)).await?;
             } else {
                 let metadata = entry.metadata().await?;
                 total_size += metadata.len();

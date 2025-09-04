@@ -26,6 +26,10 @@ export const router = createBrowserRouter([
             path: ':id',
             children: [
               {
+                index: true,
+                element: <Navigate to="overview" replace />,
+              },
+              {
                 path: 'overview',
                 element: <ServersPages.Overview />,
               },

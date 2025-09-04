@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use std::path::PathBuf;
 
 /// Community features for mod compatibility database and sharing
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct CommunityManager {
     pub mod_database: Arc<RwLock<ModDatabase>>,
     pub compatibility_reports: Arc<RwLock<HashMap<String, Vec<CompatibilityReport>>>>,

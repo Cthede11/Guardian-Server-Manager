@@ -2,6 +2,13 @@ use hostd::*;
 use clap::Parser;
 use tracing::{info, error};
 use tracing_subscriber;
+use axum::{
+    Router,
+    routing::get,
+    response::Html,
+};
+use tower_http::cors::CorsLayer;
+use std::net::SocketAddr;
 
 #[derive(Parser)]
 #[command(name = "hostd")]
@@ -18,6 +25,14 @@ struct Args {
     /// Daemon mode
     #[arg(short, long)]
     daemon: bool,
+    
+    /// HTTP server port
+    #[arg(short, long, default_value = "8080")]
+    port: u16,
+    
+    /// Database URL
+    #[arg(long, default_value = "sqlite:guardian.db")]
+    database_url: String,
 }
 
 #[tokio::main]
@@ -31,6 +46,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
     
     info!("Starting Guardian Host Daemon...");
+    
+    // Initialize database
+    let db = database::DatabaseManager::new(&args.database_url).await?;
+    info!("Database initialized: {}", args.database_url);
+    
+    // Initialize WebSocket manager
+    let websocket_manager = websocket::WebSocketManager::new();
+    info!("WebSocket manager initialized");
+    
+    // Initialize Minecraft manager
+    let minecraft_manager = minecraft::MinecraftManager::new(db.clone());
+    minecraft_manager.load_servers().await?;
+    info!("Minecraft manager initialized");
+    
+    // Create application state
+    let app_state = api::AppState {
+        websocket_manager: websocket_manager.clone(),
+    };
+    
+    // Create API router
+    let api_router = api::create_api_router(app_state);
+    
+    // Create WebSocket router
+    let ws_router = websocket::create_websocket_router(websocket_manager);
+    
+    // Combine routers
+    let app = Router::new()
+        .merge(api_router)
+        .merge(ws_router)
+        .route("/", get(|| async { Html("<h1>Guardian Host Daemon</h1><p>API is running</p>") }))
+        .layer(CorsLayer::permissive());
+    
+    // Start HTTP server
+    let addr = SocketAddr::from(([0, 0, 0, 0], args.port));
+    info!("Starting HTTP server on {}", addr);
+    
+    let server_handle = tokio::spawn(async move {
+        axum::Server::bind(&addr)
+            .serve(app.into_make_service())
+            .await
+            .unwrap();
+    });
     
     // Load configuration
     let config = Config::load(&args.config)?;
@@ -47,6 +104,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         info!("Running in foreground mode");
         hostd.run().await?;
     }
+    
+    // Stop HTTP server
+    server_handle.abort();
     
     info!("Guardian Host Daemon stopped");
     Ok(())
