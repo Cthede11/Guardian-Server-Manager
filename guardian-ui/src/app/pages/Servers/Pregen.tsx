@@ -277,7 +277,17 @@ export const Pregen: React.FC<PregenPageProps> = ({ className = '' }) => {
           <Button
             size="sm"
             variant="outline"
-            onClick={fetchPregenJobs}
+            onClick={() => {
+              // Refresh pregen jobs from live store
+              const currentJobs = liveStore.getState().pregenJobs[serverId || ''] || [];
+              // Trigger a refresh by updating the store
+              liveStore.setState(state => ({
+                pregenJobs: {
+                  ...state.pregenJobs,
+                  [serverId || '']: [...currentJobs],
+                },
+              }));
+            }}
             disabled={isLoading}
           >
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />

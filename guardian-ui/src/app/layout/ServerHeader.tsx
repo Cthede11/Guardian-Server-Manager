@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Play, Square, RotateCcw, ArrowUpDown, Circle, Loader2, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -250,7 +250,7 @@ export const ServerHeader: React.FC = () => {
 
 export const ServerTabs: React.FC = () => {
   const { id: serverId } = useParams<{ id: string }>();
-  // const location = useLocation();
+  const location = useLocation();
   const navigate = useNavigate();
   
   // Determine current tab from pathname
