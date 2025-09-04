@@ -615,13 +615,16 @@ impl ComplianceManager {
             .cloned()
             .collect();
         
+        let compliance_score = self.calculate_compliance_score(&framework_policies, &framework_audits);
+        let recommendations = self.generate_recommendations(&framework_policies, &framework_audits);
+        
         let report = ComplianceReport {
             framework,
             generated_at: Utc::now(),
             policies: framework_policies,
             audits: framework_audits,
-            compliance_score: self.calculate_compliance_score(&framework_policies, &framework_audits),
-            recommendations: self.generate_recommendations(&framework_policies, &framework_audits),
+            compliance_score,
+            recommendations,
         };
         
         Ok(report)

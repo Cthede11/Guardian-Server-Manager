@@ -15,7 +15,7 @@ use uuid::Uuid;
 use chrono::{Duration, Utc};
 
 /// JWT Claims for authentication
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
     pub sub: String,        // User ID
     pub exp: i64,          // Expiration time
@@ -140,32 +140,35 @@ impl AuthManager {
             return Err(anyhow::anyhow!("Too many login attempts"));
         }
 
-        let users = self.users.read().await;
-        let user = users.iter()
-            .find(|u| u.username == username && u.is_active)
-            .ok_or_else(|| anyhow::anyhow!("Invalid credentials"))?;
-
-        // In production, use proper password hashing (bcrypt, argon2, etc.)
-        // For now, using a simple check - CHANGE IN PRODUCTION
-        if password != "admin123" {
-            return Err(anyhow::anyhow!("Invalid credentials"));
-        }
+        let (user_id, user_role, user_tenant_id, user_permissions) = {
+            let users = self.users.read().await;
+            let user = users.iter()
+                .find(|u| u.username == username && u.is_active)
+                .ok_or_else(|| anyhow::anyhow!("Invalid credentials"))?;
+            
+            // In production, use proper password hashing (bcrypt, argon2, etc.)
+            // For now, using a simple check - CHANGE IN PRODUCTION
+            if password != "admin123" {
+                return Err(anyhow::anyhow!("Invalid credentials"));
+            }
+            
+            (user.id.clone(), user.role.clone(), user.tenant_id.clone(), user.permissions.clone())
+        };
 
         // Update last login
-        drop(users);
         let mut users = self.users.write().await;
-        if let Some(user) = users.iter_mut().find(|u| u.id == user.id) {
+        if let Some(user) = users.iter_mut().find(|u| u.id == user_id) {
             user.last_login = Some(Utc::now());
         }
 
         // Generate JWT token
         let claims = Claims {
-            sub: user.id.clone(),
+            sub: user_id.clone(),
             exp: (Utc::now() + Duration::hours(24)).timestamp(),
             iat: Utc::now().timestamp(),
-            role: user.role.clone(),
-            tenant_id: user.tenant_id.clone(),
-            permissions: user.permissions.clone(),
+            role: user_role,
+            tenant_id: user_tenant_id,
+            permissions: user_permissions,
         };
 
         let token = encode(

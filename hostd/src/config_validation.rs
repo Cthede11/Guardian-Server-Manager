@@ -15,6 +15,27 @@ fn validate_paths_config(_config: &PathsValidation) -> Result<(), ValidationErro
     Ok(())
 }
 
+fn validate_ha_config(_config: &HighAvailabilityValidation) -> Result<(), ValidationError> {
+    Ok(())
+}
+
+fn validate_worldgen_config(_config: &WorldgenValidation) -> Result<(), ValidationError> {
+    Ok(())
+}
+
+fn validate_gpu_config(_config: &GpuValidation) -> Result<(), ValidationError> {
+    Ok(())
+}
+
+fn validate_self_heal_config(_config: &SelfHealValidation) -> Result<(), ValidationError> {
+    Ok(())
+}
+
+fn validate_compat_config(_config: &CompatValidation) -> Result<(), ValidationError> {
+    Ok(())
+}
+
+
 fn validate_performance_config(_config: &PerformanceValidation) -> Result<(), ValidationError> {
     Ok(())
 }
@@ -185,9 +206,6 @@ pub struct MonitoringValidation {
     
     #[validate(range(min = 1024, max = 65535))]
     pub metrics_port: u16,
-    
-    #[validate(range(min = 1024, max = 65535))]
-
     
     #[validate(custom = "validate_log_level")]
     pub log_level: String,
@@ -619,13 +637,7 @@ impl Default for ConfigValidationRules {
     }
 }
 
-// Custom validation functions
-fn validate_minecraft_config(config: &MinecraftValidation) -> Result<(), ValidationError> {
-    if !["forge", "neoforge", "fabric", "quilt"].contains(&config.loader.to_lowercase().as_str()) {
-        return Err(ValidationError::new("invalid_loader"));
-    }
-    Ok(())
-}
+// Custom validation functions - removed duplicate
 
 fn validate_java_config(config: &JavaValidation) -> Result<(), ValidationError> {
     if !["g1gc-balanced", "g1gc-performance", "zgc", "parallel"].contains(&config.flags.as_str()) {

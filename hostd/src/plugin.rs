@@ -327,7 +327,7 @@ impl PluginManager {
         // Create runtime info
         let runtime = PluginRuntime {
             plugin_id: plugin_id.to_string(),
-            process_id: Some(process_id),
+            process_id: process_id,
             status: PluginStatus::Enabled,
             last_heartbeat: Utc::now(),
             resource_usage: PluginResourceUsage::default(),
@@ -338,7 +338,7 @@ impl PluginManager {
         let mut runtimes = self.runtimes.write().await;
         runtimes.insert(plugin_id.to_string(), runtime);
         
-        info!("Plugin process started: {} (PID: {})", plugin_id, process_id);
+        info!("Plugin process started: {} (PID: {:?})", plugin_id, process_id);
         Ok(())
     }
 

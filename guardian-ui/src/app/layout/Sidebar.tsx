@@ -49,11 +49,19 @@ const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     e.preventDefault();
     setIsSubmitting(true);
     
-    const success = await createServer(formData);
-    if (success) {
-      onClose();
+    try {
+      const success = await createServer(formData);
+      if (success) {
+        console.log('Server created successfully:', formData);
+        onClose();
+      } else {
+        console.error('Failed to create server');
+      }
+    } catch (error) {
+      console.error('Error creating server:', error);
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
 
   return (
@@ -69,26 +77,44 @@ const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       </div>
       
       <div>
-        <label className="block text-sm font-medium mb-2">Loader</label>
+        <label className="block text-sm font-medium mb-2">Mod Manager</label>
         <select
           value={formData.loader}
           onChange={(e) => setFormData({ ...formData, loader: e.target.value })}
           className="w-full px-3 py-2 border border-border rounded-md bg-background"
         >
+          <option value="vanilla">Vanilla</option>
           <option value="forge">Forge</option>
+          <option value="neoforge">NeoForge</option>
           <option value="fabric">Fabric</option>
           <option value="quilt">Quilt</option>
+          <option value="paper">Paper</option>
+          <option value="purpur">Purpur</option>
+          <option value="spigot">Spigot</option>
+          <option value="bukkit">Bukkit</option>
         </select>
       </div>
       
       <div>
-        <label className="block text-sm font-medium mb-2">Version</label>
-        <Input
+        <label className="block text-sm font-medium mb-2">Minecraft Version</label>
+        <select
           value={formData.version}
           onChange={(e) => setFormData({ ...formData, version: e.target.value })}
-          placeholder="1.20.1"
-          required
-        />
+          className="w-full px-3 py-2 border border-border rounded-md bg-background"
+        >
+          <option value="1.21.1">1.21.1 (Latest)</option>
+          <option value="1.21">1.21</option>
+          <option value="1.20.6">1.20.6</option>
+          <option value="1.20.4">1.20.4</option>
+          <option value="1.20.2">1.20.2</option>
+          <option value="1.20.1">1.20.1</option>
+          <option value="1.20">1.20</option>
+          <option value="1.19.4">1.19.4</option>
+          <option value="1.19.2">1.19.2</option>
+          <option value="1.18.2">1.18.2</option>
+          <option value="1.17.1">1.17.1</option>
+          <option value="1.16.5">1.16.5</option>
+        </select>
       </div>
       
       <div className="flex gap-2 pt-4">

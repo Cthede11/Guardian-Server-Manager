@@ -687,7 +687,9 @@ impl AIManager {
         
         // Keep only recent predictions (last 1000)
         if predictor.predictions.len() > 1000 {
-            predictor.predictions.drain(0..predictor.predictions.len() - 1000);
+            let keep_count = 1000;
+            let remove_count = predictor.predictions.len() - keep_count;
+            predictor.predictions.drain(0..remove_count);
         }
 
         info!("Generated crash prediction for server {}: {:.2}% probability", 
@@ -857,7 +859,9 @@ impl AIManager {
             
             // Keep only recent anomalies (last 1000)
             if detector.detected_anomalies.len() > 1000 {
-                detector.detected_anomalies.drain(0..detector.detected_anomalies.len() - 1000);
+                let keep_count = 1000;
+                let remove_count = detector.detected_anomalies.len() - keep_count;
+                detector.detected_anomalies.drain(0..remove_count);
             }
         }
         

@@ -246,15 +246,16 @@ impl DeploymentManager {
 
     /// Start a deployment
     pub async fn start_deployment(&self, deployment_id: &str) -> Result<(), GuardianError> {
-        let deployment = {
-            let mut deployments = self.deployments.write().await;
-            deployments.get_mut(deployment_id)
+        let mut deployment = {
+            let deployments = self.deployments.read().await;
+            deployments.get(deployment_id)
                 .ok_or_else(|| error_utils::resource_error(
                     crate::error::ResourceErrorKind::NotFound,
                     "deployment",
                     deployment_id,
                     "Deployment not found",
                 ))?
+                .clone()
         };
 
         if deployment.status != DeploymentStatus::Pending {
@@ -278,10 +279,10 @@ impl DeploymentManager {
 
         // Execute deployment based on strategy
         let result = match deployment.config.strategy {
-            DeploymentStrategy::Rolling => self.execute_rolling_deployment(deployment).await,
-            DeploymentStrategy::BlueGreen => self.execute_blue_green_deployment(deployment).await,
-            DeploymentStrategy::Canary => self.execute_canary_deployment(deployment).await,
-            DeploymentStrategy::Recreate => self.execute_recreate_deployment(deployment).await,
+            DeploymentStrategy::Rolling => self.execute_rolling_deployment(&mut deployment).await,
+            DeploymentStrategy::BlueGreen => self.execute_blue_green_deployment(&mut deployment).await,
+            DeploymentStrategy::Canary => self.execute_canary_deployment(&mut deployment).await,
+            DeploymentStrategy::Recreate => self.execute_recreate_deployment(&mut deployment).await,
         };
 
         match result {
@@ -636,15 +637,16 @@ impl DeploymentManager {
 
     /// Rollback a deployment
     pub async fn rollback_deployment(&self, deployment_id: &str) -> Result<(), GuardianError> {
-        let deployment = {
-            let mut deployments = self.deployments.write().await;
-            deployments.get_mut(deployment_id)
+        let mut deployment = {
+            let deployments = self.deployments.read().await;
+            deployments.get(deployment_id)
                 .ok_or_else(|| error_utils::resource_error(
                     crate::error::ResourceErrorKind::NotFound,
                     "deployment",
                     deployment_id,
                     "Deployment not found",
                 ))?
+                .clone()
         };
 
         if deployment.status != DeploymentStatus::Failed {
@@ -663,10 +665,10 @@ impl DeploymentManager {
 
         // Perform rollback based on strategy
         match deployment.config.strategy {
-            DeploymentStrategy::Rolling => self.rollback_rolling_deployment(deployment).await,
-            DeploymentStrategy::BlueGreen => self.rollback_blue_green_deployment(deployment).await,
-            DeploymentStrategy::Canary => self.rollback_canary_deployment(deployment).await,
-            DeploymentStrategy::Recreate => self.rollback_recreate_deployment(deployment).await,
+            DeploymentStrategy::Rolling => self.rollback_rolling_deployment(&mut deployment).await,
+            DeploymentStrategy::BlueGreen => self.rollback_blue_green_deployment(&mut deployment).await,
+            DeploymentStrategy::Canary => self.rollback_canary_deployment(&mut deployment).await,
+            DeploymentStrategy::Recreate => self.rollback_recreate_deployment(&mut deployment).await,
         }?;
 
         deployment.status = DeploymentStatus::RolledBack;
@@ -729,15 +731,16 @@ impl DeploymentManager {
 
     /// Cancel a deployment
     pub async fn cancel_deployment(&self, deployment_id: &str) -> Result<(), GuardianError> {
-        let deployment = {
-            let mut deployments = self.deployments.write().await;
-            deployments.get_mut(deployment_id)
+        let mut deployment = {
+            let deployments = self.deployments.read().await;
+            deployments.get(deployment_id)
                 .ok_or_else(|| error_utils::resource_error(
                     crate::error::ResourceErrorKind::NotFound,
                     "deployment",
                     deployment_id,
                     "Deployment not found",
                 ))?
+                .clone()
         };
 
         if deployment.status != DeploymentStatus::InProgress {

@@ -3,7 +3,8 @@ use anyhow::Result;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tokio::time::{sleep, Duration, Instant};
+use tokio::time::{sleep, Duration};
+use chrono::{DateTime, Utc};
 use tracing::{info, warn, error, debug};
 use uuid::Uuid;
 use serde::{Deserialize, Serialize};
@@ -12,14 +13,14 @@ use serde::{Deserialize, Serialize};
 pub struct SnapshotManager {
     config: Config,
     snapshots: Arc<RwLock<Vec<SnapshotInfo>>>,
-    last_snapshot: Arc<RwLock<Option<Instant>>>,
+    last_snapshot: Arc<RwLock<Option<DateTime<Utc>>>>,
     is_running: Arc<RwLock<bool>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SnapshotInfo {
     pub id: String,
-    pub timestamp: Instant,
+    pub timestamp: DateTime<Utc>,
     pub path: PathBuf,
     pub size_bytes: u64,
     pub description: String,
@@ -125,18 +126,18 @@ impl SnapshotManager {
     async fn take_snapshot_if_needed_internal(
         config: &Config,
         snapshots: &Arc<RwLock<Vec<SnapshotInfo>>>,
-        last_snapshot: &Arc<RwLock<Option<Instant>>>,
+        last_snapshot: &Arc<RwLock<Option<DateTime<Utc>>>>,
     ) -> Result<()> {
-        let now = Instant::now();
+        let now = Utc::now();
         
         // Check if enough time has passed since last snapshot
         {
             let last_snapshot_guard = last_snapshot.read().await;
             if let Some(last) = last_snapshot_guard.as_ref() {
-                let time_since_last = now.duration_since(*last);
+                let time_since_last = now.signed_duration_since(*last);
                 let min_interval = Duration::from_secs(config.ha.autosave_minutes as u64 * 60);
                 
-                if time_since_last < min_interval {
+                if time_since_last < chrono::Duration::from_std(min_interval).unwrap_or_default() {
                     debug!("Skipping snapshot - not enough time has passed");
                     return Ok(());
                 }
@@ -144,7 +145,7 @@ impl SnapshotManager {
         }
         
         // Take the snapshot
-        let snapshot_info = Self::create_snapshot(config, "automatic").await?;
+        let snapshot_info = Self::create_snapshot_internal(config, "automatic").await?;
         
         // Update last snapshot time
         {
@@ -167,7 +168,7 @@ impl SnapshotManager {
     
     /// Create a new snapshot
     pub async fn create_snapshot(&self, description: &str) -> Result<SnapshotInfo> {
-        let snapshot_info = Self::create_snapshot(&self.config, description).await?;
+        let snapshot_info = Self::create_snapshot_internal(&self.config, description).await?;
         
         // Add to snapshots list
         {
@@ -181,7 +182,7 @@ impl SnapshotManager {
         // Update last snapshot time
         {
             let mut last_snapshot_guard = self.last_snapshot.write().await;
-            *last_snapshot_guard = Some(Instant::now());
+            *last_snapshot_guard = Some(Utc::now());
         }
         
         info!("Snapshot created: {} - {}", snapshot_info.id, description);
@@ -189,9 +190,9 @@ impl SnapshotManager {
     }
     
     /// Internal method to create a snapshot
-    async fn create_snapshot(config: &Config, description: &str) -> Result<SnapshotInfo> {
+    async fn create_snapshot_internal(config: &Config, description: &str) -> Result<SnapshotInfo> {
         let snapshot_id = Uuid::new_v4().to_string();
-        let timestamp = Instant::now();
+        let timestamp = Utc::now();
         
         let world_dir = Path::new(&config.paths.world_dir);
         let backup_dir = Path::new(&config.paths.backup_dir);

@@ -318,7 +318,7 @@ impl BackupManager {
             Err(e) => {
                 error!("Backup failed: {}", e);
                 Ok(BackupResult {
-                    backup_id,
+                    backup_id: backup_id.clone(),
                     success: false,
                     message: format!("Backup failed: {}", e),
                     duration_seconds: duration,
@@ -381,7 +381,7 @@ impl BackupManager {
         let backup_path = self.config.storage.local_path.join(format!("{}.zip", backup_id));
         
         // Create backup archive
-        let file = fs::File::create(&backup_path).await
+        let file = std::fs::File::create(&backup_path)
             .map_err(|e| error_utils::storage_error(
                 "create_file",
                 Some(&backup_path.to_string_lossy()),
@@ -396,7 +396,7 @@ impl BackupManager {
         // Add files to archive
         for path in &self.config.include_paths {
             if path.exists() {
-                self.add_directory_to_zip(&mut zip, path, &mut file_count, &mut total_size).await?;
+                self.add_directory_to_zip(&mut zip, path, &mut file_count, &mut total_size)?;
             }
         }
 
@@ -504,17 +504,17 @@ impl BackupManager {
     }
 
     /// Add directory to zip archive
-    async fn add_directory_to_zip(
+    fn add_directory_to_zip(
         &self,
-        zip: &mut ZipWriter<fs::File>,
+        zip: &mut ZipWriter<std::fs::File>,
         path: &Path,
         file_count: &mut u32,
         total_size: &mut u64,
     ) -> Result<(), GuardianError> {
         if path.is_file() {
-            self.add_file_to_zip(zip, path, file_count, total_size).await?;
+            self.add_file_to_zip(zip, path, file_count, total_size)?;
         } else if path.is_dir() {
-            let mut entries = fs::read_dir(path).await
+            let mut entries = std::fs::read_dir(path)
                 .map_err(|e| error_utils::storage_error(
                     "read_directory",
                     Some(&path.to_string_lossy()),
@@ -522,13 +522,13 @@ impl BackupManager {
                     false,
                 ))?;
 
-            while let Some(entry) = entries.next_entry().await
-                .map_err(|e| error_utils::storage_error(
+            while let Some(entry) = entries.next() {
+                let entry = entry.map_err(|e| error_utils::storage_error(
                     "read_directory_entry",
                     Some(&path.to_string_lossy()),
                     &format!("Failed to read directory entry: {}", e),
                     false,
-                ))? {
+                ))?;
                 let entry_path = entry.path();
                 
                 // Check if path should be excluded
@@ -536,7 +536,7 @@ impl BackupManager {
                     continue;
                 }
 
-                self.add_directory_to_zip(zip, &entry_path, file_count, total_size).await?;
+                self.add_directory_to_zip(zip, &entry_path, file_count, total_size)?;
             }
         }
 
@@ -544,15 +544,15 @@ impl BackupManager {
     }
 
     /// Add file to zip archive
-    async fn add_file_to_zip(
+    fn add_file_to_zip(
         &self,
-        zip: &mut ZipWriter<fs::File>,
+        zip: &mut ZipWriter<std::fs::File>,
         path: &Path,
         file_count: &mut u32,
         total_size: &mut u64,
     ) -> Result<(), GuardianError> {
         let file_name = path.to_string_lossy();
-        let file_data = fs::read(path).await
+        let file_data = std::fs::read(path)
             .map_err(|e| error_utils::storage_error(
                 "read_file",
                 Some(&file_name),
@@ -560,7 +560,7 @@ impl BackupManager {
                 false,
             ))?;
 
-        zip.start_file(file_name, zip::write::FileOptions::default())
+        zip.start_file(file_name.clone(), zip::write::FileOptions::default())
             .map_err(|e| error_utils::storage_error(
                 "start_zip_file",
                 Some(&file_name),

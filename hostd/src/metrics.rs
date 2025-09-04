@@ -3,7 +3,8 @@ use crate::DaemonState;
 use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tokio::time::{sleep, Duration, Instant};
+use tokio::time::{sleep, Duration};
+use chrono::{DateTime, Utc};
 use tracing::{info, warn, error, debug};
 use serde::{Deserialize, Serialize};
 
@@ -16,7 +17,7 @@ pub struct MetricsCollector {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemMetrics {
-    pub timestamp: Instant,
+    pub timestamp: DateTime<Utc>,
     pub server_metrics: ServerMetrics,
     pub gpu_metrics: GpuMetrics,
     pub system_metrics: SystemResourceMetrics,
@@ -143,7 +144,7 @@ impl MetricsCollector {
         config: &Config,
         metrics: &Arc<RwLock<SystemMetrics>>,
     ) -> Result<()> {
-        let timestamp = Instant::now();
+        let timestamp = Utc::now();
         
         // Collect server metrics (placeholder - would integrate with actual server)
         let server_metrics = Self::collect_server_metrics().await?;
@@ -322,7 +323,7 @@ impl MetricsCollector {
 impl Default for SystemMetrics {
     fn default() -> Self {
         Self {
-            timestamp: Instant::now(),
+            timestamp: Utc::now(),
             server_metrics: ServerMetrics {
                 tps: 0.0,
                 tick_time_ms: 0.0,

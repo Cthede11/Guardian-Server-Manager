@@ -6,7 +6,7 @@ use tracing::{info, warn, error, debug};
 use uuid::Uuid;
 
 /// Database manager for Guardian
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct DatabaseManager {
     pool: SqlitePool,
 }
@@ -577,7 +577,7 @@ impl DatabaseManager {
         .bind(&record.server_id)
         .bind(&record.name)
         .bind(&record.path)
-        .bind(record.size_bytes)
+        .bind(record.size_bytes as i64)
         .bind(&record.status)
         .bind(record.created_at)
         .bind(&record.completed_at)
@@ -610,7 +610,7 @@ impl DatabaseManager {
                 server_id: row.get("server_id"),
                 name: row.get("name"),
                 path: row.get("path"),
-                size_bytes: row.get("size_bytes"),
+                size_bytes: row.get::<i64, _>("size_bytes") as u64,
                 status: row.get("status"),
                 created_at: row.get("created_at"),
                 completed_at: row.get("completed_at"),

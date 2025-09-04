@@ -6,11 +6,14 @@ use axum::{
     Router,
 };
 use serde::{Deserialize, Serialize};
+use serde_json;
 use std::collections::HashMap;
-use tracing::{info, warn, error, debug};
 use uuid::Uuid;
+use tracing::{info, warn, error, debug};
+use chrono;
 
 use crate::websocket::{WebSocketManager, WebSocketMessage};
+use crate::database::ServerConfig;
 
 /// API response wrapper
 #[derive(Debug, Serialize)]
@@ -61,6 +64,23 @@ pub struct ServerInfo {
 pub struct BlueGreenInfo {
     pub active: String,
     pub candidate_healthy: bool,
+}
+
+/// Request to create a new server
+#[derive(Debug, Deserialize)]
+pub struct CreateServerRequest {
+    pub name: String,
+    pub loader: String,
+    pub version: String,
+    pub paths: ServerPaths,
+}
+
+/// Server paths configuration
+#[derive(Debug, Deserialize)]
+pub struct ServerPaths {
+    pub world: String,
+    pub mods: String,
+    pub config: String,
 }
 
 /// Server health information
@@ -169,7 +189,8 @@ pub struct FilterQuery {
 #[derive(Clone)]
 pub struct AppState {
     pub websocket_manager: WebSocketManager,
-    // Add other state here as needed
+    pub minecraft_manager: crate::minecraft::MinecraftManager,
+    pub database: crate::database::DatabaseManager,
 }
 
 /// Create API router
@@ -177,6 +198,7 @@ pub fn create_api_router(state: AppState) -> Router {
     Router::new()
         // Server endpoints
         .route("/api/servers", get(get_servers))
+        .route("/api/servers", post(create_server))
         .route("/api/servers/:id", get(get_server))
         .route("/api/servers/:id/health", get(get_server_health))
         .route("/api/servers/:id/start", post(start_server))
@@ -186,7 +208,7 @@ pub fn create_api_router(state: AppState) -> Router {
         
         // Console endpoints
         .route("/api/servers/:id/console", get(get_console_messages))
-        .route("/api/servers/:id/console", post(send_console_message))
+        // .route("/api/servers/:id/console", post(send_console_message))
         
         // Player endpoints
         .route("/api/servers/:id/players", get(get_players))
@@ -200,9 +222,9 @@ pub fn create_api_router(state: AppState) -> Router {
         
         // Pregen endpoints
         .route("/api/servers/:id/pregen", get(get_pregen_jobs))
-        .route("/api/servers/:id/pregen", post(create_pregen_job))
+        // .route("/api/servers/:id/pregen", post(create_pregen_job))
         .route("/api/servers/:id/pregen/:job_id", get(get_pregen_job))
-        .route("/api/servers/:id/pregen/:job_id", put(update_pregen_job))
+        // .route("/api/servers/:id/pregen/:job_id", put(update_pregen_job))
         .route("/api/servers/:id/pregen/:job_id", delete(delete_pregen_job))
         .route("/api/servers/:id/pregen/:job_id/start", post(start_pregen_job))
         .route("/api/servers/:id/pregen/:job_id/stop", post(stop_pregen_job))
@@ -220,7 +242,7 @@ pub fn create_api_router(state: AppState) -> Router {
         
         // Settings endpoints
         .route("/api/servers/:id/settings", get(get_server_settings))
-        .route("/api/servers/:id/settings", put(update_server_settings))
+        // .route("/api/servers/:id/settings", put(update_server_settings))
         
         // Health check endpoint
         .route("/api/health", get(health_check))
@@ -231,26 +253,190 @@ pub fn create_api_router(state: AppState) -> Router {
 
 // Server endpoints
 async fn get_servers(State(state): State<AppState>) -> Result<Json<ApiResponse<Vec<ServerInfo>>>, StatusCode> {
-    // TODO: Implement actual server list retrieval
-    let servers = vec![
-        ServerInfo {
-            id: "1".to_string(),
-            name: "Test Server".to_string(),
-            status: "running".to_string(),
-            tps: 20.0,
-            tick_p95: 45.2,
-            heap_mb: 2048,
-            players_online: 5,
-            gpu_queue_ms: 5.2,
-            last_snapshot_at: Some(chrono::Utc::now()),
-            blue_green: BlueGreenInfo {
-                active: "blue".to_string(),
-                candidate_healthy: true,
-            },
-        },
-    ];
+    match state.minecraft_manager.get_all_servers().await {
+        servers => {
+            let server_infos: Vec<ServerInfo> = servers.into_iter().map(|server| {
+                ServerInfo {
+                    id: server.id.clone(),
+                    name: server.config.name.clone(),
+                    status: match server.status {
+                        crate::minecraft::ServerStatus::Running => "running".to_string(),
+                        crate::minecraft::ServerStatus::Stopped => "stopped".to_string(),
+                        crate::minecraft::ServerStatus::Starting => "starting".to_string(),
+                        crate::minecraft::ServerStatus::Stopping => "stopping".to_string(),
+                        crate::minecraft::ServerStatus::Crashed => "crashed".to_string(),
+                        crate::minecraft::ServerStatus::Unknown => "unknown".to_string(),
+                    },
+                    tps: 20.0, // TODO: Get real TPS from monitoring
+                    tick_p95: 45.2, // TODO: Get real tick data
+                    heap_mb: 2048, // TODO: Get real heap usage
+                    players_online: 0, // TODO: Get real player count
+                    gpu_queue_ms: 0.0, // TODO: Get real GPU metrics
+                    last_snapshot_at: server.last_start.map(|_| chrono::Utc::now()),
+                    blue_green: BlueGreenInfo {
+                        active: "blue".to_string(),
+                        candidate_healthy: server.status == crate::minecraft::ServerStatus::Running,
+                    },
+                }
+            }).collect();
+            
+            Ok(Json(ApiResponse::success(server_infos)))
+        }
+    }
+}
+
+async fn create_server(
+    State(state): State<AppState>,
+    Json(payload): Json<CreateServerRequest>,
+) -> Result<Json<ApiResponse<ServerInfo>>, StatusCode> {
+    let server_id = Uuid::new_v4().to_string();
     
-    Ok(Json(ApiResponse::success(servers)))
+    // Create server configuration
+    let server_config = ServerConfig {
+        id: server_id.clone(),
+        name: payload.name.clone(),
+        host: payload.paths.world.clone(),
+        port: 25565,
+        rcon_port: 25575,
+        rcon_password: Uuid::new_v4().to_string(),
+        java_path: "java".to_string(), // TODO: Make configurable
+        server_jar: format!("server-{}.jar", payload.version),
+        jvm_args: format!(
+            "-Xmx4G -Xms2G -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1HeapRegionSize=8M -XX:G1ReservePercent=20 -XX:G1HeapWastePercent=5 -XX:G1MixedGCCountTarget=4 -XX:InitiatingHeapOccupancyPercent=15 -XX:G1MixedGCLiveThresholdPercent=90 -XX:G1RSetUpdatingPauseTimePercent=5 -XX:SurvivorRatio=32 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1"
+        ),
+        server_args: format!("--nogui --world {}", payload.paths.world),
+        auto_start: false,
+        auto_restart: true,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+    
+    // Add server to Minecraft manager
+    match state.minecraft_manager.add_server(server_config).await {
+        Ok(_) => {
+            info!("Successfully created server: {} (ID: {})", payload.name, server_id);
+            
+            // Create server directory structure
+            if let Err(e) = create_server_directories(&payload.paths).await {
+                error!("Failed to create server directories: {}", e);
+            }
+            
+            // Return server info
+            let server_info = ServerInfo {
+                id: server_id,
+                name: payload.name,
+                status: "stopped".to_string(),
+                tps: 0.0,
+                tick_p95: 0.0,
+                heap_mb: 0,
+                players_online: 0,
+                gpu_queue_ms: 0.0,
+                last_snapshot_at: None,
+                blue_green: BlueGreenInfo {
+                    active: "blue".to_string(),
+                    candidate_healthy: false,
+                },
+            };
+            
+            Ok(Json(ApiResponse::success(server_info)))
+        }
+        Err(e) => {
+            error!("Failed to create server: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+/// Create server directory structure
+async fn create_server_directories(paths: &ServerPaths) -> Result<(), std::io::Error> {
+    use tokio::fs;
+    
+    // Create directories
+    fs::create_dir_all(&paths.world).await?;
+    fs::create_dir_all(&paths.mods).await?;
+    fs::create_dir_all(&paths.config).await?;
+    
+    // Create basic server.properties
+    let server_properties = format!(
+        r#"#Minecraft server properties
+server-port=25565
+level-name=world
+level-seed=
+level-type=minecraft\:normal
+generator-settings={}
+motd=A Minecraft Server
+enable-query=true
+query.port=25565
+enable-rcon=true
+rcon.port=25575
+rcon.password=changeme
+force-gamemode=false
+hardcore=false
+enable-command-block=false
+broadcast-console-to-ops=true
+enable-jmx-monitoring=false
+enable-status=true
+entity-broadcast-range-percentage=100
+function-permission-level=2
+network-compression-threshold=256
+max-chunk-send-rate=2.0
+max-tick-time=60000
+require-resource-pack=false
+use-native-transport=true
+max-players=20
+max-world-size=29999984
+rate-limit=0
+simulation-distance=10
+player-idle-timeout=0
+debug=false
+force-white-list=false
+sync-chunk-writes=true
+enable-query=true
+enable-rcon=true
+broadcast-rcon-to-ops=true
+server-ip=
+spawn-protection=16
+resource-pack=
+resource-pack-sha1=
+resource-pack-prompt=
+allow-nether=true
+server-name=Unknown Server
+allow-flight=false
+broadcast-console-to-ops=true
+enable-command-block=false
+spawn-monsters=true
+spawn-animals=true
+spawn-npcs=true
+snooper-enabled=true
+difficulty=easy
+pvp=true
+gamemode=survival
+player-idle-timeout=0
+max-build-height=320
+online-mode=true
+level-name=world
+view-distance=10
+resource-pack=
+allow-flight=false
+max-players=20
+server-port=25565
+server-ip=
+spawn-protection=16
+motd=A Minecraft Server
+"#,
+        if paths.mods.contains("forge") || paths.mods.contains("neoforge") {
+            "minecraft:flat"
+        } else {
+            "minecraft:normal"
+        }
+    );
+    
+    fs::write(format!("{}/server.properties", paths.world), server_properties).await?;
+    
+    // Create eula.txt
+    fs::write(format!("{}/eula.txt", paths.world), "eula=true\n").await?;
+    
+    Ok(())
 }
 
 async fn get_server(
@@ -298,19 +484,26 @@ async fn start_server(
 ) -> Result<Json<ApiResponse<String>>, StatusCode> {
     info!("Starting server: {}", id);
     
-    // TODO: Implement actual server start
-    // Broadcast status update
-    let message = WebSocketMessage::ServerStatus {
-        server_id: id.clone(),
-        status: "starting".to_string(),
-        timestamp: chrono::Utc::now(),
-    };
-    
-    if let Err(e) = state.websocket_manager.broadcast_to_server(&id, message).await {
-        error!("Failed to broadcast server start: {}", e);
+    match state.minecraft_manager.start_server(&id).await {
+        Ok(_) => {
+            info!("Successfully started server: {}", id);
+            
+            // Broadcast status update
+            let message = WebSocketMessage::ServerStatus {
+                server_id: id.clone(),
+                status: "starting".to_string(),
+                timestamp: chrono::Utc::now(),
+            };
+            
+            let _ = state.websocket_manager.broadcast_to_server(&id, message).await;
+            
+            Ok(Json(ApiResponse::success("Server starting".to_string())))
+        }
+        Err(e) => {
+            error!("Failed to start server {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
-    
-    Ok(Json(ApiResponse::success("Server starting".to_string())))
 }
 
 async fn stop_server(
@@ -319,19 +512,26 @@ async fn stop_server(
 ) -> Result<Json<ApiResponse<String>>, StatusCode> {
     info!("Stopping server: {}", id);
     
-    // TODO: Implement actual server stop
-    // Broadcast status update
-    let message = WebSocketMessage::ServerStatus {
-        server_id: id.clone(),
-        status: "stopping".to_string(),
-        timestamp: chrono::Utc::now(),
-    };
-    
-    if let Err(e) = state.websocket_manager.broadcast_to_server(&id, message).await {
-        error!("Failed to broadcast server stop: {}", e);
+    match state.minecraft_manager.stop_server(&id).await {
+        Ok(_) => {
+            info!("Successfully stopped server: {}", id);
+            
+            // Broadcast status update
+            let message = WebSocketMessage::ServerStatus {
+                server_id: id.clone(),
+                status: "stopping".to_string(),
+                timestamp: chrono::Utc::now(),
+            };
+            
+            let _ = state.websocket_manager.broadcast_to_server(&id, message).await;
+            
+            Ok(Json(ApiResponse::success("Server stopping".to_string())))
+        }
+        Err(e) => {
+            error!("Failed to stop server {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
-    
-    Ok(Json(ApiResponse::success("Server stopping".to_string())))
 }
 
 async fn restart_server(
@@ -379,6 +579,7 @@ async fn get_console_messages(
     Ok(Json(ApiResponse::success(messages)))
 }
 
+// #[axum::debug_handler]
 async fn send_console_message(
     Path(id): Path<String>,
     Json(request): Json<ServerCommandRequest>,
@@ -502,6 +703,7 @@ async fn get_pregen_jobs(
     Ok(Json(ApiResponse::success(jobs)))
 }
 
+// #[axum::debug_handler]
 async fn create_pregen_job(
     Path(id): Path<String>,
     Json(job): Json<PregenJob>,
@@ -536,6 +738,7 @@ async fn get_pregen_job(
     Ok(Json(ApiResponse::success(job)))
 }
 
+// #[axum::debug_handler]
 async fn update_pregen_job(
     Path((id, job_id)): Path<(String, String)>,
     Json(job): Json<PregenJob>,
@@ -696,6 +899,7 @@ async fn get_server_settings(
     Ok(Json(ApiResponse::success(settings)))
 }
 
+// #[axum::debug_handler]
 async fn update_server_settings(
     Path(id): Path<String>,
     Json(settings): Json<serde_json::Value>,
@@ -716,7 +920,7 @@ async fn get_status(State(state): State<AppState>) -> Result<Json<ApiResponse<se
     let status = serde_json::json!({
         "version": "1.0.0",
         "uptime": "1h 30m",
-        "connections": state.websocket_manager.connection_count().await,
+        "connections": state.websocket_manager.get_connection_count().await,
         "servers": 1,
         "timestamp": chrono::Utc::now()
     });

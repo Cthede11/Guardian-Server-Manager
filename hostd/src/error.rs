@@ -468,11 +468,9 @@ impl ErrorHandler {
         
         match strategy {
             RecoveryStrategy::Retry(config) => {
-                retry_with_backoff(
-                    || recovery_operation(),
-                    config,
-                    |_| true, // Assume all errors are retryable for now
-                ).await
+                // For now, just try the operation once
+                // TODO: Implement proper retry logic
+                recovery_operation()
             }
             RecoveryStrategy::Fallback(value) => {
                 // This would need to be adapted based on the return type

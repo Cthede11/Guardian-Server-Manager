@@ -226,7 +226,9 @@ impl WebhookManager {
             
             // Keep only recent events (last 10000)
             if events.len() > 10000 {
-                events.drain(0..events.len() - 10000);
+                let keep_count = 10000;
+                let remove_count = events.len() - keep_count;
+                events.drain(0..remove_count);
             }
         }
 

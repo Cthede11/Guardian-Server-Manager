@@ -215,6 +215,7 @@ impl MinecraftServer {
         };
         db.log_event(&event).await?;
 
+        let mut should_clear_process = false;
         if let Some(process) = &self.process {
             let mut process_guard = process.lock().await;
             if let Some(child) = process_guard.as_mut() {
@@ -230,7 +231,7 @@ impl MinecraftServer {
                     match child.try_wait() {
                         Ok(Some(_)) => {
                             self.status = ServerStatus::Stopped;
-                            self.process = None;
+                            should_clear_process = true;
                             info!("Minecraft server stopped gracefully: {}", self.id);
                             
                             // Log successful stop
@@ -244,7 +245,7 @@ impl MinecraftServer {
                                 created_at: chrono::Utc::now(),
                             };
                             db.log_event(&event).await?;
-                            return Ok(());
+                            break;
                         }
                         Ok(None) => {
                             sleep(Duration::from_secs(1)).await;
@@ -257,11 +258,17 @@ impl MinecraftServer {
                 }
 
                 // Force kill if graceful shutdown failed
-                let _ = child.kill();
-                self.status = ServerStatus::Stopped;
-                self.process = None;
-                warn!("Minecraft server force killed: {}", self.id);
+                if !should_clear_process {
+                    let _ = child.kill();
+                    self.status = ServerStatus::Stopped;
+                    should_clear_process = true;
+                    warn!("Minecraft server force killed: {}", self.id);
+                }
             }
+        }
+        
+        if should_clear_process {
+            self.process = None;
         }
 
         Ok(())
@@ -361,7 +368,20 @@ impl MinecraftServer {
             self.config.rcon_password.clone(),
         );
 
-        rcon.get_players()
+        let rcon_players = rcon.get_players()?;
+        let players = rcon_players.into_iter().map(|p| Player {
+            uuid: p.uuid,
+            name: p.name,
+            dimension: p.dimension,
+            last_seen: p.last_seen,
+            online: p.online,
+            playtime: p.playtime,
+            ping: p.ping,
+            x: p.x,
+            y: p.y,
+            z: p.z,
+        }).collect();
+        Ok(players)
     }
 
     /// Parse TPS from server response
@@ -466,7 +486,7 @@ impl MinecraftServer {
 }
 
 /// Minecraft server manager
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MinecraftManager {
     servers: Arc<RwLock<HashMap<String, MinecraftServer>>>,
     db: DatabaseManager,

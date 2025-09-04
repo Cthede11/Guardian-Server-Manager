@@ -1,4 +1,5 @@
 use hostd::*;
+use hostd::config::Config;
 use clap::Parser;
 use tracing::{info, error};
 use tracing_subscriber;
@@ -9,6 +10,7 @@ use axum::{
 };
 use tower_http::cors::CorsLayer;
 use std::net::SocketAddr;
+use tokio::net::TcpListener;
 
 #[derive(Parser)]
 #[command(name = "hostd")]
@@ -63,13 +65,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create application state
     let app_state = api::AppState {
         websocket_manager: websocket_manager.clone(),
+        minecraft_manager: minecraft_manager.clone(),
+        database: db.clone(),
     };
     
     // Create API router
     let api_router = api::create_api_router(app_state);
     
     // Create WebSocket router
-    let ws_router = websocket::create_websocket_router(websocket_manager);
+    let ws_router = websocket::create_websocket_router();
     
     // Combine routers
     let app = Router::new()
@@ -83,8 +87,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting HTTP server on {}", addr);
     
     let server_handle = tokio::spawn(async move {
-        axum::Server::bind(&addr)
-            .serve(app.into_make_service())
+        let listener = TcpListener::bind(&addr).await.unwrap();
+        axum::serve(listener, app.into_make_service())
             .await
             .unwrap();
     });

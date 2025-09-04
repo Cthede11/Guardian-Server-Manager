@@ -65,9 +65,10 @@ impl HealthMonitor {
 
     /// Add a health check
     pub async fn add_check(&self, check: HealthCheck) {
+        let name = check.name.clone();
         let mut checks = self.checks.write().await;
         checks.insert(check.id.clone(), check);
-        info!("Added health check: {}", check.name);
+        info!("Added health check: {}", name);
     }
 
     /// Remove a health check
@@ -98,6 +99,7 @@ impl HealthMonitor {
         let last_check_times = self.last_check_times.clone();
         let is_running = self.is_running.clone();
 
+        let check_interval = self.check_interval;
         tokio::spawn(async move {
             let mut interval_timer = interval(check_interval);
             

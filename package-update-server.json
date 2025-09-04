@@ -1,0 +1,16 @@
+{
+  "name": "guardian-update-server",
+  "version": "1.0.0",
+  "description": "Local update server for Guardian desktop app testing",
+  "main": "update-server.js",
+  "scripts": {
+    "start": "node update-server.js",
+    "dev": "nodemon update-server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

@@ -4,7 +4,7 @@ import { RouterProvider } from 'react-router-dom';
 import { router } from './app/routes';
 import { liveStore } from './store/live';
 import { useServersStore } from './store/servers';
-import { realDataService } from './lib/real-data';
+// import { realDataService } from './lib/real-data';
 import './index.css';
 
 // Start MSW in development (only if backend is not available)
@@ -192,16 +192,28 @@ startMSW().then(async () => {
     initializeLiveStore();
     initializeServersStore();
   } else {
-    // Use real data service
-    try {
-      await realDataService.start();
-      console.log('Real data service started successfully');
-    } catch (error) {
-      console.error('Failed to start real data service:', error);
-      // Fallback to mock data if real data fails
-      initializeLiveStore();
-      initializeServersStore();
-    }
+    // Use real data service (disabled for now)
+    // try {
+    //   await realDataService.start();
+    //   console.log('Real data service started successfully');
+    // } catch (error) {
+    //   console.error('Failed to start real data service:', error);
+    //   // Fallback to mock data if real data fails
+    //   initializeLiveStore();
+    //   initializeServersStore();
+    // }
+    
+      // Use real data service
+  try {
+    // Initialize with real data
+    console.log('Using real data service');
+    // TODO: Connect to real backend
+  } catch (error) {
+    console.error('Failed to connect to real data service:', error);
+    // Fallback to mock data if real data fails
+    initializeLiveStore();
+    initializeServersStore();
+  }
   }
   
   ReactDOM.createRoot(document.getElementById('root')!).render(

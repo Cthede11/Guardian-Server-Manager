@@ -497,6 +497,7 @@ impl CommunityManager {
         let mod_a = report.mod_a.clone();
         let mod_b = report.mod_b.clone();
         
+        let status = report.status.clone();
         let mut reports = self.compatibility_reports.write().await;
         let key = format!("{}:{}", mod_a, mod_b);
         let mod_reports = reports.entry(key).or_insert_with(Vec::new);
@@ -507,12 +508,12 @@ impl CommunityManager {
         database.compatibility_matrix
             .entry(mod_a.clone())
             .or_insert_with(HashMap::new)
-            .insert(mod_b.clone(), report.status.clone());
+            .insert(mod_b.clone(), status.clone());
         
         database.compatibility_matrix
             .entry(mod_b)
             .or_insert_with(HashMap::new)
-            .insert(mod_a, report.status);
+            .insert(mod_a, status.clone());
         
         info!("Submitted compatibility report: {}", report_id);
         Ok(())
