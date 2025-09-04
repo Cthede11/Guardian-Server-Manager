@@ -280,7 +280,7 @@ export const EventsTable: React.FC<EventsTableProps> = ({
                         Recurring
                       </Badge>
                     )}
-                    {event.tags.length > 0 && (
+                    {event.tags && event.tags.length > 0 && (
                       <Badge variant="outline" className="text-xs">
                         {event.tags.join(', ')}
                       </Badge>

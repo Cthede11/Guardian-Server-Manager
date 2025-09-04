@@ -161,6 +161,22 @@ export const handlers = [
     return HttpResponse.json({ ok: true });
   }),
 
+  // Get console messages
+  http.get('/api/v1/servers/:id/console', () => {
+    return HttpResponse.json([
+      {
+        ts: new Date().toISOString(),
+        level: 'info',
+        msg: 'Server started successfully'
+      },
+      {
+        ts: new Date().toISOString(),
+        level: 'info',
+        msg: 'Player Player1 joined the game'
+      }
+    ]);
+  }),
+
   // Console command
   http.post('/api/v1/servers/:id/console/command', async ({ request }) => {
     const body = await request.json() as any;
@@ -177,6 +193,11 @@ export const handlers = [
         online: true,
         lastSeen: new Date().toISOString(),
         playtime: 3600,
+        ping: 45,
+        dimension: 'minecraft:overworld',
+        x: 100,
+        y: 64,
+        z: 200,
       },
       {
         uuid: '2',
@@ -184,6 +205,11 @@ export const handlers = [
         online: true,
         lastSeen: new Date().toISOString(),
         playtime: 7200,
+        ping: 32,
+        dimension: 'minecraft:overworld',
+        x: -50,
+        y: 70,
+        z: 150,
       },
     ]);
   }),
@@ -230,18 +256,36 @@ export const handlers = [
         name: 'JEI',
         version: '1.20.1-12.0.0',
         enabled: true,
+        category: 'utility',
+        conflicts: [],
+        description: 'Just Enough Items - Item and recipe viewer',
       },
       {
         id: 'mod2',
         name: 'OptiFine',
         version: '1.20.1_HD_U_I1',
         enabled: true,
+        category: 'performance',
+        conflicts: ['mod1'],
+        description: 'OptiFine - Performance optimization mod',
       },
     ]);
   }),
 
   // Get conflicts
   http.get('/api/v1/servers/:id/compat/conflicts', () => {
+    return HttpResponse.json([
+      {
+        id: 'conflict1',
+        mods: ['mod1', 'mod2'],
+        severity: 'warning',
+        description: 'Potential performance impact',
+      },
+    ]);
+  }),
+
+  // Get mod conflicts (alternative endpoint)
+  http.get('/api/v1/servers/:id/mods/conflicts', () => {
     return HttpResponse.json([
       {
         id: 'conflict1',
@@ -271,32 +315,22 @@ export const handlers = [
   http.get('/api/v1/servers/:id/metrics', () => {
     const now = Date.now();
     const tps = Array.from({ length: 60 }, (_, i) => ({
-      timestamp: new Date(now - (60 - i) * 1000).toISOString(),
+      timestamp: now - (60 - i) * 1000,
       value: 20 + Math.random() * 2 - 1,
     }));
 
     return HttpResponse.json({
       tps,
-      tickPhases: {
-        entity: Array.from({ length: 60 }, (_, i) => ({
-          timestamp: new Date(now - (60 - i) * 1000).toISOString(),
-          value: 10 + Math.random() * 5,
-        })),
-        tile: Array.from({ length: 60 }, (_, i) => ({
-          timestamp: new Date(now - (60 - i) * 1000).toISOString(),
-          value: 5 + Math.random() * 3,
-        })),
-        world: Array.from({ length: 60 }, (_, i) => ({
-          timestamp: new Date(now - (60 - i) * 1000).toISOString(),
-          value: 3 + Math.random() * 2,
-        })),
-      },
+      tickP95: Array.from({ length: 60 }, (_, i) => ({
+        timestamp: now - (60 - i) * 1000,
+        value: 45 + Math.random() * 10,
+      })),
       heap: Array.from({ length: 60 }, (_, i) => ({
-        timestamp: new Date(now - (60 - i) * 1000).toISOString(),
+        timestamp: now - (60 - i) * 1000,
         value: 2048 + Math.random() * 512,
       })),
-      gpuLatency: Array.from({ length: 60 }, (_, i) => ({
-        timestamp: new Date(now - (60 - i) * 1000).toISOString(),
+      gpuMs: Array.from({ length: 60 }, (_, i) => ({
+        timestamp: now - (60 - i) * 1000,
         value: 5 + Math.random() * 3,
       })),
     });
@@ -312,6 +346,18 @@ export const handlers = [
         createdAt: '2024-01-15T10:30:00Z',
         scope: 'global',
         status: 'ready',
+        tags: ['daily', 'automated'],
+        verified: true,
+      },
+      {
+        id: 'snapshot2',
+        name: 'Weekly Backup',
+        size: 2048 * 1024 * 1024, // 2GB
+        createdAt: '2024-01-14T10:30:00Z',
+        scope: 'global',
+        status: 'ready',
+        tags: ['weekly'],
+        verified: false,
       },
     ]);
   }),
@@ -338,6 +384,68 @@ export const handlers = [
         scheduledAt: '2024-01-16T03:00:00Z',
         status: 'scheduled',
         actions: ['backup', 'restart'],
+        tags: ['automated', 'maintenance'],
+        recurring: true,
+      },
+      {
+        id: 'event2',
+        name: 'Weekly Backup',
+        description: 'Full server backup',
+        scheduledAt: '2024-01-20T02:00:00Z',
+        status: 'scheduled',
+        actions: ['backup'],
+        tags: ['backup', 'weekly'],
+        recurring: true,
+      },
+    ]);
+  }),
+
+  // Get pregen jobs
+  http.get('/api/v1/servers/:id/pregen', () => {
+    return HttpResponse.json([
+      {
+        id: 'pregen1',
+        name: 'Spawn Region Pregen',
+        region: { centerX: 0, centerZ: 0, radius: 1000 },
+        dimension: 'minecraft:overworld',
+        priority: 'normal',
+        status: 'running',
+        progress: 45,
+        eta: '2h 30m',
+        gpuAssist: true,
+        gpuAccelerated: true,
+        totalChunks: 10000,
+        completedChunks: 4500,
+        chunksPerSecond: 25,
+        memoryUsage: 1024,
+        createdAt: '2024-01-15T10:30:00Z',
+        updatedAt: '2024-01-15T12:00:00Z',
+        startTime: '2024-01-15T10:30:00Z',
+        estimatedTime: 120,
+        createdBy: 'admin',
+        tags: ['spawn', 'overworld'],
+      },
+      {
+        id: 'pregen2',
+        name: 'Nether Hub Pregen',
+        region: { centerX: 1000, centerZ: 0, radius: 500 },
+        dimension: 'minecraft:overworld',
+        priority: 'low',
+        status: 'queued',
+        progress: 0,
+        eta: '4h 15m',
+        gpuAssist: false,
+        gpuAccelerated: false,
+        totalChunks: 5000,
+        completedChunks: 0,
+        chunksPerSecond: 0,
+        memoryUsage: 0,
+        createdAt: '2024-01-15T11:00:00Z',
+        updatedAt: '2024-01-15T11:00:00Z',
+        startTime: null,
+        estimatedTime: 240,
+        createdBy: 'admin',
+        tags: ['nether', 'hub'],
       },
     ]);
   }),
@@ -348,7 +456,7 @@ export const handlers = [
       jobs: [
         {
           id: 'pregen1',
-          region: { x: 0, z: 0, radius: 1000 },
+          region: { centerX: 0, centerZ: 0, radius: 1000 },
           dimension: 'minecraft:overworld',
           priority: 'normal',
           status: 'running',

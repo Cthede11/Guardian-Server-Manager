@@ -44,6 +44,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 //   DropdownMenuSeparator
 // } from '@/components/ui/dropdown-menu';
 import { useServersStore } from '@/store/servers';
+import { usePregenJobs, liveStore } from '@/store/live';
 import { PregenQueue } from '@/components/Pregen/PregenQueue';
 import { RegionSelector } from '@/components/Pregen/RegionSelector';
 import { PregenStats } from '@/components/Pregen/PregenStats';
@@ -57,94 +58,18 @@ export const Pregen: React.FC<PregenPageProps> = ({ className = '' }) => {
   const { getServerById } = useServersStore();
   const server = serverId ? getServerById(serverId) : null;
   
-  const [pregenJobs, setPregenJobs] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  // Use live store for pregen jobs data
+  const pregenJobs = usePregenJobs(serverId || '');
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterDimension, setFilterDimension] = useState('all');
   // const [selectedRegion, setSelectedRegion] = useState<any>(null);
   const [regionSelectorOpen, setRegionSelectorOpen] = useState(false);
 
-  // Fetch pregen jobs data
-  const fetchPregenJobs = async () => {
-    if (!serverId) return;
-    
-    setIsLoading(true);
-    try {
-      const response = await fetch(`/api/v1/servers/${serverId}/pregen`);
-      if (response.ok) {
-        const data = await response.json();
-        setPregenJobs(data);
-      } else {
-        // Use mock data for demo
-        setPregenJobs(generateMockPregenJobs());
-      }
-    } catch (error) {
-      console.error('Error fetching pregen jobs:', error);
-      // Use mock data for demo
-      setPregenJobs(generateMockPregenJobs());
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // No need for fetchPregenJobs since we're using the live store
 
-  // Generate mock pregen jobs for demo
-  const generateMockPregenJobs = () => {
-    const now = Date.now();
-    const jobs = [];
-    
-    // Generate various types of pregen jobs
-    const dimensions = ['overworld', 'nether', 'end'];
-    const statuses = ['queued', 'running', 'paused', 'completed', 'failed', 'cancelled'];
-    const priorities = ['low', 'normal', 'high', 'critical'];
-    
-    for (let i = 0; i < 15; i++) {
-      const dimension = dimensions[Math.floor(Math.random() * dimensions.length)];
-      const status = statuses[Math.floor(Math.random() * statuses.length)];
-      const priority = priorities[Math.floor(Math.random() * priorities.length)];
-      const startTime = now - (i * 3600000) - Math.random() * 86400000;
-      
-      const totalChunks = Math.floor(Math.random() * 10000) + 1000; // 1K-11K chunks
-      const completedChunks = status === 'completed' ? totalChunks : 
-                             status === 'running' ? Math.floor(totalChunks * Math.random()) :
-                             status === 'paused' ? Math.floor(totalChunks * 0.3) : 0;
-      
-      jobs.push({
-        id: `pregen-${i + 1}`,
-        name: `${dimension.charAt(0).toUpperCase() + dimension.slice(1)} Region ${i + 1}`,
-        dimension,
-        status,
-        priority,
-        startTime,
-        endTime: status === 'completed' ? startTime + Math.random() * 3600000 : null,
-        totalChunks,
-        completedChunks,
-        progress: (completedChunks / totalChunks) * 100,
-        region: {
-          centerX: Math.floor(Math.random() * 2000) - 1000,
-          centerZ: Math.floor(Math.random() * 2000) - 1000,
-          radius: Math.floor(Math.random() * 500) + 100
-        },
-        gpuAccelerated: Math.random() > 0.5,
-        estimatedTime: Math.floor(Math.random() * 120) + 30, // 30-150 minutes
-        chunksPerSecond: Math.floor(Math.random() * 50) + 10,
-        memoryUsage: Math.floor(Math.random() * 2000) + 500, // MB
-        createdBy: 'admin',
-        createdAt: startTime - 86400000,
-        tags: dimension === 'nether' ? ['nether', 'fast-travel'] : dimension === 'end' ? ['end', 'end-city'] : ['overworld', 'spawn']
-      });
-    }
-    
-    return jobs.sort((a, b) => b.createdAt - a.createdAt);
-  };
-
-  useEffect(() => {
-    fetchPregenJobs();
-    
-    // Refresh data every 10 seconds for real-time updates
-    const interval = setInterval(fetchPregenJobs, 10000);
-    return () => clearInterval(interval);
-  }, [serverId]);
+  // No need for mock data generation since we're using the live store
 
   const handleCreatePregenJob = async (regionData: any) => {
     try {
@@ -161,7 +86,8 @@ export const Pregen: React.FC<PregenPageProps> = ({ className = '' }) => {
         progress: 0
       };
       
-      setPregenJobs(prev => [newJob, ...prev]);
+      // Update live store instead of local state
+      liveStore.getState().addPregenJob(serverId || '', newJob);
       setRegionSelectorOpen(false);
     } catch (error) {
       console.error('Error creating pregen job:', error);
@@ -173,23 +99,26 @@ export const Pregen: React.FC<PregenPageProps> = ({ className = '' }) => {
       // Simulate job action
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      setPregenJobs(prev => prev.map(job => {
-        if (job.id === jobId) {
-          switch (action) {
-            case 'start':
-              return { ...job, status: 'running', startTime: Date.now() };
-            case 'pause':
-              return { ...job, status: 'paused' };
-            case 'stop':
-              return { ...job, status: 'cancelled', endTime: Date.now() };
-            case 'resume':
-              return { ...job, status: 'running' };
-            default:
-              return job;
-          }
-        }
-        return job;
-      }));
+      let updates: any = {};
+      switch (action) {
+        case 'start':
+          updates = { status: 'running', startTime: Date.now() };
+          break;
+        case 'pause':
+          updates = { status: 'paused' };
+          break;
+        case 'stop':
+          updates = { status: 'cancelled', endTime: Date.now() };
+          break;
+        case 'resume':
+          updates = { status: 'running' };
+          break;
+        default:
+          return;
+      }
+      
+      // Update live store instead of local state
+      liveStore.getState().updatePregenJob(serverId || '', jobId, updates);
     } catch (error) {
       console.error('Error performing job action:', error);
     }
@@ -199,7 +128,16 @@ export const Pregen: React.FC<PregenPageProps> = ({ className = '' }) => {
     try {
       // Simulate deletion
       await new Promise(resolve => setTimeout(resolve, 1000));
-      setPregenJobs(prev => prev.filter(j => j.id !== jobId));
+      
+      // Update live store instead of local state
+      const currentJobs = liveStore.getState().pregenJobs[serverId || ''] || [];
+      const updatedJobs = currentJobs.filter(job => job.id !== jobId);
+      liveStore.setState(state => ({
+        pregenJobs: {
+          ...state.pregenJobs,
+          [serverId || '']: updatedJobs,
+        },
+      }));
     } catch (error) {
       console.error('Error deleting job:', error);
     }

@@ -65,15 +65,11 @@ export const ConsoleStream: React.FC<ConsoleStreamProps> = ({ className = '' }) 
   });
 
   // Auto-scroll to bottom when new messages arrive
-  const scrollToBottom = useCallback(() => {
+  useEffect(() => {
     if (filters.autoScroll && filteredMessages.length > 0) {
       rowVirtualizer.scrollToIndex(filteredMessages.length - 1, { align: 'end' });
     }
   }, [filters.autoScroll, filteredMessages.length, rowVirtualizer]);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [scrollToBottom]);
 
   // Connection status from live store
   const { connected: isConnected } = useConnectionStatus();

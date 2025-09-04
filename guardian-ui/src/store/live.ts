@@ -113,6 +113,27 @@ export const liveStore = create<LiveState>((set) => ({
     }));
   },
 
+  // Pregen actions
+  addPregenJob: (serverId: string, job: any) => {
+    set((state) => ({
+      pregenJobs: {
+        ...state.pregenJobs,
+        [serverId]: [...(state.pregenJobs[serverId] || []), job],
+      },
+    }));
+  },
+
+  updatePregenJob: (serverId: string, jobId: string, updates: any) => {
+    set((state) => ({
+      pregenJobs: {
+        ...state.pregenJobs,
+        [serverId]: (state.pregenJobs[serverId] || []).map(job =>
+          job.id === jobId ? { ...job, ...updates } : job
+        ),
+      },
+    }));
+  },
+
   // Metrics actions with time-series management
   applyMetrics: (serverId: string, data: Partial<LiveState['metrics'][string]>) => {
     set((state) => {
@@ -160,7 +181,7 @@ export const liveStore = create<LiveState>((set) => ({
   },
 }));
 
-// Performance-optimized selectors
+// Performance-optimized selectors with proper memoization
 export const useConsoleStream = (serverId: string) => {
   return liveStore((state) => state.console[serverId] || []);
 };

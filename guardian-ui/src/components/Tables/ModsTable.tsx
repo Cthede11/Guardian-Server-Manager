@@ -180,7 +180,7 @@ export const ModsTable: React.FC<ModsTableProps> = ({
                     >
                       {mod.category}
                     </Badge>
-                    {mod.conflicts.length > 0 && (
+                    {mod.conflicts && mod.conflicts.length > 0 && (
                       <Badge variant="destructive" className="text-xs">
                         <AlertTriangle className="h-3 w-3 mr-1" />
                         Conflicts

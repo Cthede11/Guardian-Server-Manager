@@ -56,8 +56,8 @@ export const PregenQueue: React.FC<PregenQueueProps> = ({
   // Filter and sort jobs
   const filteredJobs = jobs
     .filter(job => {
-      const matchesSearch = job.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           job.dimension.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = (job.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           (job.dimension || '').toLowerCase().includes(searchQuery.toLowerCase());
       
       const matchesStatus = filterStatus === 'all' || job.status === filterStatus;
       const matchesDimension = filterDimension === 'all' || job.dimension === filterDimension;
@@ -265,7 +265,7 @@ export const PregenQueue: React.FC<PregenQueueProps> = ({
                           GPU
                         </Badge>
                       )}
-                      {job.tags.length > 0 && (
+                      {job.tags && job.tags.length > 0 && (
                         <Badge variant="outline" className="text-xs">
                           {job.tags.join(', ')}
                         </Badge>

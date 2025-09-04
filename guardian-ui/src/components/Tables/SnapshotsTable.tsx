@@ -211,7 +211,7 @@ export const SnapshotsTable: React.FC<SnapshotsTableProps> = ({
                         Verified
                       </Badge>
                     )}
-                    {snapshot.tags.length > 0 && (
+                    {snapshot.tags && snapshot.tags.length > 0 && (
                       <Badge variant="outline" className="text-xs">
                         {snapshot.tags.join(', ')}
                       </Badge>
