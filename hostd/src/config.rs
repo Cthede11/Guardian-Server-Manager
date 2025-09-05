@@ -243,3 +243,98 @@ impl Config {
         }
     }
 }
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            minecraft: MinecraftConfig {
+                loader: "fabric".to_string(),
+                version: "1.21.1".to_string(),
+                java: JavaConfig {
+                    heap_gb: 4,
+                    flags: "-Xmx4G -Xms2G".to_string(),
+                    extra_flags: vec![],
+                },
+            },
+            paths: PathsConfig {
+                mods_dir: "data/mods".to_string(),
+                config_dir: "configs".to_string(),
+                world_dir: "data/servers".to_string(),
+                backup_dir: "data/backups".to_string(),
+            },
+            compat: CompatConfig {
+                rules_file: "configs/rules.yaml".to_string(),
+                allow_bake_for_permissive_licenses: true,
+                auto_apply_rules: true,
+                rule_refresh_interval_minutes: 60,
+            },
+            self_heal: SelfHealConfig {
+                entity_freeze_threshold: 100,
+                block_entity_freeze_threshold: 50,
+                quarantine_dimension: "the_end".to_string(),
+                thaw_on_rule_update: true,
+                max_frozen_entities: 1000,
+                max_frozen_block_entities: 500,
+            },
+            gpu: GpuConfig {
+                enabled: true,
+                worker_ipc: "tcp://127.0.0.1:9091".to_string(),
+                batch_size_chunks: 16,
+                max_cache_size: 1000,
+                health_check_interval_seconds: 30,
+                fallback_to_cpu: true,
+            },
+            worldgen: WorldgenConfig {
+                gpu_acceleration: true,
+                async_generation: true,
+                pregeneration_enabled: false,
+                pregeneration_radius: 8,
+                pregeneration_threads: 4,
+            },
+            ha: HighAvailabilityConfig {
+                autosave_minutes: 5,
+                snapshot_keep: 10,
+                blue_green: false,
+                rollback_on_failure: true,
+                max_restart_attempts: 3,
+                restart_delay_seconds: 30,
+            },
+            monitoring: MonitoringConfig {
+                metrics_enabled: true,
+                metrics_port: 9090,
+                log_level: "info".to_string(),
+                crash_reporting: true,
+            },
+            performance: PerformanceConfig {
+                tick_time_warning_ms: 50,
+                tick_time_critical_ms: 100,
+                memory_warning_percent: 80,
+                memory_critical_percent: 90,
+                gc_optimization: true,
+            },
+            mod_configs: ModConfigs {
+                create: ModConfig {
+                    contraption_optimization: Some(true),
+                    flywheel_integration: Some(true),
+                    render_optimization: Some(true),
+                    batching_enabled: Some(true),
+                    shader_optimization: Some(true),
+                },
+                flywheel: ModConfig {
+                    contraption_optimization: Some(true),
+                    flywheel_integration: Some(true),
+                    render_optimization: Some(true),
+                    batching_enabled: Some(true),
+                    shader_optimization: Some(true),
+                },
+                embeddium: ModConfig {
+                    contraption_optimization: Some(true),
+                    flywheel_integration: Some(true),
+                    render_optimization: Some(true),
+                    batching_enabled: Some(true),
+                    shader_optimization: Some(true),
+                },
+            },
+        }
+    }
+}

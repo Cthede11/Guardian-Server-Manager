@@ -13,7 +13,9 @@ use tracing::{info, warn, error, debug};
 use chrono;
 
 use crate::websocket::{WebSocketManager, WebSocketMessage};
-use crate::database::ServerConfig;
+use crate::database::{ServerConfig, MinecraftVersion, LoaderVersion, ModInfo, ModVersion, Modpack};
+use crate::mod_manager::ModManager;
+use crate::compatibility_engine::CompatibilityIssue;
 
 /// API response wrapper
 #[derive(Debug, Serialize)]
@@ -51,11 +53,17 @@ pub struct ServerInfo {
     pub name: String,
     pub status: String,
     pub tps: f64,
+    #[serde(rename = "tickP95")]
     pub tick_p95: f64,
+    #[serde(rename = "heapMb")]
     pub heap_mb: u64,
+    #[serde(rename = "playersOnline")]
     pub players_online: u32,
+    #[serde(rename = "gpuQueueMs")]
     pub gpu_queue_ms: f64,
+    #[serde(rename = "lastSnapshotAt")]
     pub last_snapshot_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(rename = "blueGreen")]
     pub blue_green: BlueGreenInfo,
 }
 
@@ -63,6 +71,7 @@ pub struct ServerInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlueGreenInfo {
     pub active: String,
+    #[serde(rename = "candidateHealthy")]
     pub candidate_healthy: bool,
 }
 
@@ -185,12 +194,56 @@ pub struct FilterQuery {
     pub level: Option<String>,
 }
 
+/// Mod search query parameters
+#[derive(Debug, Deserialize)]
+pub struct ModSearchQuery {
+    pub search_query: Option<String>,
+    pub minecraft_version: Option<String>,
+    pub loader: Option<String>,
+    pub category: Option<String>,
+    pub side: Option<String>,
+    pub source: Option<String>,
+    pub page: Option<u32>,
+    pub limit: Option<u32>,
+}
+
+/// Modpack creation request
+#[derive(Debug, Deserialize)]
+pub struct CreateModpackRequest {
+    pub name: String,
+    pub description: Option<String>,
+    pub minecraft_version: String,
+    pub loader: String,
+    pub client_mods: Vec<String>,
+    pub server_mods: Vec<String>,
+    pub config: Option<serde_json::Value>,
+}
+
+/// Modpack update request
+#[derive(Debug, Deserialize)]
+pub struct UpdateModpackRequest {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub client_mods: Option<Vec<String>>,
+    pub server_mods: Option<Vec<String>>,
+    pub config: Option<serde_json::Value>,
+}
+
+/// Apply modpack to server request
+#[derive(Debug, Deserialize)]
+pub struct ApplyModpackRequest {
+    pub server_id: String,
+    pub install_client_mods: bool,
+    pub backup_before_apply: bool,
+}
+
 /// Application state
 #[derive(Clone)]
 pub struct AppState {
     pub websocket_manager: WebSocketManager,
     pub minecraft_manager: crate::minecraft::MinecraftManager,
     pub database: crate::database::DatabaseManager,
+    pub mod_manager: ModManager,
 }
 
 /// Create API router
@@ -200,6 +253,7 @@ pub fn create_api_router(state: AppState) -> Router {
         .route("/api/servers", get(get_servers))
         .route("/api/servers", post(create_server))
         .route("/api/servers/:id", get(get_server))
+        .route("/api/servers/:id", delete(delete_server))
         .route("/api/servers/:id/health", get(get_server_health))
         .route("/api/servers/:id/start", post(start_server))
         .route("/api/servers/:id/stop", post(stop_server))
@@ -243,6 +297,27 @@ pub fn create_api_router(state: AppState) -> Router {
         // Settings endpoints
         .route("/api/servers/:id/settings", get(get_server_settings))
         // .route("/api/servers/:id/settings", put(update_server_settings))
+        
+        // Modpack endpoints
+        .route("/api/modpacks/versions", get(get_minecraft_versions))
+        .route("/api/modpacks/loaders", get(get_loader_versions))
+        .route("/api/modpacks/mods", get(search_mods))
+        .route("/api/modpacks/mods/:id", get(get_mod))
+        .route("/api/modpacks/mods/:id/versions", get(get_mod_versions))
+        .route("/api/modpacks/mods/:id/compatibility", get(check_mod_compatibility))
+        .route("/api/modpacks", get(get_modpacks))
+        .route("/api/modpacks", post(create_modpack))
+        .route("/api/modpacks/:id", get(get_modpack))
+        .route("/api/modpacks/:id", put(update_modpack))
+        .route("/api/modpacks/:id", delete(delete_modpack))
+        .route("/api/modpacks/:id/apply", post(apply_modpack_to_server))
+        .route("/api/modpacks/:id/download", get(download_modpack))
+        
+        // External API integration endpoints
+        .route("/api/mods/search/external", get(search_external_mods))
+        // .route("/api/mods/:id/download", post(download_mod))
+        // .route("/api/mods/sync", post(sync_mods_from_external))
+        .route("/api/mods/:id/compatibility", get(check_mod_compatibility_external))
         
         // Health check endpoint
         .route("/api/health", get(health_check))
@@ -542,6 +617,39 @@ async fn restart_server(
     
     // TODO: Implement actual server restart
     Ok(Json(ApiResponse::success("Server restarting".to_string())))
+}
+
+async fn delete_server(
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<String>>, StatusCode> {
+    info!("Deleting server: {}", id);
+    
+    // First stop the server if it's running
+    let _ = state.minecraft_manager.stop_server(&id).await;
+    
+    // Delete from database
+    match state.database.delete_server(&id).await {
+        Ok(_) => {
+            info!("Successfully deleted server: {}", id);
+            
+            // Broadcast deletion update
+            let message = WebSocketMessage::ServerEvent {
+                server_id: id.clone(),
+                event: "deleted".to_string(),
+                data: serde_json::json!({}),
+                timestamp: chrono::Utc::now(),
+            };
+            
+            let _ = state.websocket_manager.broadcast(message).await;
+            
+            Ok(Json(ApiResponse::success("Server deleted".to_string())))
+        }
+        Err(e) => {
+            error!("Failed to delete server {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 async fn send_server_command(
@@ -926,6 +1034,357 @@ async fn get_status(State(state): State<AppState>) -> Result<Json<ApiResponse<se
     });
     
     Ok(Json(ApiResponse::success(status)))
+}
+
+// Modpack endpoints
+async fn get_minecraft_versions(State(state): State<AppState>) -> Result<Json<ApiResponse<Vec<MinecraftVersion>>>, StatusCode> {
+    match state.database.get_minecraft_versions().await {
+        Ok(versions) => Ok(Json(ApiResponse::success(versions))),
+        Err(e) => {
+            error!("Failed to get Minecraft versions: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn get_loader_versions(
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<Vec<LoaderVersion>>>, StatusCode> {
+    let minecraft_version = params.get("minecraft_version");
+    let loader_type = params.get("loader_type");
+    
+    match state.database.get_loader_versions(minecraft_version, loader_type).await {
+        Ok(versions) => Ok(Json(ApiResponse::success(versions))),
+        Err(e) => {
+            error!("Failed to get loader versions: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn search_mods(
+    Query(params): Query<ModSearchQuery>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<Vec<ModInfo>>>, StatusCode> {
+    match state.database.search_mods(&params).await {
+        Ok(mods) => Ok(Json(ApiResponse::success(mods))),
+        Err(e) => {
+            error!("Failed to search mods: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn get_mod(
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<ModInfo>>, StatusCode> {
+    match state.database.get_mod(&id).await {
+        Ok(Some(mod_info)) => Ok(Json(ApiResponse::success(mod_info))),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            error!("Failed to get mod {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn get_mod_versions(
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<Vec<ModVersion>>>, StatusCode> {
+    match state.database.get_mod_versions(&id).await {
+        Ok(versions) => Ok(Json(ApiResponse::success(versions))),
+        Err(e) => {
+            error!("Failed to get mod versions for {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn check_mod_compatibility(
+    Path(id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
+    let minecraft_version = params.get("minecraft_version");
+    let loader = params.get("loader");
+    
+    // TODO: Implement actual compatibility checking
+    let compatibility = serde_json::json!({
+        "compatible": true,
+        "issues": [],
+        "warnings": []
+    });
+    
+    Ok(Json(ApiResponse::success(compatibility)))
+}
+
+async fn get_modpacks(State(state): State<AppState>) -> Result<Json<ApiResponse<Vec<Modpack>>>, StatusCode> {
+    match state.database.get_modpacks().await {
+        Ok(modpacks) => Ok(Json(ApiResponse::success(modpacks))),
+        Err(e) => {
+            error!("Failed to get modpacks: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn create_modpack(
+    State(state): State<AppState>,
+    Json(payload): Json<CreateModpackRequest>,
+) -> Result<Json<ApiResponse<Modpack>>, StatusCode> {
+    let modpack_id = Uuid::new_v4().to_string();
+    
+    let modpack = Modpack {
+        id: modpack_id.clone(),
+        name: payload.name.clone(),
+        description: payload.description,
+        minecraft_version: payload.minecraft_version,
+        loader: payload.loader,
+        client_mods: serde_json::to_string(&payload.client_mods).unwrap_or_default(),
+        server_mods: serde_json::to_string(&payload.server_mods).unwrap_or_default(),
+        config: payload.config.map(|c| serde_json::to_string(&c).unwrap_or_default()),
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+    
+    match state.database.create_modpack(&modpack).await {
+        Ok(_) => {
+            info!("Successfully created modpack: {} (ID: {})", payload.name, modpack_id);
+            Ok(Json(ApiResponse::success(modpack)))
+        }
+        Err(e) => {
+            error!("Failed to create modpack: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn get_modpack(
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<Modpack>>, StatusCode> {
+    match state.database.get_modpack(&id).await {
+        Ok(Some(modpack)) => Ok(Json(ApiResponse::success(modpack))),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            error!("Failed to get modpack {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn update_modpack(
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+    Json(payload): Json<UpdateModpackRequest>,
+) -> Result<Json<ApiResponse<Modpack>>, StatusCode> {
+    match state.database.get_modpack(&id).await {
+        Ok(Some(mut modpack)) => {
+            if let Some(name) = payload.name {
+                modpack.name = name;
+            }
+            if let Some(description) = payload.description {
+                modpack.description = Some(description);
+            }
+            if let Some(client_mods) = payload.client_mods {
+                modpack.client_mods = serde_json::to_string(&client_mods).unwrap_or_default();
+            }
+            if let Some(server_mods) = payload.server_mods {
+                modpack.server_mods = serde_json::to_string(&server_mods).unwrap_or_default();
+            }
+            if let Some(config) = payload.config {
+                modpack.config = Some(serde_json::to_string(&config).unwrap_or_default());
+            }
+            modpack.updated_at = chrono::Utc::now();
+            
+            match state.database.update_modpack(&modpack).await {
+                Ok(_) => {
+                    info!("Successfully updated modpack: {}", id);
+                    Ok(Json(ApiResponse::success(modpack)))
+                }
+                Err(e) => {
+                    error!("Failed to update modpack {}: {}", id, e);
+                    Err(StatusCode::INTERNAL_SERVER_ERROR)
+                }
+            }
+        }
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            error!("Failed to get modpack {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn delete_modpack(
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<String>>, StatusCode> {
+    match state.database.delete_modpack(&id).await {
+        Ok(_) => {
+            info!("Successfully deleted modpack: {}", id);
+            Ok(Json(ApiResponse::success("Modpack deleted".to_string())))
+        }
+        Err(e) => {
+            error!("Failed to delete modpack {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn apply_modpack_to_server(
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+    Json(payload): Json<ApplyModpackRequest>,
+) -> Result<Json<ApiResponse<String>>, StatusCode> {
+    info!("Applying modpack {} to server {}", id, payload.server_id);
+    
+    // TODO: Implement actual modpack application
+    // This would involve:
+    // 1. Downloading mods from Modrinth/CurseForge
+    // 2. Installing server mods to the server's mods directory
+    // 3. Optionally creating a client modpack for players
+    
+    Ok(Json(ApiResponse::success("Modpack applied successfully".to_string())))
+}
+
+async fn download_modpack(
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
+    match state.database.get_modpack(&id).await {
+        Ok(Some(modpack)) => {
+            // TODO: Implement actual modpack download
+            // This would create a downloadable zip file with all client mods
+            let download_info = serde_json::json!({
+                "modpack_id": id,
+                "name": modpack.name,
+                "download_url": format!("/api/modpacks/{}/download/file", id),
+                "size_mb": 0, // TODO: Calculate actual size
+                "created_at": modpack.created_at
+            });
+            
+            Ok(Json(ApiResponse::success(download_info)))
+        }
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            error!("Failed to get modpack {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+// External API integration endpoints
+async fn search_external_mods(
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<Vec<ModInfo>>>, StatusCode> {
+    let query = params.get("query").map(|s| s.as_str()).unwrap_or("");
+    let minecraft_version = params.get("minecraft_version");
+    let loader = params.get("loader");
+    let category = params.get("category");
+    let source = params.get("source");
+    let limit = params.get("limit").and_then(|s| s.parse().ok()).unwrap_or(50);
+
+    match state.mod_manager.search_mods(
+        query,
+        minecraft_version.as_deref().map(|s| s.as_str()),
+        loader.as_deref().map(|s| s.as_str()),
+        category.as_deref().map(|s| s.as_str()),
+        source.as_deref().map(|s| s.as_str()),
+        limit,
+    ).await {
+        Ok(results) => {
+            let mut all_mods = Vec::new();
+            for result in results {
+                all_mods.extend(result.mods);
+            }
+            Ok(Json(ApiResponse::success(all_mods)))
+        }
+        Err(e) => {
+            error!("Failed to search external mods: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn download_mod(
+    Path(id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
+    let version = params.get("version");
+    let minecraft_version = params.get("minecraft_version");
+    let loader = params.get("loader");
+
+    match state.mod_manager.download_mod(
+        &id,
+        version.as_deref().map(|s| s.as_str()),
+        minecraft_version.as_deref().map(|s| s.as_str()),
+        loader.as_deref().map(|s| s.as_str()),
+    ).await {
+        Ok(result) => {
+            let download_info = serde_json::json!({
+                "mod_id": result.mod_info.id,
+                "mod_name": result.mod_info.name,
+                "file_path": result.file_path,
+                "file_size": result.file_size,
+                "sha256": result.sha256,
+                "downloaded_at": chrono::Utc::now()
+            });
+            Ok(Json(ApiResponse::success(download_info)))
+        }
+        Err(e) => {
+            error!("Failed to download mod {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn sync_mods_from_external(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<String>>, StatusCode> {
+    match state.mod_manager.sync_mods_from_external_sources().await {
+        Ok(_) => Ok(Json(ApiResponse::success("Mod sync completed".to_string()))),
+        Err(e) => {
+            error!("Failed to sync mods from external sources: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn check_mod_compatibility_external(
+    Path(id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
+    let minecraft_version = params.get("minecraft_version").map(|s| s.as_str()).unwrap_or("1.21.1");
+    let loader = params.get("loader").map(|s| s.as_str()).unwrap_or("forge");
+
+    match state.mod_manager.check_mod_compatibility(
+        &[id.clone()],
+        minecraft_version,
+        loader,
+    ).await {
+        Ok(report) => {
+                          let compatibility_info = serde_json::json!({
+                "mod_id": id,
+                "minecraft_version": minecraft_version,
+                "loader": loader,
+                "is_compatible": report.is_compatible,
+                "issues": serde_json::to_value(&report.issues).unwrap_or(serde_json::Value::Array(vec![])),
+                "warnings": serde_json::to_value(&report.warnings).unwrap_or(serde_json::Value::Array(vec![]))
+            });
+            Ok(Json(ApiResponse::success(compatibility_info)))
+        }
+        Err(e) => {
+            error!("Failed to check mod compatibility for {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 #[cfg(test)]

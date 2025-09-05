@@ -1,6 +1,7 @@
 use crate::error::{GuardianError, utils as error_utils};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::process::Command;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
@@ -626,17 +627,33 @@ pub mod builtin {
     }
 
     fn is_process_running(process_name: &str) -> Result<bool, GuardianError> {
-        let output = Command::new("pgrep")
-            .arg("-f")
-            .arg(process_name)
-            .output()
-            .map_err(|e| error_utils::internal_error(
-                "process_check",
-                "pgrep",
-                &format!("Failed to check process: {}", e),
-            ))?;
+        // Use Windows-compatible process checking
+        if cfg!(target_os = "windows") {
+            let output = Command::new("tasklist")
+                .arg("/FI")
+                .arg(format!("IMAGENAME eq {}.exe", process_name))
+                .output()
+                .map_err(|e| error_utils::internal_error(
+                    "process_check",
+                    "tasklist",
+                    &format!("Failed to check process: {}", e),
+                ))?;
 
-        Ok(output.status.success())
+            let output_str = String::from_utf8_lossy(&output.stdout);
+            Ok(output_str.contains(&format!("{}.exe", process_name)))
+        } else {
+            let output = Command::new("pgrep")
+                .arg("-f")
+                .arg(process_name)
+                .output()
+                .map_err(|e| error_utils::internal_error(
+                    "process_check",
+                    "pgrep",
+                    &format!("Failed to check process: {}", e),
+                ))?;
+
+            Ok(output.status.success())
+        }
     }
 
     fn check_database_connectivity(connection_string: &str) -> Result<(), GuardianError> {
@@ -677,8 +694,10 @@ impl HealthCheckRegistry {
         self.monitor.add_check(builtin::network_connectivity_check("localhost:8080".to_string())).await;
         self.monitor.add_check(builtin::network_connectivity_check("localhost:9090".to_string())).await;
 
-        // Process health checks
-        self.monitor.add_check(builtin::process_health_check("java".to_string())).await;
+        // Process health checks (non-critical)
+        let mut java_check = builtin::process_health_check("java".to_string());
+        java_check.critical = false; // Make Java check non-critical
+        self.monitor.add_check(java_check).await;
 
         // Database health check (if configured)
         // self.monitor.add_check(builtin::database_health_check("postgresql://...".to_string())).await;

@@ -31,6 +31,7 @@ interface ServersState {
   stopServer: (id: string) => Promise<boolean>;
   restartServer: (id: string) => Promise<boolean>;
   promoteServer: (id: string) => Promise<boolean>;
+  deleteServer: (id: string) => Promise<boolean>;
   
   // Server data
   fetchServerHealth: (id: string) => Promise<void>;
@@ -55,18 +56,25 @@ export const useServersStore = create<ServersState>((set, get) => ({
   fetchServers: async () => {
     set({ loading: true, error: null });
     
-    const response = await api.getServers();
-    
-    if (response.ok && response.data) {
-      // Type assertion to ensure compatibility
-      const servers = response.data as ServerSummary[];
+    try {
+      const response = await api.getServers();
+      
+      if (response.ok && response.data) {
+        // Type assertion to ensure compatibility
+        const servers = response.data as ServerSummary[];
+        set({ 
+          servers,
+          loading: false,
+        });
+      } else {
+        set({ 
+          error: response.error || 'Failed to fetch servers',
+          loading: false,
+        });
+      }
+    } catch (error) {
       set({ 
-        servers,
-        loading: false,
-      });
-    } else {
-      set({ 
-        error: response.error || 'Failed to fetch servers',
+        error: error instanceof Error ? error.message : 'Failed to fetch servers',
         loading: false,
       });
     }
@@ -75,19 +83,40 @@ export const useServersStore = create<ServersState>((set, get) => ({
   createServer: async (data) => {
     set({ loading: true, error: null });
     
-    const response = await api.createServer(data);
-    
-    if (response.ok && response.data) {
-      // Type assertion to ensure compatibility
-      const newServer = response.data as ServerSummary;
-      set((state) => ({
-        servers: [...state.servers, newServer],
-        loading: false,
-      }));
-      return true;
-    } else {
+    try {
+      console.log('Creating server with data:', data);
+      const response = await api.createServer(data);
+      console.log('API response:', response);
+      
+      if (response.ok && response.data) {
+        // Type assertion to ensure compatibility
+        const newServer = response.data as ServerSummary;
+        set((state) => ({
+          servers: [...state.servers, newServer],
+          loading: false,
+        }));
+        console.log('Server created successfully:', newServer);
+        
+        // Refresh the server list to ensure consistency
+        setTimeout(() => {
+          get().fetchServers();
+        }, 100);
+        
+        return true;
+      } else {
+        const errorMsg = response.error || 'Failed to create server';
+        console.error('Server creation failed:', errorMsg);
+        set({ 
+          error: errorMsg,
+          loading: false,
+        });
+        return false;
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Failed to create server';
+      console.error('Server creation error:', error);
       set({ 
-        error: response.error || 'Failed to create server',
+        error: errorMsg,
         loading: false,
       });
       return false;
@@ -184,6 +213,49 @@ export const useServersStore = create<ServersState>((set, get) => ({
       return true;
     } else {
       set({ error: response.error || 'Failed to promote server' });
+      return false;
+    }
+  },
+
+  deleteServer: async (id: string) => {
+    set({ loading: true, error: null });
+    
+    try {
+      console.log('Deleting server:', id);
+      const response = await api.deleteServer(id);
+      console.log('Delete API response:', response);
+      
+      if (response.ok) {
+        // Remove server from the list
+        set((state) => ({
+          servers: state.servers.filter(server => server.id !== id),
+          loading: false,
+        }));
+        
+        // Clear selection if the deleted server was selected
+        const { selectedServerId } = get();
+        if (selectedServerId === id) {
+          set({ selectedServerId: null });
+        }
+        
+        console.log('Server deleted successfully');
+        return true;
+      } else {
+        const errorMsg = response.error || 'Failed to delete server';
+        console.error('Server deletion failed:', errorMsg);
+        set({ 
+          error: errorMsg,
+          loading: false,
+        });
+        return false;
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Failed to delete server';
+      console.error('Server deletion error:', error);
+      set({ 
+        error: errorMsg,
+        loading: false,
+      });
       return false;
     }
   },

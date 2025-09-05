@@ -14,6 +14,8 @@ export const ServerSummarySchema = z.object({
   playersOnline: z.number(),
   gpuQueueMs: z.number(),
   lastSnapshotAt: z.string().optional(),
+  type: z.string().optional(),
+  version: z.string().optional(),
   blueGreen: z.object({
     active: z.enum(['blue', 'green']),
     candidateHealthy: z.boolean(),

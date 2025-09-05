@@ -1,10 +1,9 @@
 use std::ffi::CString;
 use std::os::raw::{c_char, c_int};
-use serde::{Deserialize, Serialize};
 
 /// Chunk job structure for C ABI
 #[repr(C)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ChunkJob {
     pub chunk_x: i32,
     pub chunk_z: i32,
@@ -16,7 +15,7 @@ pub struct ChunkJob {
 
 /// Chunk result structure for C ABI
 #[repr(C)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ChunkResult {
     pub chunk_x: i32,
     pub chunk_z: i32,

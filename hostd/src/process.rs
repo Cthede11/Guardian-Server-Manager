@@ -39,8 +39,8 @@ impl ProcessManager {
             self.start_gpu_worker().await?;
         }
         
-        // Start Minecraft server
-        self.start_minecraft_server().await?;
+        // Note: Minecraft servers are started on-demand via the API
+        // No automatic server startup
         
         info!("Process Manager started successfully");
         Ok(())

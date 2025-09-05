@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useParams, useLocation } from 'react-router-dom';
+import { Link, useParams, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Search, 
   Plus, 
@@ -19,7 +19,8 @@ import {
   Play,
   Square,
   ArrowUp,
-  Folder
+  Folder,
+  Package
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,36 +29,74 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useServersStore } from '@/store/servers';
+import { openDevTools } from '@/lib/tauri-api';
 import { StatusPill } from '@/components/StatusPill';
 
 // Add Server Wizard Component
 const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { createServer } = useServersStore();
   const [formData, setFormData] = useState({
+    // Step 1: Basic Info
     name: '',
-    loader: 'forge',
-    version: '1.20.1',
+    type: 'vanilla' as 'vanilla' | 'forge' | 'fabric' | 'paper' | 'purpur' | 'spigot' | 'bukkit',
+    version: '1.21.1',
+    
+    // Step 2: Java Configuration
+    javaPath: '',
+    javaArgs: '-Xmx4G -Xms2G -XX:+UseG1GC',
+    memory: 4096,
+    
+    // Step 3: Network Configuration
+    serverPort: 25565,
+    rconPort: 25575,
+    rconPassword: '',
+    queryPort: 25565,
+    
+    // Step 4: File Paths
     paths: {
-      world: '/opt/minecraft/world',
-      mods: '/opt/minecraft/mods',
-      config: '/opt/minecraft/config',
+      world: './world',
+      mods: './mods',
+      config: './config',
+      logs: './logs',
+      backups: './backups'
+    },
+    
+    // Step 5: Advanced Settings
+    settings: {
+      autoStart: false,
+      autoRestart: true,
+      maxRestarts: 3,
+      backupInterval: 24,
+      backupRetention: 7
     }
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
+  const [javaInstallations, setJavaInstallations] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setError(null);
     
     try {
-      const success = await createServer(formData);
+      const success = await createServer({
+        name: formData.name,
+        loader: formData.type,
+        version: formData.version,
+        paths: formData.paths
+      });
       if (success) {
         console.log('Server created successfully:', formData);
         onClose();
       } else {
+        setError('Failed to create server. Please check the console for details.');
         console.error('Failed to create server');
       }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setError(`Error creating server: ${errorMessage}`);
       console.error('Error creating server:', error);
     } finally {
       setIsSubmitting(false);
@@ -66,6 +105,11 @@ const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          {error}
+        </div>
+      )}
       <div>
         <label className="block text-sm font-medium mb-2">Server Name</label>
         <Input
@@ -79,8 +123,8 @@ const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       <div>
         <label className="block text-sm font-medium mb-2">Mod Manager</label>
         <select
-          value={formData.loader}
-          onChange={(e) => setFormData({ ...formData, loader: e.target.value })}
+          value={formData.type}
+          onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
           className="w-full px-3 py-2 border border-border rounded-md bg-background"
         >
           <option value="vanilla">Vanilla</option>
@@ -130,9 +174,10 @@ const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 };
 
 export const Sidebar: React.FC = () => {
-  const { servers, selectedServerId, selectServer, loading, startServer, stopServer, promoteServer } = useServersStore();
+  const { servers, selectedServerId, selectServer, loading, startServer, stopServer, promoteServer, deleteServer } = useServersStore();
   const { id: currentServerId } = useParams<{ id: string }>();
   const location = useLocation();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddServer, setShowAddServer] = useState(false);
   const [workspaceExpanded, setWorkspaceExpanded] = useState(false);
@@ -183,8 +228,8 @@ export const Sidebar: React.FC = () => {
         break;
       case 'delete':
         if (confirm('Are you sure you want to delete this server?')) {
-          // Delete functionality would be implemented here
           console.log('Deleting server:', serverId);
+          await deleteServer(serverId);
         }
         break;
       case 'open-folder':
@@ -420,6 +465,27 @@ export const Sidebar: React.FC = () => {
           )}
         </div>
 
+        {/* Modpacks Section */}
+        <div className="p-4 border-t border-border/30">
+          <Link
+            to="/modpacks"
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+              location.pathname === '/modpacks' 
+                ? 'bg-primary/15 text-primary border border-primary/20 shadow-sm' 
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+            }`}
+          >
+            <div className={`w-6 h-6 rounded-md flex items-center justify-center ${
+              location.pathname === '/modpacks' 
+                ? 'bg-primary/20 text-primary' 
+                : 'bg-muted/50 text-muted-foreground'
+            }`}>
+              <Package className="h-3.5 w-3.5" />
+            </div>
+            <span>Modpacks</span>
+          </Link>
+        </div>
+
         {/* Workspace Section */}
         <div className="p-4 border-t border-border/30 bg-gradient-to-br from-muted/10 to-muted/20">
           {/* Workspace Header - Non-clickable section title */}
@@ -506,7 +572,50 @@ export const Sidebar: React.FC = () => {
               </div>
               <span>Theme Settings</span>
             </Link>
+            
           </div>
+        </div>
+        
+        {/* Console Button - Bottom Left */}
+        <div className="p-4 border-t border-border/50">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              console.log('Opening live console page...');
+              navigate('/console');
+            }}
+          >
+            <div className="w-4 h-4 rounded bg-muted/50 flex items-center justify-center">
+              <span className="text-xs font-mono">{'>'}</span>
+            </div>
+            <span>Open Console</span>
+          </Button>
+          
+          {/* Test API Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground mt-2"
+            onClick={async () => {
+              console.log('Testing API connection...');
+              try {
+                const response = await fetch('http://localhost:8080/api/health');
+                const data = await response.json();
+                console.log('API Health Check:', data);
+                alert(`API Status: ${data.success ? 'OK' : 'Error'}\nData: ${JSON.stringify(data)}`);
+              } catch (error) {
+                console.error('API Test Failed:', error);
+                alert(`API Test Failed: ${error}`);
+              }
+            }}
+          >
+            <div className="w-4 h-4 rounded bg-muted/50 flex items-center justify-center">
+              <span className="text-xs font-mono">?</span>
+            </div>
+            <span>Test API</span>
+          </Button>
         </div>
       </div>
     </nav>

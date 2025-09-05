@@ -32,7 +32,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -45,8 +45,11 @@
     "category": "Game",
     "shortDescription": "Professional Minecraft Server Management",
     "longDescription": "Guardian is a professional Minecraft server management application with advanced monitoring, automation, and optimization features.",
-    "resources": [],
-    "externalBin": [],
+    "resources": [
+      "../../hostd/target/release/hostd.exe",
+      "../../gpu-worker/target/release/gpu-worker.exe",
+      "../../configs"
+    ],
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
@@ -70,13 +73,8 @@
     }
   },
   "plugins": {
-    "updater": {
-      "active": true,
-      "endpoints": [
-        "http://localhost:3000/updates/{{target}}/{{arch}}/{{current_version}}"
-      ],
-      "dialog": true,
-      "pubkey": "YOUR_PUBLIC_KEY_HERE"
+    "window": {
+      "all": true
     }
   }
 }

@@ -43,6 +43,14 @@ pub struct UserSettings {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// Health status for database
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HealthStatus {
+    pub status: String,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub details: Option<String>,
+}
+
 /// Backup configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackupConfig {
@@ -82,6 +90,106 @@ pub struct EventLog {
     pub message: String,
     pub level: String,
     pub metadata: Option<serde_json::Value>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Minecraft version information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MinecraftVersion {
+    pub id: String,
+    pub release_type: String,
+    pub release_date: chrono::DateTime<chrono::Utc>,
+    pub protocol_version: i32,
+    pub data_version: i32,
+    pub is_supported: bool,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Mod loader version information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoaderVersion {
+    pub id: i64,
+    pub loader_type: String,
+    pub version: String,
+    pub minecraft_version: String,
+    pub download_url: String,
+    pub file_size: u64,
+    pub sha256: String,
+    pub is_stable: bool,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Mod information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModInfo {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub category: String,
+    pub side: String,
+    pub source: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Mod version information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModVersion {
+    pub id: i64,
+    pub mod_id: String,
+    pub version: String,
+    pub minecraft_versions: String, // JSON array
+    pub loader_versions: String,    // JSON object
+    pub download_url: String,
+    pub file_size: u64,
+    pub sha256: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Mod dependency information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModDependency {
+    pub id: i64,
+    pub mod_version_id: i64,
+    pub dependency_mod_id: String,
+    pub version_range: String,
+    pub side: String,
+    pub required: bool,
+}
+
+/// Mod conflict information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModConflict {
+    pub id: i64,
+    pub mod_version_id: i64,
+    pub conflicting_mod_id: String,
+    pub reason: String,
+    pub severity: String,
+}
+
+/// Modpack information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Modpack {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub minecraft_version: String,
+    pub loader: String,
+    pub client_mods: String, // JSON array
+    pub server_mods: String, // JSON array
+    pub config: Option<String>, // JSON object
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Server mod information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerMod {
+    pub id: i64,
+    pub server_id: String,
+    pub mod_id: String,
+    pub mod_version_id: i64,
+    pub enabled: bool,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -228,7 +336,259 @@ impl DatabaseManager {
             .execute(&self.pool)
             .await?;
 
+        // Create minecraft_versions table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS minecraft_versions (
+                id TEXT PRIMARY KEY,
+                release_type TEXT NOT NULL,
+                release_date DATETIME NOT NULL,
+                protocol_version INTEGER NOT NULL,
+                data_version INTEGER NOT NULL,
+                is_supported BOOLEAN DEFAULT TRUE,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create loader_versions table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS loader_versions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                loader_type TEXT NOT NULL,
+                version TEXT NOT NULL,
+                minecraft_version TEXT NOT NULL,
+                download_url TEXT NOT NULL,
+                file_size INTEGER NOT NULL,
+                sha256 TEXT NOT NULL,
+                is_stable BOOLEAN DEFAULT TRUE,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (minecraft_version) REFERENCES minecraft_versions(id)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create mods table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS mods (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT,
+                category TEXT NOT NULL,
+                side TEXT NOT NULL,
+                source TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create mod_versions table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS mod_versions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                mod_id TEXT NOT NULL,
+                version TEXT NOT NULL,
+                minecraft_versions TEXT NOT NULL,
+                loader_versions TEXT NOT NULL,
+                download_url TEXT NOT NULL,
+                file_size INTEGER NOT NULL,
+                sha256 TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (mod_id) REFERENCES mods(id)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create mod_dependencies table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS mod_dependencies (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                mod_version_id INTEGER NOT NULL,
+                dependency_mod_id TEXT NOT NULL,
+                version_range TEXT NOT NULL,
+                side TEXT NOT NULL,
+                required BOOLEAN DEFAULT TRUE,
+                FOREIGN KEY (mod_version_id) REFERENCES mod_versions(id),
+                FOREIGN KEY (dependency_mod_id) REFERENCES mods(id)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create mod_conflicts table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS mod_conflicts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                mod_version_id INTEGER NOT NULL,
+                conflicting_mod_id TEXT NOT NULL,
+                reason TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                FOREIGN KEY (mod_version_id) REFERENCES mod_versions(id),
+                FOREIGN KEY (conflicting_mod_id) REFERENCES mods(id)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create modpacks table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS modpacks (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT,
+                minecraft_version TEXT NOT NULL,
+                loader TEXT NOT NULL,
+                client_mods TEXT NOT NULL,
+                server_mods TEXT NOT NULL,
+                config TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create server_mods table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS server_mods (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                server_id TEXT NOT NULL,
+                mod_id TEXT NOT NULL,
+                mod_version_id INTEGER NOT NULL,
+                enabled BOOLEAN DEFAULT TRUE,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE,
+                FOREIGN KEY (mod_id) REFERENCES mods(id),
+                FOREIGN KEY (mod_version_id) REFERENCES mod_versions(id)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create additional indexes for modpack system
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_mods_category ON mods (category)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_mods_side ON mods (side)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_mods_source ON mods (source)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_mod_versions_mod_id ON mod_versions (mod_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_modpacks_minecraft_version ON modpacks (minecraft_version)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_modpacks_loader ON modpacks (loader)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_server_mods_server_id ON server_mods (server_id)")
+            .execute(&self.pool)
+            .await?;
+
+        // Populate default Minecraft versions
+        self.populate_default_minecraft_versions().await?;
+        
+        // Populate default loader versions
+        self.populate_default_loader_versions().await?;
+
         info!("Database migrations completed successfully");
+        Ok(())
+    }
+
+    async fn populate_default_minecraft_versions(&self) -> Result<()> {
+        // Insert some common Minecraft versions
+        let versions = vec![
+            ("1.21.1", "release", "2024-08-20T00:00:00Z", 767, 15, true),
+            ("1.21", "release", "2024-06-13T00:00:00Z", 766, 15, true),
+            ("1.20.6", "release", "2024-05-14T00:00:00Z", 765, 15, true),
+            ("1.20.4", "release", "2024-01-15T00:00:00Z", 764, 15, true),
+            ("1.20.1", "release", "2023-06-12T00:00:00Z", 763, 15, true),
+            ("1.19.4", "release", "2023-03-14T00:00:00Z", 762, 15, true),
+            ("1.18.2", "release", "2022-02-28T00:00:00Z", 758, 15, true),
+            ("1.17.1", "release", "2021-07-06T00:00:00Z", 756, 15, true),
+        ];
+
+        for (version, release_type, release_date, protocol_version, data_version, is_supported) in versions {
+            sqlx::query(
+                r#"
+                INSERT OR IGNORE INTO minecraft_versions 
+                (id, release_type, release_date, protocol_version, data_version, is_supported)
+                VALUES (?, ?, ?, ?, ?, ?)
+                "#
+            )
+            .bind(version)
+            .bind(release_type)
+            .bind(release_date)
+            .bind(protocol_version)
+            .bind(data_version)
+            .bind(is_supported)
+            .execute(&self.pool)
+            .await?;
+        }
+
+        info!("Populated default Minecraft versions");
+        Ok(())
+    }
+
+    async fn populate_default_loader_versions(&self) -> Result<()> {
+        // Insert some common loader versions for Forge and Fabric
+        let loaders = vec![
+            ("forge", "47.4.0", "1.21.1", "https://maven.minecraftforge.net/net/minecraftforge/forge/1.21.1-47.4.0/forge-1.21.1-47.4.0-installer.jar", 12345678, "sha256hash1", true),
+            ("forge", "47.3.0", "1.21", "https://maven.minecraftforge.net/net/minecraftforge/forge/1.21-47.3.0/forge-1.21-47.3.0-installer.jar", 12345678, "sha256hash2", true),
+            ("fabric", "0.15.11", "1.21.1", "https://maven.fabricmc.net/net/fabricmc/fabric-installer/0.15.11/fabric-installer-0.15.11.jar", 8765432, "sha256hash3", true),
+            ("fabric", "0.15.10", "1.21", "https://maven.fabricmc.net/net/fabricmc/fabric-installer/0.15.10/fabric-installer-0.15.10.jar", 8765432, "sha256hash4", true),
+            ("quilt", "0.8.0", "1.21.1", "https://maven.quiltmc.org/repository/release/org/quiltmc/quilt-installer/0.8.0/quilt-installer-0.8.0.jar", 5432109, "sha256hash5", true),
+        ];
+
+        for (loader_type, version, minecraft_version, download_url, file_size, sha256, is_stable) in loaders {
+            sqlx::query(
+                r#"
+                INSERT OR IGNORE INTO loader_versions 
+                (loader_type, version, minecraft_version, download_url, file_size, sha256, is_stable)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                "#
+            )
+            .bind(loader_type)
+            .bind(version)
+            .bind(minecraft_version)
+            .bind(download_url)
+            .bind(file_size)
+            .bind(sha256)
+            .bind(is_stable)
+            .execute(&self.pool)
+            .await?;
+        }
+
+        info!("Populated default loader versions");
         Ok(())
     }
 
@@ -655,6 +1015,302 @@ impl DatabaseManager {
 
         Ok(())
     }
+
+    // Modpack database methods
+    pub async fn get_minecraft_versions(&self) -> Result<Vec<MinecraftVersion>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, release_type, release_date, protocol_version, data_version, is_supported, created_at
+            FROM minecraft_versions
+            ORDER BY release_date DESC
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let versions = rows
+            .into_iter()
+            .map(|row| MinecraftVersion {
+                id: row.get("id"),
+                release_type: row.get("release_type"),
+                release_date: row.get("release_date"),
+                protocol_version: row.get("protocol_version"),
+                data_version: row.get("data_version"),
+                is_supported: row.get("is_supported"),
+                created_at: row.get("created_at"),
+            })
+            .collect();
+
+        Ok(versions)
+    }
+
+    pub async fn get_loader_versions(
+        &self,
+        minecraft_version: Option<&String>,
+        loader_type: Option<&String>,
+    ) -> Result<Vec<LoaderVersion>> {
+        let mut query = sqlx::query(
+            r#"
+            SELECT id, loader_type, version, minecraft_version, download_url, file_size, sha256, is_stable, created_at
+            FROM loader_versions
+            WHERE 1=1
+            "#
+        );
+
+        if let Some(mc_version) = minecraft_version {
+            query = query.bind(mc_version);
+        }
+        if let Some(loader) = loader_type {
+            query = query.bind(loader);
+        }
+
+        let rows = query
+            .fetch_all(&self.pool)
+            .await?;
+
+        let versions = rows
+            .into_iter()
+            .map(|row| LoaderVersion {
+                id: row.get("id"),
+                loader_type: row.get("loader_type"),
+                version: row.get("version"),
+                minecraft_version: row.get("minecraft_version"),
+                download_url: row.get("download_url"),
+                file_size: row.get::<i64, _>("file_size") as u64,
+                sha256: row.get("sha256"),
+                is_stable: row.get("is_stable"),
+                created_at: row.get("created_at"),
+            })
+            .collect();
+
+        Ok(versions)
+    }
+
+    pub async fn search_mods(&self, params: &crate::api::ModSearchQuery) -> Result<Vec<ModInfo>> {
+        let mut query = sqlx::query(
+            r#"
+            SELECT id, name, description, category, side, source, created_at, updated_at
+            FROM mods
+            WHERE 1=1
+            "#
+        );
+
+        if let Some(search_query) = &params.search_query {
+            query = query.bind(format!("%{}%", search_query));
+        }
+        if let Some(category) = &params.category {
+            query = query.bind(category);
+        }
+        if let Some(side) = &params.side {
+            query = query.bind(side);
+        }
+        if let Some(source) = &params.source {
+            query = query.bind(source);
+        }
+
+        let limit = params.limit.unwrap_or(50);
+        let offset = (params.page.unwrap_or(1) - 1) * limit;
+
+        let rows = query
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?;
+
+        let mods = rows
+            .into_iter()
+            .map(|row| ModInfo {
+                id: row.get("id"),
+                name: row.get("name"),
+                description: row.get("description"),
+                category: row.get("category"),
+                side: row.get("side"),
+                source: row.get("source"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            })
+            .collect();
+
+        Ok(mods)
+    }
+
+    pub async fn get_mod(&self, id: &str) -> Result<Option<ModInfo>> {
+        let row = sqlx::query(
+            r#"
+            SELECT id, name, description, category, side, source, created_at, updated_at
+            FROM mods WHERE id = ?
+            "#
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            Ok(Some(ModInfo {
+                id: row.get("id"),
+                name: row.get("name"),
+                description: row.get("description"),
+                category: row.get("category"),
+                side: row.get("side"),
+                source: row.get("source"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn get_mod_versions(&self, mod_id: &str) -> Result<Vec<ModVersion>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, mod_id, version, minecraft_versions, loader_versions, download_url, file_size, sha256, created_at
+            FROM mod_versions
+            WHERE mod_id = ?
+            ORDER BY created_at DESC
+            "#
+        )
+        .bind(mod_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let versions = rows
+            .into_iter()
+            .map(|row| ModVersion {
+                id: row.get("id"),
+                mod_id: row.get("mod_id"),
+                version: row.get("version"),
+                minecraft_versions: row.get("minecraft_versions"),
+                loader_versions: row.get("loader_versions"),
+                download_url: row.get("download_url"),
+                file_size: row.get::<i64, _>("file_size") as u64,
+                sha256: row.get("sha256"),
+                created_at: row.get("created_at"),
+            })
+            .collect();
+
+        Ok(versions)
+    }
+
+    pub async fn get_modpacks(&self) -> Result<Vec<Modpack>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, name, description, minecraft_version, loader, client_mods, server_mods, config, created_at, updated_at
+            FROM modpacks
+            ORDER BY created_at DESC
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let modpacks = rows
+            .into_iter()
+            .map(|row| Modpack {
+                id: row.get("id"),
+                name: row.get("name"),
+                description: row.get("description"),
+                minecraft_version: row.get("minecraft_version"),
+                loader: row.get("loader"),
+                client_mods: row.get("client_mods"),
+                server_mods: row.get("server_mods"),
+                config: row.get("config"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            })
+            .collect();
+
+        Ok(modpacks)
+    }
+
+    pub async fn create_modpack(&self, modpack: &Modpack) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO modpacks (
+                id, name, description, minecraft_version, loader,
+                client_mods, server_mods, config, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#
+        )
+        .bind(&modpack.id)
+        .bind(&modpack.name)
+        .bind(&modpack.description)
+        .bind(&modpack.minecraft_version)
+        .bind(&modpack.loader)
+        .bind(&modpack.client_mods)
+        .bind(&modpack.server_mods)
+        .bind(&modpack.config)
+        .bind(modpack.created_at)
+        .bind(modpack.updated_at)
+        .execute(&self.pool)
+        .await?;
+
+        info!("Created modpack: {}", modpack.id);
+        Ok(())
+    }
+
+    pub async fn get_modpack(&self, id: &str) -> Result<Option<Modpack>> {
+        let row = sqlx::query(
+            r#"
+            SELECT id, name, description, minecraft_version, loader, client_mods, server_mods, config, created_at, updated_at
+            FROM modpacks WHERE id = ?
+            "#
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            Ok(Some(Modpack {
+                id: row.get("id"),
+                name: row.get("name"),
+                description: row.get("description"),
+                minecraft_version: row.get("minecraft_version"),
+                loader: row.get("loader"),
+                client_mods: row.get("client_mods"),
+                server_mods: row.get("server_mods"),
+                config: row.get("config"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn update_modpack(&self, modpack: &Modpack) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE modpacks SET
+                name = ?, description = ?, minecraft_version = ?, loader = ?,
+                client_mods = ?, server_mods = ?, config = ?, updated_at = ?
+            WHERE id = ?
+            "#
+        )
+        .bind(&modpack.name)
+        .bind(&modpack.description)
+        .bind(&modpack.minecraft_version)
+        .bind(&modpack.loader)
+        .bind(&modpack.client_mods)
+        .bind(&modpack.server_mods)
+        .bind(&modpack.config)
+        .bind(modpack.updated_at)
+        .bind(&modpack.id)
+        .execute(&self.pool)
+        .await?;
+
+        info!("Updated modpack: {}", modpack.id);
+        Ok(())
+    }
+
+    pub async fn delete_modpack(&self, id: &str) -> Result<()> {
+        sqlx::query("DELETE FROM modpacks WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+
+        info!("Deleted modpack: {}", id);
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -719,5 +1375,19 @@ mod tests {
         let events = db.get_events(Some("test-server"), Some(10)).await.unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].event_type, "server_start");
+    }
+    
+    /// Get database health status
+    pub async fn get_health_status(&self) -> Result<HealthStatus> {
+        // Check database connectivity
+        let _: i64 = sqlx::query_scalar("SELECT 1")
+            .fetch_one(&self.pool)
+            .await?;
+        
+        Ok(HealthStatus {
+            status: "healthy".to_string(),
+            timestamp: chrono::Utc::now(),
+            details: Some("Database connection successful".to_string()),
+        })
     }
 }

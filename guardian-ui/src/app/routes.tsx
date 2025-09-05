@@ -2,6 +2,8 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import AppShell from './layout/AppShell';
 import { ServersPages, WorkspacePages } from './pages';
+import Console from './pages/Console';
+import ModpackBrowser from '../components/Modpack/ModpackBrowser';
 
 export const router = createBrowserRouter([
   {
@@ -113,6 +115,14 @@ export const router = createBrowserRouter([
             ],
           },
         ],
+      },
+      {
+        path: 'console',
+        element: <Console />,
+      },
+      {
+        path: 'modpacks',
+        element: <ModpackBrowser />,
       },
       {
         path: 'workspace',

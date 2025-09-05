@@ -1,6 +1,5 @@
 use wgpu::*;
 use anyhow::Result;
-use std::borrow::Cow;
 
 /// Density generation kernel for terrain generation
 pub struct DensityKernel {
@@ -14,7 +13,7 @@ impl DensityKernel {
         // Load shader
         let shader = device.create_shader_module(ShaderModuleDescriptor {
             label: Some("Density Shader"),
-            source: ShaderSource::Wgsl(Cow::Borrowed(include_str!("density.wgsl"))),
+            source: ShaderSource::Wgsl(include_str!("density.wgsl").into()),
         });
         
         // Create compute pipeline
@@ -24,7 +23,6 @@ impl DensityKernel {
             compute: ProgrammableStageDescriptor {
                 module: &shader,
                 entry_point: "main",
-                compilation_options: PipelineCompilationOptions::default(),
             },
         });
         
@@ -92,7 +90,7 @@ impl DensityKernel {
         let buffer_slice = output_buffer.slice(..);
         let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
         buffer_slice.map_async(MapMode::Read, move |result| {
-            sender.send(result).unwrap();
+            let _ = sender.send(result);
         });
         
         device.poll(Maintain::Wait);

@@ -1,4 +1,4 @@
-use gpu_worker::*;
+use gpu_worker::GpuWorker;
 use tracing::{info, error};
 use tracing_subscriber;
 

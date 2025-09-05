@@ -199,7 +199,8 @@ export const PlayersTable: React.FC<PlayersTableProps> = ({ className = '' }) =>
       }
     } catch (error) {
       console.error('Error fetching players:', error);
-      setLoadingError(handleApiError(error, 'fetching players'));
+      handleApiError(error as Error, 'fetching players');
+      setLoadingError(new Error('Failed to fetch players'));
       // Use mock data for demo
       const mockPlayers = generateMockPlayers();
       liveStore.getState().updatePlayers(serverId, mockPlayers);

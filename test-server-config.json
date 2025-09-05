@@ -1,0 +1,11 @@
+﻿{
+    "version":  "1.20.1",
+    "name":  "Real Test Server",
+    "jvm_args":  "-Xmx2G -Xms1G -XX:+UseG1GC",
+    "java_path":  "java",
+    "paths":  {
+                  "world":  "C:\\Users\\cthed\\OneDrive\\Desktop\\modded-manager\\test-minecraft-server"
+              },
+    "type":  "vanilla",
+    "memory":  "2G"
+}

@@ -1,6 +1,5 @@
 use wgpu::*;
 use anyhow::Result;
-use std::borrow::Cow;
 
 /// Mask generation kernel for caves, ores, and other features
 pub struct MaskKernel {
@@ -14,7 +13,7 @@ impl MaskKernel {
         // Load shader
         let shader = device.create_shader_module(ShaderModuleDescriptor {
             label: Some("Mask Shader"),
-            source: ShaderSource::Wgsl(Cow::Borrowed(include_str!("mask.wgsl"))),
+            source: ShaderSource::Wgsl(include_str!("mask.wgsl").into()),
         });
         
         // Create compute pipeline
@@ -24,7 +23,6 @@ impl MaskKernel {
             compute: ProgrammableStageDescriptor {
                 module: &shader,
                 entry_point: "main",
-                compilation_options: PipelineCompilationOptions::default(),
             },
         });
         
@@ -141,7 +139,7 @@ impl MaskKernel {
         let buffer_slice = output_buffer.slice(..);
         let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
         buffer_slice.map_async(MapMode::Read, move |result| {
-            sender.send(result).unwrap();
+            let _ = sender.send(result);
         });
         
         device.poll(Maintain::Wait);
