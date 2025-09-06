@@ -86,8 +86,10 @@ export const ServerCreationWizard: React.FC<ServerCreationWizardProps> = ({
 
   const loadJavaInstallations = async () => {
     try {
-      const config = fileManager.getConfig();
-      setJavaInstallations(config.javaInstallations);
+      const config = await fileManager.getConfig();
+      if (config) {
+        setJavaInstallations(config.javaInstallations);
+      }
     } catch (error) {
       errorHandler.handleError(error as Error, 'Load Java Installations');
     }
@@ -95,7 +97,7 @@ export const ServerCreationWizard: React.FC<ServerCreationWizardProps> = ({
 
   const loadDefaultSettings = async () => {
     try {
-      const settings = settingsManager.getAppSettings();
+      const settings = await settingsManager.getAppSettings();
       setFormData(prev => ({
         ...prev,
         javaArgs: settings.servers.defaultJavaArgs,
@@ -132,18 +134,34 @@ export const ServerCreationWizard: React.FC<ServerCreationWizardProps> = ({
         name: formData.name,
         type: formData.type,
         version: formData.version,
+        loader: formData.type,
+        memory: formData.memory,
+        port: formData.serverPort,
+        world: 'world',
+        mods: [],
+        properties: {},
+        javaInstallations: [],
         java: {
           path: formData.javaPath,
           args: formData.javaArgs,
           version: '21' // TODO: Detect Java version
         },
         network: {
+          port: formData.serverPort,
           serverPort: formData.serverPort,
           rconPort: formData.rconPort,
           rconPassword: formData.rconPassword,
-          queryPort: formData.queryPort
+          queryPort: formData.queryPort,
+          maxPlayers: 20,
+          motd: 'A Minecraft Server'
         },
-        paths: formData.paths,
+        paths: {
+          serverDir: formData.paths.world,
+          worldDir: formData.paths.world,
+          logsDir: formData.paths.logs,
+          pluginsDir: formData.paths.config,
+          modsDir: formData.paths.mods
+        },
         settings: {
           ...formData.settings,
           memory: formData.memory,

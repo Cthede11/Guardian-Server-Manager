@@ -6,7 +6,7 @@ server:
 
 # Database configuration
 database:
-  url: "sqlite:guardian.db"
+  url: "sqlite:./guardian.db"
   max_connections: 10
   connection_timeout: 30
 

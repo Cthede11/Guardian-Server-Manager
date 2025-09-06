@@ -41,7 +41,7 @@ interface ModpackState {
   setFilters: (filters: Partial<ModFilters>) => void;
   clearFilters: () => void;
   
-  checkCompatibility: (modpack: ModpackCompatibility) => Promise<ModpackCompatibility | null>;
+  checkCompatibility: (modpack: Modpack) => Promise<ModpackCompatibility | null>;
   
   // Server Mod Management
   getServerMods: (serverId: string) => Promise<ModInfo[]>;
@@ -56,6 +56,9 @@ const defaultFilters: ModFilters = {
   category: 'all',
   side: 'all',
   search_query: '',
+  search: '',
+  source: 'all',
+  tags: [],
   sort_by: 'popularity',
   sort_order: 'desc',
 };
@@ -94,7 +97,12 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
       const searchResults = await modpackApi.searchMods(currentFilters);
       set({ 
         mods: searchResults.mods,
-        searchResults,
+        searchResults: {
+          mods: searchResults.mods,
+          total: searchResults.total,
+          page: searchResults.page,
+          per_page: searchResults.per_page
+        },
         filters: currentFilters,
         loading: false 
       });
@@ -128,7 +136,12 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
       const searchResults = await modpackApi.searchMods(currentFilters);
       set({ 
         mods: searchResults.mods,
-        searchResults,
+        searchResults: {
+          mods: searchResults.mods,
+          total: searchResults.total,
+          page: searchResults.page,
+          per_page: searchResults.per_page
+        },
         filters: currentFilters,
         loading: false 
       });
@@ -223,7 +236,7 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
   checkCompatibility: async (modpack) => {
     set({ loading: true, error: null });
     try {
-      const result = await modpackApi.checkModpackCompatibility(modpack);
+      const result = await modpackApi.checkCompatibility(modpack);
       set({ loading: false });
       return result;
     } catch (error) {

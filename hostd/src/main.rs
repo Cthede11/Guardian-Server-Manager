@@ -249,14 +249,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ = tokio::signal::ctrl_c() => {
             info!("🛑 Shutdown signal received");
         }
-        result = server_handle => {
+        result = &mut server_handle => {
             match result {
                 Ok(Ok(_)) => info!("✅ HTTP server stopped gracefully"),
                 Ok(Err(e)) => error!("❌ HTTP server error: {}", e),
                 Err(e) => error!("❌ HTTP server task error: {}", e),
             }
         }
-        result = daemon_handle => {
+        result = &mut daemon_handle => {
             match result {
                 Ok(_) => info!("✅ Daemon stopped gracefully"),
                 Err(e) => error!("❌ Daemon task error: {}", e),

@@ -75,6 +75,9 @@
   "plugins": {
     "window": {
       "all": true
+    },
+    "updater": {
+      "active": false
     }
   }
 }
