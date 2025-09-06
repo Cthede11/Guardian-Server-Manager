@@ -3,547 +3,445 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-// import { Label } from '@/components/ui/label';
-// import { Textarea } from '@/components/ui/textarea';
-// import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
 import { 
   Key, 
-  Lock, 
-  Unlock, 
   Eye, 
   EyeOff, 
   Copy, 
-  // Trash2, 
-  Plus, 
-  Edit, 
-  X, 
-  AlertTriangle,
+  ExternalLink,
   CheckCircle,
+  AlertCircle,
   Info,
-  Shield,
-  Server,
-  Network,
   RefreshCw,
+  Save,
   TestTube,
-  Download,
-  Monitor,
-  Zap,
-  Layers
+  Shield,
+  Settings,
+  Database,
+  Globe
 } from 'lucide-react';
 
-interface WorkspaceTokenData {
+interface APIKeyData {
   id: string;
   name: string;
-  description: string;
-  type: 'api' | 'webhook' | 'auth' | 'service' | 'integration' | 'monitoring';
-  permissions: string[];
-  scopes: string[];
-  status: 'active' | 'inactive' | 'expired' | 'revoked';
-  token: string;
-  expiresAt: string | null;
-  lastUsedAt: string | null;
-  usageCount: number;
+  key: string;
+  type: 'curseforge' | 'modrinth';
+  status: 'active' | 'inactive' | 'invalid';
+  lastTested: string | null;
   rateLimit: {
     requests: number;
-    period: 'minute' | 'hour' | 'day';
+    period: string;
   };
-  ipWhitelist: string[];
-  userAgentWhitelist: string[];
+  description: string;
+  isRequired: boolean;
   createdAt: string;
   updatedAt: string;
-  createdBy: string;
-  tags: string[];
-  metadata: {
-    environment: 'development' | 'staging' | 'production';
-    version: string;
-    clientId?: string;
-    redirectUri?: string;
-  };
 }
 
 export const WorkspaceTokens: React.FC = () => {
-  const [tokens, setTokens] = useState<WorkspaceTokenData[]>([
-    {
-      id: '1',
-      name: 'API Access Token',
-      description: 'Main API access token for workspace operations',
-      type: 'api',
-      permissions: ['read', 'write', 'admin'],
-      scopes: ['servers', 'users', 'backups', 'monitoring'],
-      status: 'active',
-      token: 'gt_ws_1234567890abcdef',
-      expiresAt: '2024-12-31T23:59:59Z',
-      lastUsedAt: '2024-01-15T10:30:00Z',
-      usageCount: 15420,
-      rateLimit: {
-        requests: 1000,
-        period: 'hour'
-      },
-      ipWhitelist: [],
-      userAgentWhitelist: [],
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-15T10:30:00Z',
-      createdBy: 'admin',
-      tags: ['production', 'api'],
-      metadata: {
-        environment: 'production',
-        version: '1.0.0'
-      }
-    },
-    {
-      id: '2',
-      name: 'Webhook Integration',
-      description: 'Webhook token for external integrations',
-      type: 'webhook',
-      permissions: ['read'],
-      scopes: ['events', 'notifications'],
-      status: 'active',
-      token: 'gt_ws_abcdef1234567890',
-      expiresAt: null,
-      lastUsedAt: '2024-01-14T15:45:00Z',
-      usageCount: 892,
-      rateLimit: {
-        requests: 100,
-        period: 'minute'
-      },
-      ipWhitelist: ['192.168.1.0/24', '10.0.0.0/8'],
-      userAgentWhitelist: ['Guardian-Webhook/1.0'],
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-14T15:45:00Z',
-      createdBy: 'admin',
-      tags: ['webhook', 'integration'],
-      metadata: {
-        environment: 'production',
-        version: '1.0.0',
-        clientId: 'webhook-client-123',
-        redirectUri: 'https://example.com/webhook'
-      }
-    }
-  ]);
+  const [apiKeys, setApiKeys] = useState<APIKeyData[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isTesting, setIsTesting] = useState<string | null>(null);
+  const [showKeys, setShowKeys] = useState<{ [key: string]: boolean }>({});
+  const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info');
 
-  // const [isLoading, setIsLoading] = useState(false);
-  // const [hasChanges, setHasChanges] = useState(false);
-  // const [selectedToken, setSelectedToken] = useState<WorkspaceTokenData | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
-  const [showToken, setShowToken] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-
-  const fetchData = async () => {
-    // setIsLoading(true);
-    try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      // setHasChanges(false);
-    } catch (error) {
-      console.error('Failed to fetch workspace tokens:', error);
-    } finally {
-      // setIsLoading(false);
-    }
-  };
-
+  // Initialize with default API keys
   useEffect(() => {
-    fetchData();
+    const defaultKeys: APIKeyData[] = [
+      {
+        id: 'curseforge',
+        name: 'CurseForge API Key',
+        key: '',
+        type: 'curseforge',
+        status: 'inactive',
+        lastTested: null,
+        rateLimit: { requests: 100, period: 'minute' },
+        description: 'Required for accessing CurseForge mod data',
+        isRequired: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      },
+      {
+        id: 'modrinth',
+        name: 'Modrinth API Key',
+        key: '',
+        type: 'modrinth',
+        status: 'inactive',
+        lastTested: null,
+        rateLimit: { requests: 300, period: 'minute' },
+        description: 'Optional but recommended for higher rate limits',
+        isRequired: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+    ];
+
+    // Load saved keys from localStorage
+    const savedKeys = defaultKeys.map(key => {
+      const saved = localStorage.getItem(`${key.type}_api_key`);
+      return saved ? { ...key, key: saved, status: 'active' as const } : key;
+    });
+
+    setApiKeys(savedKeys);
   }, []);
 
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'api': return <Key className="h-4 w-4" />;
-      case 'webhook': return <Network className="h-4 w-4" />;
-      case 'auth': return <Shield className="h-4 w-4" />;
-      case 'service': return <Server className="h-4 w-4" />;
-      case 'integration': return <Layers className="h-4 w-4" />;
-      case 'monitoring': return <Monitor className="h-4 w-4" />;
-      default: return <Key className="h-4 w-4" />;
+  const showMessage = (text: string, type: 'success' | 'error' | 'info') => {
+    setMessage(text);
+    setMessageType(type);
+    setTimeout(() => setMessage(''), 5000);
+  };
+
+  const updateApiKey = (id: string, key: string) => {
+    setApiKeys(prev => prev.map(apiKey => 
+      apiKey.id === id 
+        ? { ...apiKey, key, updatedAt: new Date().toISOString() }
+        : apiKey
+    ));
+  };
+
+  const toggleKeyVisibility = (id: string) => {
+    setShowKeys(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    showMessage('Copied to clipboard!', 'success');
+  };
+
+  const testApiKey = async (apiKey: APIKeyData) => {
+    if (!apiKey.key) {
+      showMessage(`${apiKey.name} is empty`, 'error');
+      return;
+    }
+
+    setIsTesting(apiKey.id);
+    
+    try {
+      const testUrl = apiKey.type === 'curseforge' 
+        ? 'https://api.curseforge.com/v1/games/432/versions'
+        : 'https://staging-api.modrinth.com/v2/tag/game_version';
+      
+      const headers: Record<string, string> = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'Guardian-ModManager/1.0.0 (modded-manager.com)',
+      };
+      
+      if (apiKey.type === 'curseforge') {
+        headers['x-api-key'] = apiKey.key;
+      } else {
+        headers['Authorization'] = apiKey.key;
+      }
+
+      const response = await fetch(testUrl, { headers });
+      
+      if (response.ok) {
+        setApiKeys(prev => prev.map(key => 
+          key.id === apiKey.id 
+            ? { 
+                ...key, 
+                status: 'active' as const,
+                lastTested: new Date().toISOString()
+              }
+            : key
+        ));
+        showMessage(`${apiKey.name} is valid!`, 'success');
+      } else {
+        setApiKeys(prev => prev.map(key => 
+          key.id === apiKey.id 
+            ? { 
+                ...key, 
+                status: 'invalid' as const,
+                lastTested: new Date().toISOString()
+              }
+            : key
+        ));
+        showMessage(`${apiKey.name} is invalid or expired`, 'error');
+      }
+    } catch (error) {
+      setApiKeys(prev => prev.map(key => 
+        key.id === apiKey.id 
+          ? { 
+              ...key, 
+              status: 'invalid' as const,
+              lastTested: new Date().toISOString()
+            }
+          : key
+      ));
+      showMessage(`Failed to test ${apiKey.name}`, 'error');
+    } finally {
+      setIsTesting(null);
     }
   };
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'api': return 'bg-blue-500';
-      case 'webhook': return 'bg-green-500';
-      case 'auth': return 'bg-purple-500';
-      case 'service': return 'bg-orange-500';
-      case 'integration': return 'bg-pink-500';
-      case 'monitoring': return 'bg-cyan-500';
-      default: return 'bg-gray-500';
-    }
-  };
+  const saveApiKeys = async () => {
+    setIsSaving(true);
+    
+    try {
+      // Save to localStorage
+      apiKeys.forEach(apiKey => {
+        if (apiKey.key) {
+          localStorage.setItem(`${apiKey.type}_api_key`, apiKey.key);
+        } else {
+          localStorage.removeItem(`${apiKey.type}_api_key`);
+        }
+      });
 
-  const getTypeLabel = (type: string) => {
-    switch (type) {
-      case 'api': return 'API';
-      case 'webhook': return 'Webhook';
-      case 'auth': return 'Auth';
-      case 'service': return 'Service';
-      case 'integration': return 'Integration';
-      case 'monitoring': return 'Monitoring';
-      default: return 'Unknown';
-    }
-  };
+      // Update environment variables for the current session
+      apiKeys.forEach(apiKey => {
+        if (apiKey.key) {
+          (window as any).env = (window as any).env || {};
+          (window as any).env[`VITE_${apiKey.type.toUpperCase()}_API_KEY`] = apiKey.key;
+        }
+      });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'text-green-500';
-      case 'inactive': return 'text-gray-500';
-      case 'expired': return 'text-red-500';
-      case 'revoked': return 'text-red-600';
-      default: return 'text-gray-500';
+      showMessage('API keys saved successfully!', 'success');
+    } catch (error) {
+      showMessage('Failed to save API keys', 'error');
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'active': return <CheckCircle className="h-4 w-4" />;
-      case 'inactive': return <X className="h-4 w-4" />;
-      case 'expired': return <AlertTriangle className="h-4 w-4" />;
-      case 'revoked': return <X className="h-4 w-4" />;
-      default: return <Info className="h-4 w-4" />;
+      case 'active':
+        return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case 'invalid':
+        return <AlertCircle className="w-4 h-4 text-red-500" />;
+      default:
+        return <Key className="w-4 h-4 text-gray-400" />;
     }
   };
 
-  const getEnvironmentColor = (environment: string) => {
-    switch (environment) {
-      case 'development': return 'bg-yellow-500';
-      case 'staging': return 'bg-blue-500';
-      case 'production': return 'bg-green-500';
-      default: return 'bg-gray-500';
+  const getStatusBadge = (apiKey: APIKeyData) => {
+    if (!apiKey.key) {
+      return <Badge variant="secondary">Not Set</Badge>;
+    }
+    
+    switch (apiKey.status) {
+      case 'active':
+        return <Badge variant="default" className="bg-green-500">Valid</Badge>;
+      case 'invalid':
+        return <Badge variant="destructive">Invalid</Badge>;
+      default:
+        return <Badge variant="outline">Set</Badge>;
     }
   };
 
-  const filteredTokens = tokens.filter(token => {
-    const matchesSearch = token.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         token.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         token.token.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = filterType === 'all' || token.type === filterType;
-    const matchesStatus = filterStatus === 'all' || token.status === filterStatus;
-    return matchesSearch && matchesType && matchesStatus;
-  });
-
-  const handleCreateToken = () => {
-    setIsCreating(true);
-    // Mock token creation
-    setTimeout(() => {
-      const newToken: WorkspaceTokenData = {
-        id: Date.now().toString(),
-        name: 'New Token',
-        description: 'A new workspace token',
-        type: 'api',
-        permissions: ['read'],
-        scopes: ['servers'],
-        status: 'active',
-        token: `gt_ws_${Math.random().toString(36).substr(2, 16)}`,
-        expiresAt: null,
-        lastUsedAt: null,
-        usageCount: 0,
-        rateLimit: {
-          requests: 100,
-          period: 'hour'
-        },
-        ipWhitelist: [],
-        userAgentWhitelist: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        createdBy: 'admin',
-        tags: [],
-        metadata: {
-          environment: 'development',
-          version: '1.0.0'
-        }
-      };
-      setTokens(prev => [...prev, newToken]);
-      setIsCreating(false);
-    }, 1000);
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'curseforge':
+        return <img src="https://www.curseforge.com/favicon.ico" alt="CurseForge" className="w-5 h-5" />;
+      case 'modrinth':
+        return <img src="https://modrinth.com/favicon.ico" alt="Modrinth" className="w-5 h-5" />;
+      default:
+        return <Key className="w-5 h-5" />;
+    }
   };
 
-  // const handleDeleteToken = (id: string) => {
-  //   setTokens(prev => prev.filter(token => token.id !== id));
-  // };
-
-  const handleToggleToken = (id: string) => {
-    setTokens(prev => prev.map(token => 
-      token.id === id ? { 
-        ...token, 
-        status: token.status === 'active' ? 'inactive' : 'active' 
-      } : token
-    ));
-  };
-
-  const handleCopyToken = (token: string) => {
-    navigator.clipboard.writeText(token);
-  };
-
-  const handleRevokeToken = (id: string) => {
-    setTokens(prev => prev.map(token => 
-      token.id === id ? { 
-        ...token, 
-        status: 'revoked' as const,
-        updatedAt: new Date().toISOString()
-      } : token
-    ));
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case 'curseforge':
+        return 'border-orange-200 bg-orange-50';
+      case 'modrinth':
+        return 'border-green-200 bg-green-50';
+      default:
+        return 'border-gray-200 bg-gray-50';
+    }
   };
 
   return (
-    <div className="h-full flex flex-col space-y-6">
-      {/* Workspace Tokens */}
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-foreground">API Keys</h2>
+        <p className="text-muted-foreground">
+          Configure API keys for external services to access real mod data
+        </p>
+      </div>
+
+      {message && (
+        <Alert className={messageType === 'error' ? 'border-red-200 bg-red-50' : messageType === 'success' ? 'border-green-200 bg-green-50' : ''}>
+          {messageType === 'error' ? <AlertCircle className="h-4 w-4" /> : messageType === 'success' ? <CheckCircle className="h-4 w-4" /> : <Info className="h-4 w-4" />}
+          <AlertDescription>{message}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="grid gap-6">
+        {apiKeys.map((apiKey) => (
+          <Card key={apiKey.id} className={`${getTypeColor(apiKey.type)}`}>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {getTypeIcon(apiKey.type)}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span>{apiKey.name}</span>
+                      {apiKey.isRequired && (
+                        <Badge variant="destructive" className="text-xs">Required</Badge>
+                      )}
+                    </div>
+                    <CardDescription className="mt-1">
+                      {apiKey.description}
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {getStatusIcon(apiKey.status)}
+                  {getStatusBadge(apiKey)}
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor={`${apiKey.id}-key`}>API Key</Label>
+                <div className="relative">
+                  <Input
+                    id={`${apiKey.id}-key`}
+                    type={showKeys[apiKey.id] ? 'text' : 'password'}
+                    value={apiKey.key}
+                    onChange={(e) => updateApiKey(apiKey.id, e.target.value)}
+                    placeholder={`Enter your ${apiKey.name}`}
+                    className="pr-20"
+                  />
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleKeyVisibility(apiKey.id)}
+                    >
+                      {showKeys[apiKey.id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => copyToClipboard(apiKey.key)}
+                      disabled={!apiKey.key}
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => testApiKey(apiKey)}
+                  disabled={!apiKey.key || isTesting === apiKey.id}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  {isTesting === apiKey.id ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Testing...
+                    </>
+                  ) : (
+                    <>
+                      <TestTube className="w-4 h-4 mr-2" />
+                      Test API Key
+                    </>
+                  )}
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  onClick={() => window.open(
+                    apiKey.type === 'curseforge' 
+                      ? 'https://docs.curseforge.com/#authentication'
+                      : 'https://modrinth.com/settings/tokens',
+                    '_blank'
+                  )}
+                  className="flex-1"
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Get API Key
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
+                <div>
+                  <div className="font-medium">Rate Limit</div>
+                  <div>{apiKey.rateLimit.requests} requests/{apiKey.rateLimit.period}</div>
+                  {apiKey.type === 'modrinth' && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Same limit with or without token
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <div className="font-medium">Last Tested</div>
+                  <div>
+                    {apiKey.lastTested 
+                      ? new Date(apiKey.lastTested).toLocaleString()
+                      : 'Never'
+                    }
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Separator />
+
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Key className="h-5 w-5" />
-              <span>Workspace Tokens</span>
-            </div>
-            <Button onClick={handleCreateToken} disabled={isCreating}>
-              <Plus className="h-4 w-4 mr-2" />
-              {isCreating ? 'Creating...' : 'Create Token'}
-            </Button>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            Security Information
           </CardTitle>
           <CardDescription>
-            Manage workspace-level API tokens and access keys
+            How your API keys are stored and used
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          {/* Search and Filters */}
-          <div className="flex items-center space-x-4 mb-6">
-            <div className="flex-1">
-              <div className="relative">
-                <Key className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search tokens..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <h4 className="font-medium mb-2">Data Sources</h4>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li>• CurseForge: Mod search and details</li>
+                <li>• Modrinth: Modern mod loaders (Fabric, Quilt)</li>
+                <li>• Combined results for comprehensive coverage</li>
+              </ul>
             </div>
-            <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Filter by type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="api">API</SelectItem>
-                <SelectItem value="webhook">Webhook</SelectItem>
-                <SelectItem value="auth">Auth</SelectItem>
-                <SelectItem value="service">Service</SelectItem>
-                <SelectItem value="integration">Integration</SelectItem>
-                <SelectItem value="monitoring">Monitoring</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-                <SelectItem value="expired">Expired</SelectItem>
-                <SelectItem value="revoked">Revoked</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Tokens List */}
-          <div className="space-y-4">
-            {filteredTokens.map((token) => (
-              <div key={token.id} className="p-4 border rounded-lg">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-8 h-8 rounded-lg ${getTypeColor(token.type)} flex items-center justify-center text-white`}>
-                      {getTypeIcon(token.type)}
-                    </div>
-                    <div>
-                      <div className="font-medium">{token.name}</div>
-                      <div className="text-sm text-muted-foreground">{token.description}</div>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <Badge variant="outline">{getTypeLabel(token.type)}</Badge>
-                        <div className={`flex items-center space-x-1 ${getStatusColor(token.status)}`}>
-                          {getStatusIcon(token.status)}
-                          <span className="text-sm capitalize">{token.status}</span>
-                        </div>
-                        <Badge className={`${getEnvironmentColor(token.metadata.environment)} text-white`}>
-                          {token.metadata.environment}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowToken(showToken === token.id ? null : token.id)}
-                    >
-                      {showToken === token.id ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                    
-                    {showToken === token.id && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleCopyToken(token.token)}
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    )}
-                    
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {/* setSelectedToken(token) */}}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleToggleToken(token.id)}
-                    >
-                      {token.status === 'active' ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                    </Button>
-                    
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleRevokeToken(token.id)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                
-                {showToken === token.id && (
-                  <div className="mb-4 p-3 bg-muted rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div className="font-mono text-sm">{token.token}</div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleCopyToken(token.token)}
-                      >
-                        <Copy className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">Permissions</div>
-                    <div className="flex flex-wrap gap-1">
-                      {token.permissions.slice(0, 3).map((permission) => (
-                        <Badge key={permission} variant="secondary" className="text-xs">
-                          {permission}
-                        </Badge>
-                      ))}
-                      {token.permissions.length > 3 && (
-                        <Badge variant="secondary" className="text-xs">
-                          +{token.permissions.length - 3}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">Scopes</div>
-                    <div className="flex flex-wrap gap-1">
-                      {token.scopes.slice(0, 3).map((scope) => (
-                        <Badge key={scope} variant="outline" className="text-xs">
-                          {scope}
-                        </Badge>
-                      ))}
-                      {token.scopes.length > 3 && (
-                        <Badge variant="outline" className="text-xs">
-                          +{token.scopes.length - 3}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">Usage</div>
-                    <div className="text-sm text-muted-foreground">
-                      {token.usageCount.toLocaleString()} requests
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {token.rateLimit.requests}/{token.rateLimit.period}
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">Last Used</div>
-                    <div className="text-sm text-muted-foreground">
-                      {token.lastUsedAt ? (
-                        new Date(token.lastUsedAt).toLocaleDateString()
-                      ) : (
-                        'Never'
-                      )}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Expires: {token.expiresAt ? new Date(token.expiresAt).toLocaleDateString() : 'Never'}
-                    </div>
-                  </div>
-                </div>
-                
-                {token.tags.length > 0 && (
-                  <div className="mt-4 pt-4 border-t">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm font-medium">Tags:</span>
-                      <div className="flex flex-wrap gap-1">
-                        {token.tags.map((tag) => (
-                          <Badge key={tag} variant="outline" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
+            <div>
+              <h4 className="font-medium mb-2">Security</h4>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li>• Keys stored locally in browser</li>
+                <li>• Never transmitted to our servers</li>
+                <li>• Used only for API requests</li>
+              </ul>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Zap className="h-5 w-5" />
-            <span>Quick Actions</span>
-          </CardTitle>
-          <CardDescription>
-            Common token management operations
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Button variant="outline" className="h-20 flex flex-col items-center justify-center space-y-2">
-              <TestTube className="h-6 w-6" />
-              <span>Test All Tokens</span>
-            </Button>
-            
-            <Button variant="outline" className="h-20 flex flex-col items-center justify-center space-y-2">
-              <RefreshCw className="h-6 w-6" />
-              <span>Refresh Status</span>
-            </Button>
-            
-            <Button variant="outline" className="h-20 flex flex-col items-center justify-center space-y-2">
-              <Download className="h-6 w-6" />
-              <span>Export Tokens</span>
-            </Button>
-            
-            <Button variant="outline" className="h-20 flex flex-col items-center justify-center space-y-2">
-              <Shield className="h-6 w-6" />
-              <span>Security Audit</span>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex justify-end">
+        <Button 
+          onClick={saveApiKeys}
+          disabled={isSaving}
+          className="min-w-32"
+        >
+          {isSaving ? (
+            <>
+              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4 mr-2" />
+              Save API Keys
+            </>
+          )}
+        </Button>
+      </div>
     </div>
   );
 };

@@ -2,6 +2,7 @@ import React from 'react';
 import { useParams } from 'react-router-dom';
 import { useServersStore } from '@/store/servers';
 import { useConnectionStatus } from '@/store/live';
+import { ErrorEmptyState } from '@/components/ui/EmptyState';
 import TpsChart from '@/components/Charts/TpsChart';
 import HeapChart from '@/components/Charts/HeapChart';
 import PhaseChart from '@/components/Charts/PhaseChart';
@@ -16,9 +17,10 @@ export const Performance: React.FC = () => {
   if (!server) {
     return (
       <div className="p-6">
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Select a server to view performance metrics</p>
-        </div>
+        <ErrorEmptyState
+          title="No server selected"
+          description="Please select a server from the sidebar to view its performance metrics."
+        />
       </div>
     );
   }

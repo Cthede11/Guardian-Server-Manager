@@ -21,6 +21,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useServersStore } from '@/store/servers';
 import { useConsoleStream, useConnectionStatus, liveStore } from '@/store/live';
 import type { ConsoleMessage } from '@/lib/types';
+import { api } from '@/lib/api';
 
 interface ConsoleStreamProps {
   className?: string;
@@ -78,13 +79,7 @@ export const ConsoleStream: React.FC<ConsoleStreamProps> = ({ className = '' }) 
     if (!command.trim() || !serverId) return;
 
     try {
-      const response = await fetch(`/api/v1/servers/${serverId}/console/command`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ cmd: command.trim() }),
-      });
+      const response = await api.sendConsoleCommand(serverId, command.trim());
 
       if (response.ok) {
         // Add command to console via live store
@@ -96,7 +91,7 @@ export const ConsoleStream: React.FC<ConsoleStreamProps> = ({ className = '' }) 
         liveStore.getState().appendConsole(serverId, [commandMessage]);
         setCommand('');
       } else {
-        console.error('Failed to send command');
+        console.error('Failed to send command:', response.error);
       }
     } catch (error) {
       console.error('Error sending command:', error);

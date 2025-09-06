@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useServersStore } from '@/store/servers';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-// Textarea import removed - not used
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
@@ -75,6 +76,13 @@ interface TokensSettingsData {
 }
 
 export const TokensSettings: React.FC = () => {
+  const { id: serverId } = useParams<{ id: string }>();
+  const { 
+    fetchServerConfig, 
+    updateServerConfig,
+    serverSettings 
+  } = useServersStore();
+  
   const [settings, setSettings] = useState<TokensSettingsData>({
     // Token Management
     enableTokens: true,
@@ -144,15 +152,13 @@ export const TokensSettings: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
 
   const fetchSettings = async () => {
-    // Loading state removed for now
+    if (!serverId) return;
+    
     try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      // Changes tracking removed for now
+      // Load server configuration
+      await fetchServerConfig(serverId);
     } catch (error) {
       console.error('Failed to fetch tokens settings:', error);
-    } finally {
-      // Loading state removed for now
     }
   };
 
@@ -160,9 +166,35 @@ export const TokensSettings: React.FC = () => {
     fetchSettings();
   }, []);
 
-  const handleSettingChange = (key: keyof TokensSettingsData, value: any) => {
+  // Sync settings with server store data
+  useEffect(() => {
+    if (serverId && serverSettings[serverId]) {
+      const serverData = serverSettings[serverId];
+      if (serverData.tokens) {
+        setSettings(prev => ({
+          ...prev,
+          ...serverData.tokens,
+        }));
+      }
+    }
+  }, [serverId, serverSettings]);
+
+  const handleSettingChange = async (key: keyof TokensSettingsData, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }));
-    // Changes tracking removed for now
+    
+    if (!serverId) return;
+    
+    try {
+      // Update server configuration
+      await updateServerConfig(serverId, {
+        tokens: {
+          ...settings,
+          [key]: value
+        }
+      });
+    } catch (error) {
+      console.error('Failed to update tokens settings:', error);
+    }
   };
 
   const getValidationStatus = (key: keyof TokensSettingsData) => {

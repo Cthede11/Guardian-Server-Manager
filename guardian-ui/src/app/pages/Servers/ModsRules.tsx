@@ -15,6 +15,7 @@ import {
   Eye,
   MoreHorizontal
 } from 'lucide-react';
+import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +26,7 @@ import { useServersStore } from '@/store/servers';
 import { ModsTable } from '@/components/Tables/ModsTable';
 import { RulesTable } from '@/components/Tables/RulesTable';
 import { ConflictsList } from '@/components/ModsRules/ConflictsList';
+import { ErrorEmptyState } from '@/components/ui/EmptyState';
 import { LiveRuleLab } from '@/components/ModsRules/LiveRuleLab';
 
 interface ModsRulesPageProps {
@@ -50,18 +52,16 @@ export const ModsRules: React.FC<ModsRulesPageProps> = ({ className = '' }) => {
     
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/v1/servers/${serverId}/mods`);
-      if (response.ok) {
-        const data = await response.json();
-        setMods(data);
+      const response = await api.getMods(serverId);
+      if (response.ok && response.data) {
+        setMods(response.data as any[]);
       } else {
-        // Use mock data for demo
-        setMods(generateMockMods());
+        console.error('Failed to fetch mods:', response.error);
+        setMods([]);
       }
     } catch (error) {
       console.error('Error fetching mods:', error);
-      // Use mock data for demo
-      setMods(generateMockMods());
+      setMods([]);
     } finally {
       setIsLoading(false);
     }
@@ -72,18 +72,16 @@ export const ModsRules: React.FC<ModsRulesPageProps> = ({ className = '' }) => {
     if (!serverId) return;
     
     try {
-      const response = await fetch(`/api/v1/servers/${serverId}/rules`);
-      if (response.ok) {
-        const data = await response.json();
-        setRules(data);
+      const response = await api.getRules(serverId);
+      if (response.ok && response.data) {
+        setRules(response.data as any[]);
       } else {
-        // Use mock data for demo
-        setRules(generateMockRules());
+        console.error('Failed to fetch rules:', response.error);
+        setRules([]);
       }
     } catch (error) {
       console.error('Error fetching rules:', error);
-      // Use mock data for demo
-      setRules(generateMockRules());
+      setRules([]);
     }
   };
 
@@ -92,184 +90,21 @@ export const ModsRules: React.FC<ModsRulesPageProps> = ({ className = '' }) => {
     if (!serverId) return;
     
     try {
-      const response = await fetch(`/api/v1/servers/${serverId}/mods/conflicts`);
-      if (response.ok) {
-        const data = await response.json();
-        setConflicts(data);
+      const response = await api.getConflicts(serverId);
+      if (response.ok && response.data) {
+        setConflicts(response.data as any[]);
       } else {
-        // Use mock data for demo
-        setConflicts(generateMockConflicts());
+        console.error('Failed to fetch conflicts:', response.error);
+        setConflicts([]);
       }
     } catch (error) {
       console.error('Error fetching conflicts:', error);
-      // Use mock data for demo
-      setConflicts(generateMockConflicts());
+      setConflicts([]);
     }
   };
 
-  // Generate mock mods for demo
-  const generateMockMods = () => {
-    return [
-      {
-        id: '1',
-        name: 'JEI',
-        version: '11.6.0.1015',
-        author: 'mezz',
-        description: 'Just Enough Items - View items and recipes',
-        status: 'enabled',
-        category: 'utility',
-        dependencies: ['forge'],
-        conflicts: [],
-        loadTime: 45,
-        memoryUsage: 12.5,
-        lastUpdated: new Date(Date.now() - 86400000)
-      },
-      {
-        id: '2',
-        name: 'OptiFine',
-        version: 'HD_U_I1',
-        author: 'sp614x',
-        description: 'OptiFine - Minecraft optimization mod',
-        status: 'enabled',
-        category: 'optimization',
-        dependencies: ['forge'],
-        conflicts: ['Sodium'],
-        loadTime: 120,
-        memoryUsage: 8.2,
-        lastUpdated: new Date(Date.now() - 172800000)
-      },
-      {
-        id: '3',
-        name: 'Sodium',
-        version: '0.4.10',
-        author: 'jellysquid3',
-        description: 'Sodium - Modern rendering engine',
-        status: 'disabled',
-        category: 'optimization',
-        dependencies: ['fabric'],
-        conflicts: ['OptiFine'],
-        loadTime: 0,
-        memoryUsage: 0,
-        lastUpdated: new Date(Date.now() - 259200000)
-      },
-      {
-        id: '4',
-        name: 'Create',
-        version: '0.5.1f',
-        author: 'simibubi',
-        description: 'Create - Building and automation mod',
-        status: 'enabled',
-        category: 'content',
-        dependencies: ['forge', 'flywheel'],
-        conflicts: [],
-        loadTime: 280,
-        memoryUsage: 45.8,
-        lastUpdated: new Date(Date.now() - 432000000)
-      },
-      {
-        id: '5',
-        name: 'Applied Energistics 2',
-        version: '12.0.0',
-        author: 'AlgorithmX2',
-        description: 'AE2 - Advanced storage and automation',
-        status: 'enabled',
-        category: 'content',
-        dependencies: ['forge'],
-        conflicts: [],
-        loadTime: 195,
-        memoryUsage: 32.1,
-        lastUpdated: new Date(Date.now() - 604800000)
-      }
-    ];
-  };
 
-  // Generate mock rules for demo
-  const generateMockRules = () => {
-    return [
-      {
-        id: '1',
-        name: 'TPS Protection',
-        description: 'Automatically freeze chunks when TPS drops below 15',
-        enabled: true,
-        priority: 1,
-        conditions: [
-          { type: 'tps', operator: '<', value: 15 },
-          { type: 'chunk_entities', operator: '>', value: 50 }
-        ],
-        actions: [
-          { type: 'freeze_chunk', duration: 300 }
-        ],
-        lastTriggered: new Date(Date.now() - 1800000),
-        triggerCount: 12
-      },
-      {
-        id: '2',
-        name: 'Entity Limit',
-        description: 'Limit entities per chunk to prevent lag',
-        enabled: true,
-        priority: 2,
-        conditions: [
-          { type: 'chunk_entities', operator: '>', value: 100 }
-        ],
-        actions: [
-          { type: 'despawn_entities', count: 20 }
-        ],
-        lastTriggered: new Date(Date.now() - 3600000),
-        triggerCount: 8
-      },
-      {
-        id: '3',
-        name: 'Redstone Throttle',
-        description: 'Throttle redstone updates in high-load areas',
-        enabled: false,
-        priority: 3,
-        conditions: [
-          { type: 'redstone_updates', operator: '>', value: 1000 }
-        ],
-        actions: [
-          { type: 'throttle_redstone', factor: 0.5 }
-        ],
-        lastTriggered: null,
-        triggerCount: 0
-      }
-    ];
-  };
 
-  // Generate mock conflicts for demo
-  const generateMockConflicts = () => {
-    return [
-      {
-        id: '1',
-        type: 'mod_conflict',
-        severity: 'high',
-        mods: ['OptiFine', 'Sodium'],
-        description: 'OptiFine and Sodium are incompatible rendering mods',
-        resolution: 'disable_one',
-        suggestedAction: 'Disable Sodium (OptiFine is already enabled)',
-        impact: 'Server crashes on startup'
-      },
-      {
-        id: '2',
-        type: 'dependency_missing',
-        severity: 'medium',
-        mods: ['Create'],
-        description: 'Create requires Flywheel but it is not installed',
-        resolution: 'install_dependency',
-        suggestedAction: 'Install Flywheel mod',
-        impact: 'Create features may not work properly'
-      },
-      {
-        id: '3',
-        type: 'version_mismatch',
-        severity: 'low',
-        mods: ['JEI'],
-        description: 'JEI version may not be compatible with current Forge version',
-        resolution: 'update_mod',
-        suggestedAction: 'Update JEI to latest version',
-        impact: 'Minor compatibility issues'
-      }
-    ];
-  };
 
   useEffect(() => {
     fetchMods();
@@ -288,9 +123,10 @@ export const ModsRules: React.FC<ModsRulesPageProps> = ({ className = '' }) => {
   if (!server) {
     return (
       <div className="p-6">
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Select a server to view mods & rules</p>
-        </div>
+        <ErrorEmptyState
+          title="No server selected"
+          description="Please select a server from the sidebar to view its mods and rules."
+        />
       </div>
     );
   }

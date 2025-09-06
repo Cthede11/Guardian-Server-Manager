@@ -625,12 +625,39 @@ async fn delete_server(
 ) -> Result<Json<ApiResponse<String>>, StatusCode> {
     info!("Deleting server: {}", id);
     
+    // Get server config before deletion to access folder paths
+    let server_config = match state.database.get_server(&id).await {
+        Ok(Some(config)) => config,
+        Ok(None) => {
+            error!("Server not found: {}", id);
+            return Err(StatusCode::NOT_FOUND);
+        }
+        Err(e) => {
+            error!("Failed to get server config: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+    
     // First stop the server if it's running
     let _ = state.minecraft_manager.stop_server(&id).await;
     
     // Delete from database
     match state.database.delete_server(&id).await {
         Ok(_) => {
+            // Also remove from memory cache
+            if let Err(e) = state.minecraft_manager.remove_server(&id).await {
+                warn!("Failed to remove server from memory cache: {}", e);
+            }
+            
+            // Delete server folder if it exists
+            let server_dir = std::path::Path::new(&server_config.host);
+            if server_dir.exists() {
+                match tokio::fs::remove_dir_all(server_dir).await {
+                    Ok(_) => info!("Successfully deleted server folder: {}", server_dir.display()),
+                    Err(e) => warn!("Failed to delete server folder {}: {}", server_dir.display(), e),
+                }
+            }
+            
             info!("Successfully deleted server: {}", id);
             
             // Broadcast deletion update

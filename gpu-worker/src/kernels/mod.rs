@@ -2,17 +2,39 @@ mod density;
 mod mask;
 
 use wgpu::*;
+use wgpu::util::DeviceExt;
 use anyhow::Result;
-use crate::ffi::ChunkResult;
+use bytemuck::{Pod, Zeroable};
 
 pub use density::DensityKernel;
 pub use mask::MaskKernel;
+
+/// Chunk generation parameters
+#[repr(C, packed)]
+#[derive(Copy, Clone, Debug, Pod, Zeroable)]
+pub struct ChunkParams {
+    pub chunk_x: i32,
+    pub chunk_z: i32,
+    pub seed: u32,
+    pub dimension: u32, // 0 = overworld, 1 = nether, 2 = end
+}
+
+/// Chunk generation result
+#[repr(C)]
+#[derive(Clone, Debug)]
+pub struct ChunkData {
+    pub density_data: [f32; 16 * 16 * 384], // 16x16x384 density values
+    pub mask_data: [u32; 16 * 16 * 384],    // 16x16x384 mask values
+    pub biome_data: [u32; 16 * 16],         // 16x16 biome values
+    pub content_hash: u32,
+}
 
 /// Chunk generator that coordinates GPU kernels for world generation
 pub struct ChunkGenerator {
     density_kernel: DensityKernel,
     mask_kernel: MaskKernel,
     bind_group_layout: BindGroupLayout,
+    compute_pipeline: ComputePipeline,
 }
 
 impl ChunkGenerator {
@@ -36,7 +58,7 @@ impl ChunkGenerator {
                     binding: 1,
                     visibility: ShaderStages::COMPUTE,
                     ty: BindingType::Buffer {
-                        ty: BufferBindingType::Storage { read_only: true },
+                        ty: BufferBindingType::Uniform,
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },
@@ -44,18 +66,34 @@ impl ChunkGenerator {
                 },
             ],
         });
-        
+
+        // Create compute pipeline
+        let compute_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
+            label: Some("Chunk Generator Pipeline"),
+            layout: Some(&device.create_pipeline_layout(&PipelineLayoutDescriptor {
+                label: Some("Chunk Generator Pipeline Layout"),
+                bind_group_layouts: &[&bind_group_layout],
+                push_constant_ranges: &[],
+            })),
+            module: &device.create_shader_module(ShaderModuleDescriptor {
+                label: Some("Chunk Generator Shader"),
+                source: ShaderSource::Wgsl(include_str!("chunk_generator.wgsl").into()),
+            }),
+            entry_point: "main",
+        });
+
         // Initialize kernels
-        let density_kernel = DensityKernel::new(device, &bind_group_layout).await?;
-        let mask_kernel = MaskKernel::new(device, &bind_group_layout).await?;
-        
+        let density_kernel = DensityKernel::new(device).await?;
+        let mask_kernel = MaskKernel::new(device).await?;
+
         Ok(Self {
             density_kernel,
             mask_kernel,
             bind_group_layout,
+            compute_pipeline,
         })
     }
-    
+
     /// Generate a chunk using GPU kernels
     pub async fn generate_chunk(
         &self,
@@ -63,100 +101,94 @@ impl ChunkGenerator {
         queue: &Queue,
         chunk_x: i32,
         chunk_z: i32,
-        seed: i64,
+        seed: u32,
         dimension: &str,
-    ) -> Result<ChunkResult> {
-        // Create input buffer with chunk parameters
-        let input_data = ChunkInput {
+    ) -> Result<ChunkData> {
+        // Convert dimension string to u32
+        let dimension_id = match dimension {
+            "overworld" => 0,
+            "nether" => 1,
+            "end" => 2,
+            _ => 0,
+        };
+
+        // Create chunk parameters
+        let params = ChunkParams {
             chunk_x,
             chunk_z,
             seed,
-            dimension_hash: self.hash_dimension(dimension),
+            dimension: dimension_id,
         };
-        
-        let input_buffer = device.create_buffer(&BufferDescriptor {
-            label: Some("Chunk Input Buffer"),
-            size: std::mem::size_of::<ChunkInput>() as u64,
+
+        // Create buffers
+        let params_data = unsafe { std::slice::from_raw_parts(&params as *const ChunkParams as *const u8, std::mem::size_of::<ChunkParams>()) };
+        let params_buffer = device.create_buffer_init(&util::BufferInitDescriptor {
+            label: Some("Chunk Params Buffer"),
+            contents: params_data,
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        });
+
+        let output_buffer = device.create_buffer(&BufferDescriptor {
+            label: Some("Chunk Output Buffer"),
+            size: std::mem::size_of::<ChunkData>() as u64,
+            usage: BufferUsages::STORAGE | BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
-        
-        queue.write_buffer(&input_buffer, 0, bytemuck::bytes_of(&input_data));
-        
-        // Generate density data
-        let density_data = self.density_kernel.generate(
-            device,
-            queue,
-            &input_buffer,
-            chunk_x,
-            chunk_z,
-            seed,
-        ).await?;
-        
-        // Generate mask data
-        let mask_data = self.mask_kernel.generate(
-            device,
-            queue,
-            &input_buffer,
-            &density_data,
-        ).await?;
-        
-        // Generate biome data (placeholder)
-        let biome_data = self.generate_biome_data(chunk_x, chunk_z, seed, dimension);
-        
-        // Create content hash
-        let content_hash = self.create_content_hash(chunk_x, chunk_z, seed, &density_data, &mask_data);
-        
-        Ok(ChunkResult::new(
-            chunk_x,
-            chunk_z,
-            seed,
-            content_hash,
-            density_data,
-            mask_data,
-            biome_data,
-        ))
-    }
-    
-    /// Generate biome data (placeholder implementation)
-    fn generate_biome_data(&self, chunk_x: i32, chunk_z: i32, seed: i64, dimension: &str) -> Vec<u8> {
-        // This would generate actual biome data based on the chunk position and seed
-        // For now, return placeholder data
-        vec![0u8; 16 * 16] // 16x16 biome grid
-    }
-    
-    /// Create content hash for validation
-    fn create_content_hash(&self, chunk_x: i32, chunk_z: i32, seed: i64, density_data: &[u8], mask_data: &[u8]) -> String {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-        
-        let mut hasher = DefaultHasher::new();
-        chunk_x.hash(&mut hasher);
-        chunk_z.hash(&mut hasher);
-        seed.hash(&mut hasher);
-        density_data.hash(&mut hasher);
-        mask_data.hash(&mut hasher);
-        
-        format!("{:x}", hasher.finish())
-    }
-    
-    /// Hash dimension string to integer
-    fn hash_dimension(&self, dimension: &str) -> u32 {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-        
-        let mut hasher = DefaultHasher::new();
-        dimension.hash(&mut hasher);
-        hasher.finish() as u32
-    }
-}
 
-/// Input data for chunk generation
-#[repr(C)]
-#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct ChunkInput {
-    chunk_x: i32,
-    chunk_z: i32,
-    seed: i64,
-    dimension_hash: u32,
+        // Create bind group
+        let bind_group = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("Chunk Generator Bind Group"),
+            layout: &self.bind_group_layout,
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: output_buffer.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: params_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
+        // Create command encoder
+        let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+            label: Some("Chunk Generation Encoder"),
+        });
+
+        // Dispatch compute shader
+        {
+            let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
+                label: Some("Chunk Generation Compute Pass"),
+                timestamp_writes: None,
+            });
+            compute_pass.set_pipeline(&self.compute_pipeline);
+            compute_pass.set_bind_group(0, &bind_group, &[]);
+            compute_pass.dispatch_workgroups(16, 16, 1); // 16x16 workgroups for 16x16 chunks
+        }
+
+        // Submit command buffer
+        queue.submit(std::iter::once(encoder.finish()));
+
+        // Read back results
+        let buffer_slice = output_buffer.slice(..);
+        let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
+        buffer_slice.map_async(MapMode::Read, move |result| {
+            sender.send(result).unwrap();
+        });
+
+        device.poll(Maintain::Wait);
+        receiver.receive().await.unwrap()?;
+
+        // Get the data
+        let data = buffer_slice.get_mapped_range();
+        let chunk_data = unsafe { 
+            let ptr = data.as_ptr() as *const ChunkData;
+            (*ptr).clone()
+        };
+        drop(data);
+        output_buffer.unmap();
+
+        Ok(chunk_data)
+    }
 }

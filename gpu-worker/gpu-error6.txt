@@ -1,0 +1,30 @@
+
+thread 'main' panicked at C:\Users\cthed\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wgpu-0.19.4\src\backend\wgpu_core.rs:3006:5:
+wgpu error: Validation Error
+
+Caused by:
+    In Device::create_shader_module
+      note: label = `Mask Kernel Shader`
+    
+Shader validation error: 
+    ┌─ Mask Kernel Shader:64:1
+    │  
+ 64 │ ╭ fn smooth_mask(x: u32, y: u32, z: u32, dimension: u32) -> u32 {
+ 65 │ │     let index = y * 256u + z * 16u + x;
+ 66 │ │     let density = density_input[index];
+ 67 │ │     
+    · │
+ 83 │ │         let neighbor_x = i32(x) + neighbors[i].x;
+    │ │                                   ^^^^^^^^^^^^ naga::Expression [50]
+    · │
+110 │ │     
+111 │ │     return generate_mask_value(density, f32(y), dimension);
+    │ ╰───────────────────────────────────────────────────────────^ naga::Function [2]
+
+
+    Function [2] 'smooth_mask' is invalid
+    Expression [50] is invalid
+    The expression [42] may only be indexed by a constant
+
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

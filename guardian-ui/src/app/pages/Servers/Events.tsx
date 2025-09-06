@@ -27,6 +27,7 @@ import {
   Target,
   Activity
 } from 'lucide-react';
+import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -43,6 +44,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useServersStore } from '@/store/servers';
 import { EventsTable } from '@/components/Tables/EventsTable';
 import { CreateEventModal } from '@/components/Events/CreateEventModal';
+import { ErrorEmptyState } from '@/components/ui/EmptyState';
 
 interface EventsPageProps {
   className?: string;
@@ -66,61 +68,21 @@ export const Events: React.FC<EventsPageProps> = ({ className = '' }) => {
     
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/v1/servers/${serverId}/events`);
-      if (response.ok) {
-        const data = await response.json();
-        setEvents(data);
+      const response = await api.getEvents(serverId);
+      if (response.ok && response.data) {
+        setEvents(response.data as any[]);
       } else {
-        // Use mock data for demo
-        setEvents(generateMockEvents());
+        console.error('Failed to fetch events:', response.error);
+        setEvents([]);
       }
     } catch (error) {
       console.error('Error fetching events:', error);
-      // Use mock data for demo
-      setEvents(generateMockEvents());
+      setEvents([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Generate mock events for demo
-  const generateMockEvents = () => {
-    const now = Date.now();
-    const events = [];
-    
-    // Generate various types of events
-    const types = ['backup', 'restart', 'maintenance', 'update', 'custom'];
-    const statuses = ['scheduled', 'running', 'completed', 'failed', 'cancelled'];
-    const priorities = ['low', 'normal', 'high', 'critical'];
-    
-    for (let i = 0; i < 20; i++) {
-      const type = types[Math.floor(Math.random() * types.length)];
-      const status = statuses[Math.floor(Math.random() * statuses.length)];
-      const priority = priorities[Math.floor(Math.random() * priorities.length)];
-      const timestamp = now + (i * 3600000) + Math.random() * 86400000; // Future events
-      
-      events.push({
-        id: `event-${i + 1}`,
-        name: `${type.charAt(0).toUpperCase() + type.slice(1)} Event ${i + 1}`,
-        type,
-        status,
-        priority,
-        scheduledAt: timestamp,
-        duration: Math.floor(Math.random() * 120) + 30, // 30-150 minutes
-        description: `Scheduled ${type} event for server maintenance`,
-        command: type === 'custom' ? `/say Server maintenance in progress` : null,
-        repeat: Math.random() > 0.7, // 30% are recurring
-        repeatInterval: Math.random() > 0.7 ? 'daily' : 'weekly',
-        lastRun: status === 'completed' ? timestamp - 86400000 : null,
-        nextRun: status === 'scheduled' ? timestamp : null,
-        createdBy: 'admin',
-        createdAt: timestamp - 86400000,
-        tags: type === 'maintenance' ? ['maintenance', 'scheduled'] : type === 'update' ? ['update', 'mod-update'] : []
-      });
-    }
-    
-    return events.sort((a, b) => a.scheduledAt - b.scheduledAt);
-  };
 
   useEffect(() => {
     fetchEvents();
@@ -281,9 +243,10 @@ export const Events: React.FC<EventsPageProps> = ({ className = '' }) => {
   if (!server) {
     return (
       <div className="p-6">
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Select a server to view events</p>
-        </div>
+        <ErrorEmptyState
+          title="No server selected"
+          description="Please select a server from the sidebar to view its events."
+        />
       </div>
     );
   }

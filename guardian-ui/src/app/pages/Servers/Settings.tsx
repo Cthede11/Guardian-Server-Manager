@@ -29,6 +29,7 @@ import { HASettings } from '@/components/Settings/HASettings';
 import { PathsSettings } from '@/components/Settings/PathsSettings';
 import { ComposerSettings } from '@/components/Settings/ComposerSettings';
 import { TokensSettings } from '@/components/Settings/TokensSettings';
+import { APISettings } from '../Settings/APISettings';
 
 interface SettingsStats {
   totalSettings: number;
@@ -235,7 +236,7 @@ export const Settings: React.FC = () => {
 
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="general" className="flex items-center space-x-2">
             <Server className="h-4 w-4" />
             <span>General</span>
@@ -263,6 +264,10 @@ export const Settings: React.FC = () => {
           <TabsTrigger value="tokens" className="flex items-center space-x-2">
             <Key className="h-4 w-4" />
             <span>Tokens</span>
+          </TabsTrigger>
+          <TabsTrigger value="api" className="flex items-center space-x-2">
+            <Key className="h-4 w-4" />
+            <span>API</span>
           </TabsTrigger>
         </TabsList>
 
@@ -292,6 +297,10 @@ export const Settings: React.FC = () => {
 
         <TabsContent value="tokens" className="flex-1">
           <TokensSettings />
+        </TabsContent>
+
+        <TabsContent value="api" className="flex-1">
+          <APISettings />
         </TabsContent>
       </Tabs>
     </div>

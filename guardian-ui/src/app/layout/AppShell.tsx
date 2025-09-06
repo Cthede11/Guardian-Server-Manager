@@ -1,11 +1,34 @@
 import React from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useParams } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { ServerHeader, ServerTabs } from './ServerHeader';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { Toaster } from '@/components/ui/toaster';
+import { realtimeProvider } from '@/lib/realtime-provider';
 
 export const AppShell: React.FC = () => {
+  const { id: serverId } = useParams<{ id: string }>();
+
+  // Start/stop real-time monitoring based on server selection
+  React.useEffect(() => {
+    if (serverId) {
+      realtimeProvider.startServerMonitoring(serverId);
+    }
+
+    return () => {
+      if (serverId) {
+        realtimeProvider.stopServerMonitoring(serverId);
+      }
+    };
+  }, [serverId]);
+
+  // Cleanup on unmount
+  React.useEffect(() => {
+    return () => {
+      realtimeProvider.stopAllMonitoring();
+    };
+  }, []);
+
   return (
     <ErrorBoundary>
       <div className="flex h-screen bg-background text-foreground">

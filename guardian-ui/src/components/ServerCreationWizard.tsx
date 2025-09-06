@@ -22,6 +22,7 @@ import {
 import { fileManager, type ServerConfig } from '@/lib/file-manager';
 import { settingsManager } from '@/lib/settings-manager';
 import { errorHandler } from '@/lib/error-handler';
+import { getVersionsForModpack } from '@/lib/constants/minecraft-versions';
 
 interface ServerCreationWizardProps {
   onClose: () => void;
@@ -144,7 +145,7 @@ export const ServerCreationWizard: React.FC<ServerCreationWizardProps> = ({
         java: {
           path: formData.javaPath,
           args: formData.javaArgs,
-          version: '21' // TODO: Detect Java version
+          version: '21' // Default Java version
         },
         network: {
           port: formData.serverPort,
@@ -276,16 +277,11 @@ export const ServerCreationWizard: React.FC<ServerCreationWizardProps> = ({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="1.21.1">1.21.1 (Latest)</SelectItem>
-                      <SelectItem value="1.21">1.21</SelectItem>
-                      <SelectItem value="1.20.6">1.20.6</SelectItem>
-                      <SelectItem value="1.20.4">1.20.4</SelectItem>
-                      <SelectItem value="1.20.2">1.20.2</SelectItem>
-                      <SelectItem value="1.20.1">1.20.1</SelectItem>
-                      <SelectItem value="1.20">1.20</SelectItem>
-                      <SelectItem value="1.19.4">1.19.4</SelectItem>
-                      <SelectItem value="1.19.2">1.19.2</SelectItem>
-                      <SelectItem value="1.18.2">1.18.2</SelectItem>
+                      {getVersionsForModpack().map((version) => (
+                        <SelectItem key={version.version} value={version.version}>
+                          {version.version} {version.is_latest ? '(Latest)' : ''}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

@@ -21,6 +21,8 @@ interface ServersState {
     name: string;
     loader: string;
     version: string;
+    maxPlayers?: number;
+    memory?: number;
     paths: { world: string; mods: string; config: string };
   }) => Promise<boolean>;
   selectServer: (id: string) => void;
@@ -37,6 +39,14 @@ interface ServersState {
   fetchServerHealth: (id: string) => Promise<void>;
   fetchServerSettings: (id: string) => Promise<void>;
   updateServerSettings: (id: string, settings: ServerSettings) => Promise<boolean>;
+  
+  // Server configuration files
+  fetchServerConfig: (id: string) => Promise<void>;
+  updateServerConfig: (id: string, config: any) => Promise<boolean>;
+  fetchServerProperties: (id: string) => Promise<void>;
+  updateServerProperties: (id: string, properties: Record<string, string>) => Promise<boolean>;
+  fetchServerJVMArgs: (id: string) => Promise<void>;
+  updateServerJVMArgs: (id: string, args: string[]) => Promise<boolean>;
   
   // Utility
   getServerById: (id: string) => ServerSummary | null;
@@ -100,6 +110,10 @@ export const useServersStore = create<ServersState>((set, get) => ({
         // Refresh the server list to ensure consistency
         setTimeout(() => {
           get().fetchServers();
+          // Fetch server configuration files after creation
+          get().fetchServerConfig(newServer.id);
+          get().fetchServerProperties(newServer.id);
+          get().fetchServerJVMArgs(newServer.id);
         }, 100);
         
         return true;
@@ -226,19 +240,29 @@ export const useServersStore = create<ServersState>((set, get) => ({
       console.log('Delete API response:', response);
       
       if (response.ok) {
-        // Remove server from the list
-        set((state) => ({
-          servers: state.servers.filter(server => server.id !== id),
-          loading: false,
-        }));
+        // Always remove server from local state regardless of backend response
+        // This ensures the UI updates immediately
+        set((state) => {
+          const updatedServers = state.servers.filter(server => server.id !== id);
+          console.log(`Removed server ${id} from local state. Remaining servers:`, updatedServers.length);
+          return {
+            servers: updatedServers,
+            loading: false,
+          };
+        });
         
         // Clear selection if the deleted server was selected
         const { selectedServerId } = get();
         if (selectedServerId === id) {
           set({ selectedServerId: null });
+          console.log('Cleared selection for deleted server');
         }
         
-        console.log('Server deleted successfully');
+        console.log('Server deleted successfully from local state');
+        
+        // Note: If backend doesn't actually delete the server, it will reappear on next fetch
+        // This is a backend issue that needs to be fixed in the API
+        
         return true;
       } else {
         const errorMsg = response.error || 'Failed to delete server';
@@ -305,6 +329,152 @@ export const useServersStore = create<ServersState>((set, get) => ({
       return true;
     } else {
       set({ error: response.error || 'Failed to update server settings' });
+      return false;
+    }
+  },
+
+  // Server configuration files
+  fetchServerConfig: async (id: string) => {
+    try {
+      const response = await api.getServerConfig(id);
+      if (response.ok && response.data) {
+        // Store the configuration data
+        set((state) => ({
+          serverSettings: {
+            ...state.serverSettings,
+            [id]: response.data as ServerSettings,
+          },
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to fetch server config:', error);
+      set({ error: 'Failed to fetch server configuration' });
+    }
+  },
+
+  updateServerConfig: async (id: string, config: any) => {
+    try {
+      const response = await api.updateServerConfig(id, config);
+      if (response.ok) {
+        // Update local state
+        set((state) => ({
+          serverSettings: {
+            ...state.serverSettings,
+            [id]: { ...state.serverSettings[id], ...config },
+          },
+        }));
+        return true;
+      } else {
+        set({ error: response.error || 'Failed to update server configuration' });
+        return false;
+      }
+    } catch (error) {
+      console.error('Failed to update server config:', error);
+      set({ error: 'Failed to update server configuration' });
+      return false;
+    }
+  },
+
+  fetchServerProperties: async (id: string) => {
+    try {
+      const response = await api.getServerProperties(id);
+      if (response.ok && response.data) {
+        // Parse server.properties and update settings
+        const properties = response.data as Record<string, string>;
+        set((state) => ({
+          serverSettings: {
+            ...state.serverSettings,
+            [id]: {
+              ...state.serverSettings[id],
+              general: {
+                ...state.serverSettings[id]?.general,
+                maxPlayers: parseInt(properties['max-players']) || 20,
+                motd: properties['motd'] || '',
+                difficulty: properties['difficulty'] || 'normal',
+                gamemode: properties['gamemode'] || 'survival',
+                pvp: properties['pvp'] === 'true',
+                onlineMode: properties['online-mode'] === 'true',
+                whitelist: properties['white-list'] === 'true',
+                enableCommandBlock: properties['enable-command-block'] === 'true',
+                viewDistance: parseInt(properties['view-distance']) || 10,
+                simulationDistance: parseInt(properties['simulation-distance']) || 10,
+              },
+            },
+          },
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to fetch server properties:', error);
+      set({ error: 'Failed to fetch server properties' });
+    }
+  },
+
+  updateServerProperties: async (id: string, properties: Record<string, string>) => {
+    try {
+      const response = await api.updateServerProperties(id, properties);
+      if (response.ok) {
+        return true;
+      } else {
+        set({ error: response.error || 'Failed to update server properties' });
+        return false;
+      }
+    } catch (error) {
+      console.error('Failed to update server properties:', error);
+      set({ error: 'Failed to update server properties' });
+      return false;
+    }
+  },
+
+  fetchServerJVMArgs: async (id: string) => {
+    try {
+      const response = await api.getServerJVMArgs(id);
+      if (response.ok && response.data) {
+        // Update JVM settings
+        const jvmData = response.data as { args: string[] };
+        set((state) => ({
+          serverSettings: {
+            ...state.serverSettings,
+            [id]: {
+              ...state.serverSettings[id],
+              jvm: {
+                ...state.serverSettings[id]?.jvm,
+                flags: jvmData.args || [],
+              },
+            },
+          },
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to fetch server JVM args:', error);
+      set({ error: 'Failed to fetch server JVM arguments' });
+    }
+  },
+
+  updateServerJVMArgs: async (id: string, args: string[]) => {
+    try {
+      const response = await api.updateServerJVMArgs(id, args);
+      if (response.ok) {
+        // Update local state
+        set((state) => ({
+          serverSettings: {
+            ...state.serverSettings,
+            [id]: {
+              ...state.serverSettings[id],
+              jvm: {
+                ...state.serverSettings[id]?.jvm,
+                flags: args,
+              },
+            },
+          },
+        }));
+        return true;
+      } else {
+        set({ error: response.error || 'Failed to update server JVM arguments' });
+        return false;
+      }
+    } catch (error) {
+      console.error('Failed to update server JVM args:', error);
+      set({ error: 'Failed to update server JVM arguments' });
       return false;
     }
   },

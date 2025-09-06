@@ -29,8 +29,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useServersStore } from '@/store/servers';
-import { openDevTools } from '@/lib/tauri-api';
+import { openDevTools, openServerFolder } from '@/lib/tauri-api';
 import { StatusPill } from '@/components/StatusPill';
+import { getVersionsForModpack } from '@/lib/constants/minecraft-versions';
 
 // Add Server Wizard Component
 const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
@@ -40,6 +41,7 @@ const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     name: '',
     type: 'vanilla' as 'vanilla' | 'forge' | 'fabric' | 'paper' | 'purpur' | 'spigot' | 'bukkit',
     version: '1.21.1',
+    serverJarPath: '',
     
     // Step 2: Java Configuration
     javaPath: '',
@@ -51,6 +53,7 @@ const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     rconPort: 25575,
     rconPassword: '',
     queryPort: 25565,
+    maxPlayers: 20,
     
     // Step 4: File Paths
     paths: {
@@ -85,6 +88,8 @@ const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         name: formData.name,
         loader: formData.type,
         version: formData.version,
+        maxPlayers: formData.maxPlayers,
+        memory: formData.memory,
         paths: formData.paths
       });
       if (success) {
@@ -146,19 +151,46 @@ const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           onChange={(e) => setFormData({ ...formData, version: e.target.value })}
           className="w-full px-3 py-2 border border-border rounded-md bg-background"
         >
-          <option value="1.21.1">1.21.1 (Latest)</option>
-          <option value="1.21">1.21</option>
-          <option value="1.20.6">1.20.6</option>
-          <option value="1.20.4">1.20.4</option>
-          <option value="1.20.2">1.20.2</option>
-          <option value="1.20.1">1.20.1</option>
-          <option value="1.20">1.20</option>
-          <option value="1.19.4">1.19.4</option>
-          <option value="1.19.2">1.19.2</option>
-          <option value="1.18.2">1.18.2</option>
-          <option value="1.17.1">1.17.1</option>
-          <option value="1.16.5">1.16.5</option>
+          {getVersionsForModpack().map((version) => (
+            <option key={version.version} value={version.version}>
+              {version.version} {version.is_latest ? '(Latest)' : ''}
+            </option>
+          ))}
         </select>
+      </div>
+      
+      <div>
+        <label className="block text-sm font-medium mb-2">Server JAR File</label>
+        <div className="flex gap-2">
+          <Input
+            value={formData.serverJarPath}
+            onChange={(e) => setFormData({ ...formData, serverJarPath: e.target.value })}
+            placeholder="Path to server.jar file"
+            className="flex-1"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              // In a real app, this would open a file dialog
+              const path = prompt('Enter path to server.jar file:');
+              if (path) {
+                setFormData({ ...formData, serverJarPath: path });
+                // Auto-detect version from JAR file
+                if (path.includes('1.21')) {
+                  setFormData(prev => ({ ...prev, version: '1.21.1' }));
+                } else if (path.includes('1.20')) {
+                  setFormData(prev => ({ ...prev, version: '1.20.6' }));
+                }
+              }
+            }}
+          >
+            Browse
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          Select the server.jar file. Version will be auto-detected.
+        </p>
       </div>
       
       <div className="flex gap-2 pt-4">
@@ -174,7 +206,7 @@ const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 };
 
 export const Sidebar: React.FC = () => {
-  const { servers, selectedServerId, selectServer, loading, startServer, stopServer, promoteServer, deleteServer } = useServersStore();
+  const { servers, selectedServerId, selectServer, loading, startServer, stopServer, promoteServer, deleteServer, fetchServers } = useServersStore();
   const { id: currentServerId } = useParams<{ id: string }>();
   const location = useLocation();
   const navigate = useNavigate();
@@ -229,12 +261,26 @@ export const Sidebar: React.FC = () => {
       case 'delete':
         if (confirm('Are you sure you want to delete this server?')) {
           console.log('Deleting server:', serverId);
-          await deleteServer(serverId);
+          const success = await deleteServer(serverId);
+          if (success) {
+            // Server is already removed from local state by deleteServer
+            // Navigate to servers list if we're on the deleted server
+            if (currentServerId === serverId) {
+              navigate('/servers');
+            }
+          }
         }
         break;
       case 'open-folder':
-        // Open folder functionality would be implemented here
-        console.log('Opening folder for server:', serverId);
+        try {
+          console.log('Attempting to open folder for server:', serverId);
+          await openServerFolder(serverId);
+          console.log('Successfully opened folder for server:', serverId);
+        } catch (error) {
+          console.error('Failed to open server folder:', error);
+          // Show user-friendly error message
+          alert(`Failed to open server folder: ${error}`);
+        }
         break;
     }
   };

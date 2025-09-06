@@ -1,149 +1,139 @@
-use std::ffi::{CStr, CString};
-use std::os::raw::{c_char, c_int};
-use std::ptr;
+use std::os::raw::c_int;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::{error, info, warn};
+use tracing::{error, info};
+use wgpu::*;
+use anyhow::Result;
 
 mod ffi;
+mod kernels;
 
 use ffi::*;
+use kernels::ChunkGenerator;
 
 /// Global GPU worker instance
 static mut GPU_WORKER: Option<Arc<Mutex<GpuWorker>>> = None;
 
-/// GPU Worker structure - simplified for production
+/// GPU Worker structure with real GPU acceleration
 pub struct GpuWorker {
+    device: Device,
+    queue: Queue,
+    chunk_generator: ChunkGenerator,
     is_healthy: bool,
     worker_id: String,
 }
 
 impl GpuWorker {
-    /// Initialize the GPU worker
+    /// Initialize the GPU worker with real GPU acceleration
     pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
         info!("Initializing GPU worker...");
         
-        // For now, we'll create a simplified GPU worker that simulates GPU acceleration
-        // In a full implementation, this would initialize actual GPU resources
+        // Initialize WebGPU
+        let instance = Instance::new(InstanceDescriptor {
+            backends: Backends::all(),
+            ..Default::default()
+        });
         
-        info!("GPU worker initialized successfully (simulated mode)");
+        // Get adapter
+        let adapter = instance
+            .request_adapter(&RequestAdapterOptions {
+                power_preference: PowerPreference::HighPerformance,
+                compatible_surface: None,
+                force_fallback_adapter: false,
+            })
+            .await
+            .ok_or("Failed to get WebGPU adapter")?;
+        
+        info!("WebGPU adapter: {:?}", adapter.get_info());
+        
+        // Get device and queue
+        let (device, queue) = adapter
+            .request_device(
+                &DeviceDescriptor {
+                    label: Some("GPU Worker Device"),
+                    required_features: Features::empty(),
+                    required_limits: Limits::default(),
+                },
+                None,
+            )
+            .await?;
+        
+        info!("WebGPU device initialized successfully");
+        
+        // Initialize chunk generator
+        let chunk_generator = ChunkGenerator::new(&device).await?;
+        
+        info!("GPU worker initialized successfully with real GPU acceleration");
         
         Ok(Self {
+            device,
+            queue,
+            chunk_generator,
             is_healthy: true,
             worker_id: format!("gpu-worker-{}", uuid::Uuid::new_v4()),
         })
     }
     
-    /// Submit a chunk generation job
+    /// Submit a chunk generation job using real GPU acceleration
     pub async fn submit_chunk_job(&mut self, job: ChunkJob) -> Result<ChunkResult, Box<dyn std::error::Error>> {
-        info!("Submitting chunk job: ({}, {})", job.chunk_x, job.chunk_z);
+        info!("Submitting GPU chunk job: ({}, {})", job.chunk_x, job.chunk_z);
         
         // Get dimension string from job
         let dimension = job.get_dimension();
         
-        // Simulate GPU chunk generation
-        let density_data = self.generate_density_data(job.chunk_x, job.chunk_z, job.seed, &dimension);
-        let mask_data = self.generate_mask_data(job.chunk_x, job.chunk_z, job.seed, &dimension);
-        let biome_data = self.generate_biome_data(job.chunk_x, job.chunk_z, job.seed, &dimension);
+        // Use real GPU chunk generation
+        let chunk_data = self.chunk_generator.generate_chunk(
+            &self.device,
+            &self.queue,
+            job.chunk_x,
+            job.chunk_z,
+            job.seed as u32,
+            &dimension,
+        ).await?;
         
-        // Create content hash
-        let content_hash = self.create_content_hash(job.chunk_x, job.chunk_z, job.seed, &density_data, &mask_data);
+        info!("GPU chunk generation completed for ({}, {})", job.chunk_x, job.chunk_z);
         
-        info!("Chunk generation completed: ({}, {})", job.chunk_x, job.chunk_z);
-        
-        Ok(ChunkResult::new(
+        // Convert ChunkData to ChunkResult
+        let result = ChunkResult::new(
             job.chunk_x,
             job.chunk_z,
             job.seed,
-            content_hash,
-            density_data,
-            mask_data,
-            biome_data,
-        ))
-    }
-    
-    /// Generate density data (simulated)
-    fn generate_density_data(&self, chunk_x: i32, chunk_z: i32, seed: i64, dimension: &str) -> Vec<u8> {
-        // Simulate density generation - in real implementation this would use GPU
-        let mut data = Vec::with_capacity(16 * 16 * 16);
-        for y in 0..16 {
-            for z in 0..16 {
-                for x in 0..16 {
-                    // Simple noise-based density
-                    let noise = ((chunk_x * 16 + x) as f64 * 0.1 + (chunk_z * 16 + z) as f64 * 0.1 + y as f64 * 0.05 + seed as f64 * 0.01).sin();
-                    let density = ((noise + 1.0) * 127.5) as u8;
-                    data.push(density);
-                }
-            }
-        }
-        data
-    }
-    
-    /// Generate mask data (simulated)
-    fn generate_mask_data(&self, chunk_x: i32, chunk_z: i32, seed: i64, dimension: &str) -> Vec<u8> {
-        // Simulate mask generation for caves, ores, etc.
-        let mut data = Vec::with_capacity(16 * 16 * 4);
-        for z in 0..16 {
-            for x in 0..16 {
-                // Simple mask based on position and seed
-                let mask = ((chunk_x * 16 + x) as u32 + (chunk_z * 16 + z) as u32 + seed as u32) % 256;
-                data.extend_from_slice(&mask.to_le_bytes());
-            }
-        }
-        data
-    }
-    
-    /// Generate biome data (simulated)
-    fn generate_biome_data(&self, chunk_x: i32, chunk_z: i32, seed: i64, dimension: &str) -> Vec<u8> {
-        // Simulate biome generation
-        let mut data = Vec::with_capacity(16 * 16);
-        for z in 0..16 {
-            for x in 0..16 {
-                let biome = ((chunk_x * 16 + x) as u8 + (chunk_z * 16 + z) as u8 + seed as u8) % 10;
-                data.push(biome);
-            }
-        }
-        data
-    }
-    
-    /// Create content hash for validation
-    fn create_content_hash(&self, chunk_x: i32, chunk_z: i32, seed: i64, density_data: &[u8], mask_data: &[u8]) -> String {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
+            chunk_data.content_hash.to_string(),
+            bytemuck::cast_slice(&chunk_data.density_data).to_vec(),
+            bytemuck::cast_slice(&chunk_data.mask_data).to_vec(),
+            bytemuck::cast_slice(&chunk_data.biome_data).to_vec(),
+        );
         
-        let mut hasher = DefaultHasher::new();
-        chunk_x.hash(&mut hasher);
-        chunk_z.hash(&mut hasher);
-        seed.hash(&mut hasher);
-        density_data.hash(&mut hasher);
-        mask_data.hash(&mut hasher);
-        
-        format!("{:x}", hasher.finish())
+        Ok(result)
     }
     
-    /// Perform health check
-    pub fn health_check(&mut self) -> bool {
-        // Simple health check
-        self.is_healthy = true;
+    /// Check if the GPU worker is healthy
+    pub fn is_healthy(&self) -> bool {
         self.is_healthy
     }
     
-    /// Cleanup resources
+    /// Get worker ID
+    pub fn get_worker_id(&self) -> &str {
+        &self.worker_id
+    }
+    
+    /// Cleanup GPU resources
     pub fn cleanup(&mut self) {
         info!("Cleaning up GPU worker...");
         self.is_healthy = false;
+        // GPU resources will be cleaned up automatically when dropped
     }
 }
 
 /// Initialize the GPU worker (C ABI)
 #[no_mangle]
 pub extern "C" fn gpuw_init() -> c_int {
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    match rt.block_on(GpuWorker::new()) {
+    match pollster::block_on(GpuWorker::new()) {
         Ok(worker) => {
             unsafe {
                 GPU_WORKER = Some(Arc::new(Mutex::new(worker)));
             }
+            info!("GPU worker initialized successfully");
             0
         }
         Err(e) => {
@@ -158,18 +148,19 @@ pub extern "C" fn gpuw_init() -> c_int {
 pub extern "C" fn gpuw_submit_chunk_job(job: ChunkJob, out_handle: *mut JobHandle) -> c_int {
     unsafe {
         if let Some(worker_arc) = &GPU_WORKER {
+            let worker = worker_arc.clone();
             let rt = tokio::runtime::Runtime::new().unwrap();
+            
             match rt.block_on(async {
-                let mut worker = worker_arc.lock().await;
-                worker.submit_chunk_job(job).await
+                let mut worker_guard = worker.lock().await;
+                worker_guard.submit_chunk_job(job).await
             }) {
                 Ok(result) => {
-                    // Create job handle and store result
-                    let handle = JobHandle {
+                    let job_handle = JobHandle {
                         result: Some(result),
                         completed: true,
                     };
-                    ptr::write(out_handle, handle);
+                    *out_handle = job_handle;
                     0
                 }
                 Err(e) => {
@@ -188,16 +179,20 @@ pub extern "C" fn gpuw_submit_chunk_job(job: ChunkJob, out_handle: *mut JobHandl
 #[no_mangle]
 pub extern "C" fn gpuw_try_fetch_result(handle: *mut JobHandle, out_result: *mut ChunkResult) -> c_int {
     unsafe {
-        let handle_ref = &*handle;
-        if handle_ref.completed {
-            if let Some(result) = &handle_ref.result {
-                ptr::write(out_result, result.clone());
+        if handle.is_null() {
+            return -1;
+        }
+        
+        let job_handle = &*handle;
+        if job_handle.completed {
+            if let Some(ref result) = job_handle.result {
+                *out_result = result.clone();
                 0
             } else {
                 -1
             }
         } else {
-            -2 // Not ready
+            -2 // Not ready yet
         }
     }
 }
@@ -205,9 +200,9 @@ pub extern "C" fn gpuw_try_fetch_result(handle: *mut JobHandle, out_result: *mut
 /// Free a result (C ABI)
 #[no_mangle]
 pub extern "C" fn gpuw_free_result(result: *mut ChunkResult) {
-    unsafe {
-        if !result.is_null() {
-            ptr::drop_in_place(result);
+    if !result.is_null() {
+        unsafe {
+            let _ = Box::from_raw(result);
         }
     }
 }
@@ -217,14 +212,17 @@ pub extern "C" fn gpuw_free_result(result: *mut ChunkResult) {
 pub extern "C" fn gpuw_health_check() -> c_int {
     unsafe {
         if let Some(worker_arc) = &GPU_WORKER {
+            let worker = worker_arc.clone();
             let rt = tokio::runtime::Runtime::new().unwrap();
-            match rt.block_on(async {
-                let mut worker = worker_arc.lock().await;
-                worker.health_check()
-            }) {
-                true => 0,
-                false => -1,
-            }
+            
+            rt.block_on(async {
+                let worker_guard = worker.lock().await;
+                if worker_guard.is_healthy() {
+                    0
+                } else {
+                    -1
+                }
+            })
         } else {
             -1
         }
@@ -236,11 +234,14 @@ pub extern "C" fn gpuw_health_check() -> c_int {
 pub extern "C" fn gpuw_cleanup() {
     unsafe {
         if let Some(worker_arc) = &GPU_WORKER {
+            let worker = worker_arc.clone();
             let rt = tokio::runtime::Runtime::new().unwrap();
+            
             rt.block_on(async {
-                let mut worker = worker_arc.lock().await;
-                worker.cleanup();
+                let mut worker_guard = worker.lock().await;
+                worker_guard.cleanup();
             });
+            
             GPU_WORKER = None;
         }
     }

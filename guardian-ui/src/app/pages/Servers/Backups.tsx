@@ -23,6 +23,7 @@ import {
   Cloud,
   Shield
 } from 'lucide-react';
+import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -39,6 +40,7 @@ import {
 import { useServersStore } from '@/store/servers';
 import { SnapshotsTable } from '@/components/Tables/SnapshotsTable';
 import { RestoreWizard } from '@/components/Backups/RestoreWizard';
+import { ErrorEmptyState } from '@/components/ui/EmptyState';
 
 interface BackupsPageProps {
   className?: string;
@@ -62,55 +64,21 @@ export const Backups: React.FC<BackupsPageProps> = ({ className = '' }) => {
     
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/v1/servers/${serverId}/snapshots`);
-      if (response.ok) {
-        const data = await response.json();
-        setSnapshots(data);
+      const response = await api.getBackups(serverId);
+      if (response.ok && response.data) {
+        setSnapshots(response.data as any[]);
       } else {
-        // Use mock data for demo
-        setSnapshots(generateMockSnapshots());
+        console.error('Failed to fetch backups:', response.error);
+        setSnapshots([]);
       }
     } catch (error) {
       console.error('Error fetching snapshots:', error);
-      // Use mock data for demo
-      setSnapshots(generateMockSnapshots());
+      setSnapshots([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Generate mock snapshots for demo
-  const generateMockSnapshots = () => {
-    const now = Date.now();
-    const snapshots = [];
-    
-    // Generate various types of snapshots
-    const types = ['manual', 'scheduled', 'pre-update', 'emergency'];
-    const statuses = ['completed', 'in_progress', 'failed', 'verifying'];
-    
-    for (let i = 0; i < 15; i++) {
-      const type = types[Math.floor(Math.random() * types.length)];
-      const status = i < 12 ? 'completed' : statuses[Math.floor(Math.random() * statuses.length)];
-      const timestamp = now - (i * 3600000) - Math.random() * 3600000; // Random time within last 15 hours
-      
-      snapshots.push({
-        id: `snapshot-${i + 1}`,
-        name: `${type.charAt(0).toUpperCase() + type.slice(1)} Backup ${i + 1}`,
-        type,
-        status,
-        size: Math.floor(Math.random() * 5000) + 1000, // 1-6 GB
-        timestamp,
-        description: `Backup created ${type === 'manual' ? 'manually' : 'automatically'} on ${new Date(timestamp).toLocaleDateString()}`,
-        compression: Math.floor(Math.random() * 30) + 20, // 20-50% compression
-        checksum: `sha256:${Math.random().toString(36).substring(2, 15)}`,
-        verified: Math.random() > 0.2, // 80% verified
-        retention: type === 'emergency' ? 30 : type === 'pre-update' ? 90 : 7, // days
-        tags: type === 'pre-update' ? ['pre-update', 'mod-update'] : type === 'emergency' ? ['emergency'] : []
-      });
-    }
-    
-    return snapshots.sort((a, b) => b.timestamp - a.timestamp);
-  };
 
   useEffect(() => {
     fetchSnapshots();
@@ -226,9 +194,10 @@ export const Backups: React.FC<BackupsPageProps> = ({ className = '' }) => {
   if (!server) {
     return (
       <div className="p-6">
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Select a server to view backups</p>
-        </div>
+        <ErrorEmptyState
+          title="No server selected"
+          description="Please select a server from the sidebar to view its backups."
+        />
       </div>
     );
   }

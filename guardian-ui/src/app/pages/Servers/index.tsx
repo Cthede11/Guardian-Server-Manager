@@ -1,5 +1,6 @@
 import React, { Suspense, lazy } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 // Lazy load all server pages for code splitting
 const OverviewPage = lazy(() => import('./Overview').then(m => ({ default: m.Overview })));
@@ -38,137 +39,173 @@ const PageSkeleton: React.FC = () => (
 // Overview page
 export const Overview: React.FC = () => {
   return (
-    <Suspense fallback={<PageSkeleton />}>
-      <OverviewPage />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<PageSkeleton />}>
+        <OverviewPage />
+      </Suspense>
+    </ErrorBoundary>
   );
 };
 
 // Console page
 export const Console: React.FC = () => {
   return (
-    <Suspense fallback={<PageSkeleton />}>
-      <ConsolePage />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<PageSkeleton />}>
+        <ConsolePage />
+      </Suspense>
+    </ErrorBoundary>
   );
 };
 
 // Players page
 export const Players: React.FC = () => {
   return (
-    <Suspense fallback={<PageSkeleton />}>
-      <PlayersPage />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<PageSkeleton />}>
+        <PlayersPage />
+      </Suspense>
+    </ErrorBoundary>
   );
 };
 
 // World page
 export const World: React.FC = () => {
   return (
-    <Suspense fallback={<PageSkeleton />}>
-      <WorldPage />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<PageSkeleton />}>
+        <WorldPage />
+      </Suspense>
+    </ErrorBoundary>
   );
 };
 
 // Mods & Rules page
 export const ModsRules: React.FC = () => {
   return (
-    <Suspense fallback={<PageSkeleton />}>
-      <ModsRulesPage />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<PageSkeleton />}>
+        <ModsRulesPage />
+      </Suspense>
+    </ErrorBoundary>
   );
 };
 
 // Performance page
 export const Performance: React.FC = () => {
   return (
-    <Suspense fallback={<PageSkeleton />}>
-      <PerformancePage />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<PageSkeleton />}>
+        <PerformancePage />
+      </Suspense>
+    </ErrorBoundary>
   );
 };
 
 // Backups page
 export const Backups: React.FC = () => {
   return (
-    <Suspense fallback={<PageSkeleton />}>
-      <BackupsPage />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<PageSkeleton />}>
+        <BackupsPage />
+      </Suspense>
+    </ErrorBoundary>
   );
 };
 
 // Events page
 export const Events: React.FC = () => {
   return (
-    <Suspense fallback={<PageSkeleton />}>
-      <EventsPage />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<PageSkeleton />}>
+        <EventsPage />
+      </Suspense>
+    </ErrorBoundary>
   );
 };
 
 // Pregen page
 export const Pregen: React.FC = () => {
   return (
-    <Suspense fallback={<PageSkeleton />}>
-      <PregenPage />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<PageSkeleton />}>
+        <PregenPage />
+      </Suspense>
+    </ErrorBoundary>
   );
 };
 
 // Sharding page
 export const Sharding: React.FC = () => {
   return (
-    <Suspense fallback={<PageSkeleton />}>
-      <ShardingPage />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<PageSkeleton />}>
+        <ShardingPage />
+      </Suspense>
+    </ErrorBoundary>
   );
 };
 
 // Diagnostics page
 export const Diagnostics: React.FC = () => {
   return (
-    <Suspense fallback={<PageSkeleton />}>
-      <DiagnosticsPage />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<PageSkeleton />}>
+        <DiagnosticsPage />
+      </Suspense>
+    </ErrorBoundary>
   );
 };
 
 // Settings pages with lazy loading
 export const Settings = {
   General: () => (
-    <Suspense fallback={<PageSkeleton />}>
-      <GeneralSettingsPage />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<PageSkeleton />}>
+        <GeneralSettingsPage />
+      </Suspense>
+    </ErrorBoundary>
   ),
   JVM: () => (
-    <Suspense fallback={<PageSkeleton />}>
-      <JVMSettingsPage />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<PageSkeleton />}>
+        <JVMSettingsPage />
+      </Suspense>
+    </ErrorBoundary>
   ),
   GPU: () => (
-    <Suspense fallback={<PageSkeleton />}>
-      <GPUSettingsPage />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<PageSkeleton />}>
+        <GPUSettingsPage />
+      </Suspense>
+    </ErrorBoundary>
   ),
   HA: () => (
-    <Suspense fallback={<PageSkeleton />}>
-      <HASettingsPage />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<PageSkeleton />}>
+        <HASettingsPage />
+      </Suspense>
+    </ErrorBoundary>
   ),
   Paths: () => (
-    <Suspense fallback={<PageSkeleton />}>
-      <PathsSettingsPage />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<PageSkeleton />}>
+        <PathsSettingsPage />
+      </Suspense>
+    </ErrorBoundary>
   ),
   Composer: () => (
-    <Suspense fallback={<PageSkeleton />}>
-      <ComposerSettingsPage />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<PageSkeleton />}>
+        <ComposerSettingsPage />
+      </Suspense>
+    </ErrorBoundary>
   ),
   Tokens: () => (
-    <Suspense fallback={<PageSkeleton />}>
-      <TokensSettingsPage />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<PageSkeleton />}>
+        <TokensSettingsPage />
+      </Suspense>
+    </ErrorBoundary>
   ),
 };

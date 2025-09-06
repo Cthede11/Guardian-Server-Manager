@@ -138,32 +138,22 @@ export const WorldHeatmap: React.FC<WorldHeatmapProps> = ({ className = '' }) =>
     isRenderingRef.current = false;
   }, [heatmapData, isVisible, zoom, panX, panZ, filterType, showGrid, updateCount]);
 
-  // Generate mock heatmap data based on freezes - with time-based changes
+  // Generate heatmap data from real world data
   const generateHeatmapData = useCallback((): HeatmapCell[] => {
     const cells: HeatmapCell[] = [];
     const now = Date.now();
     
-    // Generate data that changes over time to make updates visible
-    for (let i = 0; i < 50; i++) {
-      // Use time-based seed to make data change over time
-      const timeSeed = Math.sin(now / 1000 + i) * 0.5 + 0.5;
-      cells.push({
-        x: Math.floor(Math.random() * 50),
-        z: Math.floor(Math.random() * 50),
-        intensity: timeSeed,
-        lastUpdate: now,
+    // Use real freeze data if available
+    if (freezes && freezes.length > 0) {
+      freezes.forEach((freeze: any) => {
+        cells.push({
+          x: freeze.x || 0,
+          z: freeze.z || 0,
+          intensity: freeze.intensity || 0.8,
+          lastUpdate: freeze.timestamp || now,
+        });
       });
     }
-
-    // Add freeze locations with higher intensity
-    freezes.forEach((_freeze: any) => {
-      cells.push({
-        x: Math.floor(Math.random() * 50),
-        z: Math.floor(Math.random() * 50),
-        intensity: 0.8 + Math.random() * 0.2,
-        lastUpdate: now,
-      });
-    });
 
     return cells;
   }, [freezes]);

@@ -45,6 +45,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 // } from '@/components/ui/dropdown-menu';
 import { useServersStore } from '@/store/servers';
 import { usePregenJobs, liveStore } from '@/store/live';
+import { ErrorEmptyState } from '@/components/ui/EmptyState';
 import { PregenQueue } from '@/components/Pregen/PregenQueue';
 import { RegionSelector } from '@/components/Pregen/RegionSelector';
 import { PregenStats } from '@/components/Pregen/PregenStats';
@@ -237,9 +238,10 @@ export const Pregen: React.FC<PregenPageProps> = ({ className = '' }) => {
   if (!server) {
     return (
       <div className="p-6">
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Select a server to view pregen jobs</p>
-        </div>
+        <ErrorEmptyState
+          title="No server selected"
+          description="Please select a server from the sidebar to view its pregen jobs."
+        />
       </div>
     );
   }

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useServersStore } from '@/store/servers';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -107,6 +109,13 @@ interface PathsSettingsData {
 }
 
 export const PathsSettings: React.FC = () => {
+  const { id: serverId } = useParams<{ id: string }>();
+  const { 
+    fetchServerConfig, 
+    updateServerConfig,
+    serverSettings 
+  } = useServersStore();
+  
   const [settings, setSettings] = useState<PathsSettingsData>({
     // Server Paths
     serverPath: '/opt/guardian/servers',
@@ -196,15 +205,13 @@ export const PathsSettings: React.FC = () => {
   // Loading and changes tracking removed for now
 
   const fetchSettings = async () => {
-    // Loading state removed for now
+    if (!serverId) return;
+    
     try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      // Changes tracking removed for now
+      // Load server configuration
+      await fetchServerConfig(serverId);
     } catch (error) {
       console.error('Failed to fetch paths settings:', error);
-    } finally {
-      // Loading state removed for now
     }
   };
 
@@ -212,9 +219,35 @@ export const PathsSettings: React.FC = () => {
     fetchSettings();
   }, []);
 
-  const handleSettingChange = (key: keyof PathsSettingsData, value: any) => {
+  // Sync settings with server store data
+  useEffect(() => {
+    if (serverId && serverSettings[serverId]) {
+      const serverData = serverSettings[serverId];
+      if (serverData.paths) {
+        setSettings(prev => ({
+          ...prev,
+          ...serverData.paths,
+        }));
+      }
+    }
+  }, [serverId, serverSettings]);
+
+  const handleSettingChange = async (key: keyof PathsSettingsData, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }));
-    // Changes tracking removed for now
+    
+    if (!serverId) return;
+    
+    try {
+      // Update server configuration
+      await updateServerConfig(serverId, {
+        paths: {
+          ...settings,
+          [key]: value
+        }
+      });
+    } catch (error) {
+      console.error('Failed to update paths settings:', error);
+    }
   };
 
   const getValidationStatus = (key: keyof PathsSettingsData) => {

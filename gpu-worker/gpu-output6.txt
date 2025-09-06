@@ -1,0 +1,24 @@
+[2m2025-09-06T15:18:38.860624Z[0m [32m INFO[0m [2mgpu_worker[0m[2m:[0m Starting GPU Worker...
+[2m2025-09-06T15:18:38.861497Z[0m [32m INFO[0m [2mgpu_worker[0m[2m:[0m Initializing GPU worker...
+[2m2025-09-06T15:18:38.991088Z[0m [32m INFO[0m [2mwgpu_hal::vulkan::instance[0m[2m:[0m Debug utils not enabled: debug_utils_user_data not passed to Instance::from_raw
+[2m2025-09-06T15:18:39.193446Z[0m [32m INFO[0m [2mwgpu_core::instance[0m[2m:[0m Adapter Vulkan AdapterInfo { name: "NVIDIA GeForce RTX 4070 SUPER", vendor: 4318, device: 10115, device_type: DiscreteGpu, driver: "NVIDIA", driver_info: "580.97", backend: Vulkan }
+[2m2025-09-06T15:18:39.234218Z[0m [32m INFO[0m [2mgpu_worker[0m[2m:[0m WebGPU adapter: AdapterInfo { name: "NVIDIA GeForce RTX 4070 SUPER", vendor: 4318, device: 10115, device_type: DiscreteGpu, driver: "NVIDIA", driver_info: "580.97", backend: Vulkan }
+[2m2025-09-06T15:18:39.269599Z[0m [32m INFO[0m [2mgpu_worker[0m[2m:[0m WebGPU device initialized successfully
+[2m2025-09-06T15:18:39.317790Z[0m [31mERROR[0m [2mwgpu_core::device::global[0m[2m:[0m Device::create_shader_module error: 
+Shader validation error: 
+    ┌─ Mask Kernel Shader:64:1
+    │  
+ 64 │ ╭ fn smooth_mask(x: u32, y: u32, z: u32, dimension: u32) -> u32 {
+ 65 │ │     let index = y * 256u + z * 16u + x;
+ 66 │ │     let density = density_input[index];
+ 67 │ │     
+    · │
+ 83 │ │         let neighbor_x = i32(x) + neighbors[i].x;
+    │ │                                   ^^^^^^^^^^^^ naga::Expression [50]
+    · │
+110 │ │     
+111 │ │     return generate_mask_value(density, f32(y), dimension);
+    │ ╰───────────────────────────────────────────────────────────^ naga::Function [2]
+
+
+[2m2025-09-06T15:18:39.318078Z[0m [31mERROR[0m [2mwgpu::backend::wgpu_core[0m[2m:[0m Handling wgpu errors as fatal by default

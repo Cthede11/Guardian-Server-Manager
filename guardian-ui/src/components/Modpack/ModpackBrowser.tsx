@@ -76,19 +76,19 @@ const ModpackBrowser: React.FC = () => {
   }
 
   return (
-    <div className="flex h-full bg-gray-50">
+    <div className="flex h-full bg-gradient-to-br from-background via-background to-muted/20">
       {/* Sidebar */}
-      <div className={`${showFilters ? 'w-80' : 'w-16'} transition-all duration-300 bg-white border-r border-gray-200 flex flex-col`}>
-        <div className="p-4 border-b border-gray-200">
+      <div className={`${showFilters ? 'w-80' : 'w-16'} transition-all duration-300 bg-card/95 backdrop-blur-sm border-r border-border/50 flex flex-col shadow-xl`}>
+        <div className="p-4 border-b border-border/50 bg-gradient-to-r from-primary/10 to-secondary/10">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-foreground bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
               {showFilters ? 'Modpack Manager' : 'MM'}
             </h2>
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              className="p-2 rounded-lg hover:bg-primary/20 transition-all duration-200 hover:scale-105"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
@@ -110,45 +110,45 @@ const ModpackBrowser: React.FC = () => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <div className="bg-white border-b border-gray-200 p-4">
+        <div className="bg-card/80 backdrop-blur-sm border-b border-border/50 p-4 shadow-lg">
           <div className="flex items-center justify-between">
             <div className="flex space-x-1">
               <button
                 onClick={() => setActiveTab('mods')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 ${
                   activeTab === 'mods'
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                    ? 'bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-lg shadow-primary/25'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-gradient-to-r hover:from-primary/10 hover:to-secondary/10'
                 }`}
               >
                 Mods
               </button>
               <button
                 onClick={() => setActiveTab('modpacks')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 ${
                   activeTab === 'modpacks'
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                    ? 'bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-lg shadow-primary/25'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-gradient-to-r hover:from-primary/10 hover:to-secondary/10'
                 }`}
               >
                 Modpacks
               </button>
               <button
                 onClick={() => setActiveTab('create')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 ${
                   activeTab === 'create'
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                    ? 'bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-lg shadow-primary/25'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-gradient-to-r hover:from-primary/10 hover:to-secondary/10'
                 }`}
               >
                 Create
               </button>
               <button
                 onClick={() => setActiveTab('compatibility')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 ${
                   activeTab === 'compatibility'
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                    ? 'bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-lg shadow-primary/25'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-gradient-to-r hover:from-primary/10 hover:to-secondary/10'
                 }`}
               >
                 Compatibility
@@ -163,7 +163,7 @@ const ModpackBrowser: React.FC = () => {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-br from-background via-background to-muted/5">
           {activeTab === 'mods' && (
             <ModGrid
               mods={mods}

@@ -69,6 +69,8 @@ class ApiClient {
     name: string;
     loader: string;
     version: string;
+    maxPlayers?: number;
+    memory?: number;
     paths: {
       world: string;
       mods: string;
@@ -201,6 +203,78 @@ class ApiClient {
     return this.request(`/api/servers/${id}/rules`, {
       method: 'POST',
       body: JSON.stringify(rule),
+    });
+  }
+
+  // Modpack & Mod Search endpoints
+  async searchMods(filters: any) {
+    return this.request(`/api/v1/mods/search`, {
+      method: 'POST',
+      body: JSON.stringify(filters),
+    });
+  }
+
+  async getMod(id: string) {
+    return this.request(`/api/v1/mods/${id}`);
+  }
+
+  async getModpacks() {
+    return this.request(`/api/v1/modpacks`);
+  }
+
+  async getModpack(id: string) {
+    return this.request(`/api/v1/modpacks/${id}`);
+  }
+
+  async createModpack(modpack: any) {
+    return this.request(`/api/v1/modpacks`, {
+      method: 'POST',
+      body: JSON.stringify(modpack),
+    });
+  }
+
+  async updateModpack(id: string, modpack: any) {
+    return this.request(`/api/v1/modpacks/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(modpack),
+    });
+  }
+
+  async deleteModpack(id: string) {
+    return this.request(`/api/v1/modpacks/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getMinecraftVersions() {
+    return this.request(`/api/v1/minecraft/versions`);
+  }
+
+  async checkModpackCompatibility(modpackId: string, modpack: any) {
+    return this.request(`/api/v1/modpacks/${modpackId}/compatibility`, {
+      method: 'POST',
+      body: JSON.stringify(modpack),
+    });
+  }
+
+  // Server mod management endpoints
+  async addModToServer(serverId: string, modId: string, version: string) {
+    return this.request(`/api/servers/${serverId}/mods`, {
+      method: 'POST',
+      body: JSON.stringify({ modId, version }),
+    });
+  }
+
+  async removeModFromServer(serverId: string, modId: string) {
+    return this.request(`/api/servers/${serverId}/mods/${modId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async applyModpackToServer(serverId: string, modpackId: string) {
+    return this.request(`/api/servers/${serverId}/modpacks/apply`, {
+      method: 'POST',
+      body: JSON.stringify({ modpackId }),
     });
   }
 
@@ -354,6 +428,40 @@ class ApiClient {
     return this.request(`/api/servers/${id}/settings`, {
       method: 'PUT',
       body: JSON.stringify(settings),
+    });
+  }
+
+  // Server configuration file endpoints
+  async getServerConfig(id: string) {
+    return this.request(`/api/servers/${id}/config`);
+  }
+
+  async updateServerConfig(id: string, config: any) {
+    return this.request(`/api/servers/${id}/config`, {
+      method: 'PUT',
+      body: JSON.stringify(config),
+    });
+  }
+
+  async getServerProperties(id: string) {
+    return this.request(`/api/servers/${id}/config/server.properties`);
+  }
+
+  async updateServerProperties(id: string, properties: Record<string, string>) {
+    return this.request(`/api/servers/${id}/config/server.properties`, {
+      method: 'PUT',
+      body: JSON.stringify(properties),
+    });
+  }
+
+  async getServerJVMArgs(id: string) {
+    return this.request(`/api/servers/${id}/config/jvm-args`);
+  }
+
+  async updateServerJVMArgs(id: string, args: string[]) {
+    return this.request(`/api/servers/${id}/config/jvm-args`, {
+      method: 'PUT',
+      body: JSON.stringify({ args }),
     });
   }
 

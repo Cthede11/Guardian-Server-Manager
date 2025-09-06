@@ -527,6 +527,17 @@ impl MinecraftManager {
         Ok(())
     }
 
+    /// Remove a server from memory
+    pub async fn remove_server(&self, id: &str) -> Result<()> {
+        let mut servers = self.servers.write().await;
+        if servers.remove(id).is_some() {
+            info!("Removed server from memory: {}", id);
+            Ok(())
+        } else {
+            Err(anyhow!("Server not found in memory: {}", id))
+        }
+    }
+
     /// Get a server by ID
     pub async fn get_server(&self, id: &str) -> Option<MinecraftServer> {
         let servers = self.servers.read().await;

@@ -35,6 +35,7 @@ import { NoPlayersEmptyState, SearchEmptyState, ErrorEmptyState } from '@/compon
 import { useLoadingState } from '@/components/ui/LoadingStates';
 import { notifications } from '@/lib/notifications';
 import { handleApiError } from '@/lib/error-handler';
+import { api } from '@/lib/api';
 
 interface PlayersTableProps {
   className?: string;
@@ -187,43 +188,25 @@ export const PlayersTable: React.FC<PlayersTableProps> = ({ className = '' }) =>
     
     startLoading();
     try {
-      const response = await fetch(`/api/v1/servers/${serverId}/players/online`);
+      const response = await api.getPlayers(serverId);
       if (response.ok) {
-        const data = await response.json();
-        // Update live store instead of local state
-        liveStore.getState().updatePlayers(serverId, data);
+        // Update live store with real data
+        liveStore.getState().updatePlayers(serverId, response.data as any);
       } else {
-        // Use mock data for demo
-        const mockPlayers = generateMockPlayers();
-        liveStore.getState().updatePlayers(serverId, mockPlayers);
+        // If server is stopped, show empty list
+        liveStore.getState().updatePlayers(serverId, []);
       }
     } catch (error) {
       console.error('Error fetching players:', error);
       handleApiError(error as Error, 'fetching players');
       setLoadingError(new Error('Failed to fetch players'));
-      // Use mock data for demo
-      const mockPlayers = generateMockPlayers();
-      liveStore.getState().updatePlayers(serverId, mockPlayers);
+      // If server is stopped, show empty list
+      liveStore.getState().updatePlayers(serverId, []);
     } finally {
       stopLoading();
     }
   }, [serverId, startLoading, stopLoading, setLoadingError]);
 
-  // Generate mock players for demo
-  const generateMockPlayers = useCallback((): Player[] => {
-    const mockPlayers = [
-      { uuid: '1', name: 'Steve', online: true, lastSeen: new Date().toISOString(), playtime: 3600 },
-      { uuid: '2', name: 'Alex', online: true, lastSeen: new Date().toISOString(), playtime: 2400 },
-      { uuid: '3', name: 'Notch', online: false, lastSeen: new Date(Date.now() - 3600000).toISOString(), playtime: 7200 },
-      { uuid: '4', name: 'Herobrine', online: true, lastSeen: new Date().toISOString(), playtime: 1800 },
-      { uuid: '5', name: 'Dinnerbone', online: false, lastSeen: new Date(Date.now() - 7200000).toISOString(), playtime: 4800 },
-      { uuid: '6', name: 'Jeb_', online: true, lastSeen: new Date().toISOString(), playtime: 6000 },
-      { uuid: '7', name: 'Grumm', online: false, lastSeen: new Date(Date.now() - 1800000).toISOString(), playtime: 1200 },
-      { uuid: '8', name: 'CaptainSparklez', online: true, lastSeen: new Date().toISOString(), playtime: 9000 }
-    ];
-    
-    return mockPlayers;
-  }, []);
 
   useEffect(() => {
     fetchPlayers();
@@ -239,13 +222,7 @@ export const PlayersTable: React.FC<PlayersTableProps> = ({ className = '' }) =>
     
     setActionLoading(player.uuid);
     try {
-      const response = await fetch(`/api/v1/servers/${serverId}/players/${player.uuid}/actions/${action}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data || {}),
-      });
+      const response = await api.playerAction(serverId, player.uuid, action as any, data);
 
       if (response.ok) {
         // Show success notification
@@ -286,7 +263,7 @@ export const PlayersTable: React.FC<PlayersTableProps> = ({ className = '' }) =>
         // Refresh players list
         fetchPlayers();
       } else {
-        const error = await response.json().catch(() => ({ message: 'Unknown error' }));
+        const error = { message: response.error || 'Unknown error' };
         notifications.error(`Failed to ${action} player ${player.name}`, { description: error.message });
       }
     } catch (error) {

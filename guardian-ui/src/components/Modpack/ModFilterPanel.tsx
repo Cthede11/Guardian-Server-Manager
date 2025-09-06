@@ -1,6 +1,7 @@
 import React from 'react';
 import type { ModFilters, MinecraftVersion } from '../../lib/types/modpack';
 import { MOD_SIDES, MOD_CATEGORIES, MOD_SOURCES } from '../../lib/types/modpack';
+import { getVersionsForModpack } from '../../lib/constants/minecraft-versions';
 
 interface ModFilterPanelProps {
   filters: ModFilters;
@@ -15,6 +16,8 @@ export const ModFilterPanel: React.FC<ModFilterPanelProps> = ({
   onFiltersChange,
   onClearFilters
 }) => {
+  // Use local versions as fallback if API versions are empty
+  const versions = minecraftVersions.length > 0 ? minecraftVersions : getVersionsForModpack();
   const handleVersionChange = (version: string) => {
     onFiltersChange({ minecraft_version: version });
   };
@@ -51,14 +54,18 @@ export const ModFilterPanel: React.FC<ModFilterPanelProps> = ({
     onFiltersChange({ has_server_version: hasServerVersion });
   };
 
+  const handleSourceChange = (source: ModFilters['source']) => {
+    onFiltersChange({ source });
+  };
+
   return (
-    <div className="p-4 space-y-6">
+    <div className="p-4 space-y-6 bg-gradient-to-b from-card/50 to-card/30">
       {/* Clear Filters */}
       <div className="flex justify-between items-center">
-        <h3 className="text-sm font-medium text-gray-900">Filters</h3>
+        <h3 className="text-sm font-medium text-foreground">Filters</h3>
         <button
           onClick={onClearFilters}
-          className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+          className="text-sm text-primary hover:text-primary/80 font-medium transition-colors"
         >
           Clear All
         </button>
@@ -66,17 +73,17 @@ export const ModFilterPanel: React.FC<ModFilterPanelProps> = ({
 
       {/* Minecraft Version */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-foreground mb-2">
           Minecraft Version
         </label>
         <select
           value={filters.minecraft_version}
           onChange={(e) => handleVersionChange(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
         >
-          {minecraftVersions.map((version) => (
-            <option key={version.id} value={version.id}>
-              {version.id} ({version.release_type})
+          {versions.map((version) => (
+            <option key={version.version} value={version.version}>
+              {version.version} {version.is_latest ? '(Latest)' : ''} - {version.description}
             </option>
           ))}
         </select>
@@ -210,6 +217,32 @@ export const ModFilterPanel: React.FC<ModFilterPanelProps> = ({
             <option value="asc">Ascending</option>
             <option value="desc">Descending</option>
           </select>
+        </div>
+      </div>
+
+      {/* Source */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Source
+        </label>
+        <div className="space-y-2">
+          {MOD_SOURCES.map((source) => (
+            <div key={source.type} className="flex items-center">
+              <input
+                type="radio"
+                id={`source-${source.type}`}
+                name="source"
+                value={source.type}
+                checked={filters.source === source.type}
+                onChange={() => handleSourceChange(source.type)}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+              />
+              <label htmlFor={`source-${source.type}`} className="ml-2 text-sm text-gray-700">
+                <span className="mr-1">{source.icon}</span>
+                {source.label}
+              </label>
+            </div>
+          ))}
         </div>
       </div>
 

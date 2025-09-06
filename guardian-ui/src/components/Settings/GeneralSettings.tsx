@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-// Unused imports removed
-// import { Button } from '@/components/ui/button';
-// import { Badge } from '@/components/ui/badge';
+import { useServersStore } from '@/store/servers';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -69,6 +68,15 @@ interface GeneralSettingsData {
 }
 
 export const GeneralSettings: React.FC = () => {
+  const { id: serverId } = useParams<{ id: string }>();
+  const { 
+    fetchServerProperties, 
+    updateServerProperties, 
+    fetchServerJVMArgs, 
+    updateServerJVMArgs,
+    serverSettings 
+  } = useServersStore();
+  
   const [settings, setSettings] = useState<GeneralSettingsData>({
     serverName: 'My Minecraft Server',
     serverDescription: 'A fun Minecraft server for everyone!',
@@ -120,16 +128,16 @@ export const GeneralSettings: React.FC = () => {
   // Loading and changes tracking removed for now
 
   const fetchSettings = async () => {
-    // Loading state removed for now
+    if (!serverId) return;
+    
     try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      // Settings are already set in state
-      // Changes tracking removed for now
+      // Load server configuration files
+      await Promise.all([
+        fetchServerProperties(serverId),
+        fetchServerJVMArgs(serverId)
+      ]);
     } catch (error) {
       console.error('Failed to fetch general settings:', error);
-    } finally {
-      // Loading state removed for now
     }
   };
 
@@ -137,9 +145,160 @@ export const GeneralSettings: React.FC = () => {
     fetchSettings();
   }, []);
 
-  const handleSettingChange = (key: keyof GeneralSettingsData, value: any) => {
+  // Sync settings with server store data
+  useEffect(() => {
+    if (serverId && serverSettings[serverId]) {
+      const serverData = serverSettings[serverId];
+      if (serverData.general) {
+        setSettings(prev => ({
+          ...prev,
+          ...serverData.general,
+          serverName: serverData.general.name || prev.serverName,
+          serverDescription: serverData.general.description || prev.serverDescription,
+        }));
+      }
+    }
+  }, [serverId, serverSettings]);
+
+  const handleSettingChange = async (key: keyof GeneralSettingsData, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }));
-    // Changes tracking removed for now
+    
+    if (!serverId) return;
+    
+    try {
+      // Map settings to server.properties format
+      const serverProperties: Record<string, string> = {};
+      
+      switch (key) {
+        case 'maxPlayers':
+          serverProperties['max-players'] = value.toString();
+          break;
+        case 'motd':
+          serverProperties['motd'] = value;
+          break;
+        case 'difficulty':
+          serverProperties['difficulty'] = value;
+          break;
+        case 'gamemode':
+          serverProperties['gamemode'] = value;
+          break;
+        case 'pvp':
+          serverProperties['pvp'] = value.toString();
+          break;
+        case 'onlineMode':
+          serverProperties['online-mode'] = value.toString();
+          break;
+        case 'whitelist':
+          serverProperties['white-list'] = value.toString();
+          break;
+        case 'enableCommandBlock':
+          serverProperties['enable-command-block'] = value.toString();
+          break;
+        case 'viewDistance':
+          serverProperties['view-distance'] = value.toString();
+          break;
+        case 'simulationDistance':
+          serverProperties['simulation-distance'] = value.toString();
+          break;
+        case 'serverPort':
+          serverProperties['server-port'] = value.toString();
+          break;
+        case 'queryPort':
+          serverProperties['query.port'] = value.toString();
+          break;
+        case 'rconPort':
+          serverProperties['rcon.port'] = value.toString();
+          break;
+        case 'rconPassword':
+          serverProperties['rcon.password'] = value;
+          break;
+        case 'enableQuery':
+          serverProperties['enable-query'] = value.toString();
+          break;
+        case 'enableRcon':
+          serverProperties['enable-rcon'] = value.toString();
+          break;
+        case 'hardcore':
+          serverProperties['hardcore'] = value.toString();
+          break;
+        case 'allowFlight':
+          serverProperties['allow-flight'] = value.toString();
+          break;
+        case 'allowNether':
+          serverProperties['allow-nether'] = value.toString();
+          break;
+        case 'allowEnd':
+          serverProperties['allow-end'] = value.toString();
+          break;
+        case 'enforceWhitelist':
+          serverProperties['enforce-whitelist'] = value.toString();
+          break;
+        case 'spawnProtection':
+          serverProperties['spawn-protection'] = value.toString();
+          break;
+        case 'functionPermissionLevel':
+          serverProperties['function-permission-level'] = value.toString();
+          break;
+        case 'rateLimit':
+          serverProperties['rate-limit'] = value.toString();
+          break;
+        case 'networkCompressionThreshold':
+          serverProperties['network-compression-threshold'] = value.toString();
+          break;
+        case 'maxTickTime':
+          serverProperties['max-tick-time'] = value.toString();
+          break;
+        case 'maxChainedNeighborUpdates':
+          serverProperties['max-chained-neighbor-updates'] = value.toString();
+          break;
+        case 'maxThreads':
+          serverProperties['max-threads'] = value.toString();
+          break;
+        case 'useNativeTransport':
+          serverProperties['use-native-transport'] = value.toString();
+          break;
+        case 'enableJmxMonitoring':
+          serverProperties['enable-jmx-monitoring'] = value.toString();
+          break;
+        case 'syncChunkWrites':
+          serverProperties['sync-chunk-writes'] = value.toString();
+          break;
+        case 'enableStatus':
+          serverProperties['enable-status'] = value.toString();
+          break;
+        case 'hideOnlinePlayers':
+          serverProperties['hide-online-players'] = value.toString();
+          break;
+        case 'logIps':
+          serverProperties['log-ips'] = value.toString();
+          break;
+        case 'preventProxyConnections':
+          serverProperties['prevent-proxy-connections'] = value.toString();
+          break;
+        case 'enforceSecureProfile':
+          serverProperties['enforce-secure-profile'] = value.toString();
+          break;
+        case 'requireResourcePack':
+          serverProperties['require-resource-pack'] = value.toString();
+          break;
+        case 'resourcePackPrompt':
+          serverProperties['resource-pack-prompt'] = value;
+          break;
+        case 'resourcePackSha1':
+          serverProperties['resource-pack-sha1'] = value;
+          break;
+        case 'resourcePackUrl':
+          serverProperties['resource-pack-url'] = value;
+          break;
+      }
+      
+      // Update server.properties file
+      if (Object.keys(serverProperties).length > 0) {
+        await updateServerProperties(serverId, serverProperties);
+      }
+    } catch (error) {
+      console.error('Failed to update server properties:', error);
+    }
   };
 
   const getValidationStatus = (key: keyof GeneralSettingsData) => {

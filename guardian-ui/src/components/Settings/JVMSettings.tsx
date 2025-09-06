@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useServersStore } from '@/store/servers';
 import { Button } from '@/components/ui/button';
-// Badge import removed - not used
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -78,6 +79,13 @@ interface JVMSettingsData {
 }
 
 export const JVMSettings: React.FC = () => {
+  const { id: serverId } = useParams<{ id: string }>();
+  const { 
+    fetchServerJVMArgs, 
+    updateServerJVMArgs,
+    serverSettings 
+  } = useServersStore();
+  
   const [settings, setSettings] = useState<JVMSettingsData>({
     // Memory Settings
     initialHeapSize: '2G',
@@ -138,15 +146,13 @@ export const JVMSettings: React.FC = () => {
   // Loading and changes tracking removed for now
 
   const fetchSettings = async () => {
-    // Loading state removed for now
+    if (!serverId) return;
+    
     try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      // Changes tracking removed for now
+      // Load server JVM configuration
+      await fetchServerJVMArgs(serverId);
     } catch (error) {
       console.error('Failed to fetch JVM settings:', error);
-    } finally {
-      // Loading state removed for now
     }
   };
 
@@ -154,9 +160,41 @@ export const JVMSettings: React.FC = () => {
     fetchSettings();
   }, []);
 
-  const handleSettingChange = (key: keyof JVMSettingsData, value: any) => {
+  // Sync settings with server store data
+  useEffect(() => {
+    if (serverId && serverSettings[serverId]) {
+      const serverData = serverSettings[serverId];
+      if (serverData.jvm) {
+        setSettings(prev => ({
+          ...prev,
+          ...serverData.jvm,
+        }));
+      }
+    }
+  }, [serverId, serverSettings]);
+
+  const handleSettingChange = async (key: keyof JVMSettingsData, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }));
-    // Changes tracking removed for now
+    
+    if (!serverId) return;
+    
+    try {
+      // Update JVM arguments
+      if (key === 'customJvmArgs' || key === 'additionalArgs' || key === 'gcTuning' || key === 'flightRecorderOptions' || key === 'customFlags') {
+        // These are JVM arguments that need to be updated
+        const currentArgs = settings.customJvmArgs ? settings.customJvmArgs.split(' ') : [];
+        const additionalArgs = settings.additionalArgs ? settings.additionalArgs.split(' ') : [];
+        const gcTuning = settings.gcTuning ? settings.gcTuning.split(' ') : [];
+        const flightRecorder = settings.flightRecorderOptions ? settings.flightRecorderOptions.split(' ') : [];
+        const customFlags = settings.customFlags ? settings.customFlags.split(' ') : [];
+        
+        const allArgs = [...currentArgs, ...additionalArgs, ...gcTuning, ...flightRecorder, ...customFlags].filter(Boolean);
+        
+        await updateServerJVMArgs(serverId, allArgs);
+      }
+    } catch (error) {
+      console.error('Failed to update JVM settings:', error);
+    }
   };
 
   const getValidationStatus = (key: keyof JVMSettingsData) => {

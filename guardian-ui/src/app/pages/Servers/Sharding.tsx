@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { useServersStore } from '@/store/servers';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -8,6 +10,7 @@ import { RefreshCw, AlertTriangle, CheckCircle, XCircle, Plus, Settings } from '
 import { ShardingTopology } from '@/components/Sharding/ShardingTopology';
 import { ShardingAssignment } from '@/components/Sharding/ShardingAssignment';
 import { ShardingWarnings } from '@/components/Sharding/ShardingWarnings';
+import { ErrorEmptyState } from '@/components/ui/EmptyState';
 
 interface ShardingStats {
   totalShards: number;
@@ -20,6 +23,9 @@ interface ShardingStats {
 }
 
 export const Sharding: React.FC = () => {
+  const { id: serverId } = useParams<{ id: string }>();
+  const { getServerById } = useServersStore();
+  const server = serverId ? getServerById(serverId) : null;
   const [activeTab, setActiveTab] = useState('topology');
   const [stats, setStats] = useState<ShardingStats>({
     totalShards: 0,
@@ -76,6 +82,17 @@ export const Sharding: React.FC = () => {
   };
 
   const healthStatus = getHealthStatus();
+
+  if (!server) {
+    return (
+      <div className="p-6">
+        <ErrorEmptyState
+          title="No server selected"
+          description="Please select a server from the sidebar to view its sharding configuration."
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col space-y-6">

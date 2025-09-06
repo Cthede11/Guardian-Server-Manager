@@ -1,0 +1,19 @@
+
+thread 'main' panicked at C:\Users\cthed\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wgpu-0.19.4\src\backend\wgpu_core.rs:3006:5:
+wgpu error: Validation Error
+
+Caused by:
+    In Device::create_shader_module
+      note: label = `Chunk Generator Shader`
+    
+Shader 'Chunk Generator Shader' parsing error: no definition in scope for identifier: 'u64'
+   ┌─ wgsl:58:63
+   │
+58 │         value += noise2d(x * frequency, z * frequency, seed + u64(i)) * amplitude;
+   │                                                               ^^^ unknown identifier
+
+
+    no definition in scope for identifier: 'u64'
+
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

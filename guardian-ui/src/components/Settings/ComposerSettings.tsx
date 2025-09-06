@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-// Unused imports removed
-// import { Button } from '@/components/ui/button';
-// import { Badge } from '@/components/ui/badge';
+import { useServersStore } from '@/store/servers';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -63,6 +62,13 @@ interface ComposerSettingsData {
 }
 
 export const ComposerSettings: React.FC = () => {
+  const { id: serverId } = useParams<{ id: string }>();
+  const { 
+    fetchServerConfig, 
+    updateServerConfig,
+    serverSettings 
+  } = useServersStore();
+  
   const [settings, setSettings] = useState<ComposerSettingsData>({
     // Composer Settings
     enableComposer: true,
@@ -108,15 +114,13 @@ export const ComposerSettings: React.FC = () => {
   // Loading and changes tracking removed for now
 
   const fetchSettings = async () => {
-    // Loading state removed for now
+    if (!serverId) return;
+    
     try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      // Changes tracking removed for now
+      // Load server configuration
+      await fetchServerConfig(serverId);
     } catch (error) {
       console.error('Failed to fetch composer settings:', error);
-    } finally {
-      // Loading state removed for now
     }
   };
 
@@ -124,9 +128,35 @@ export const ComposerSettings: React.FC = () => {
     fetchSettings();
   }, []);
 
-  const handleSettingChange = (key: keyof ComposerSettingsData, value: any) => {
+  // Sync settings with server store data
+  useEffect(() => {
+    if (serverId && serverSettings[serverId]) {
+      const serverData = serverSettings[serverId];
+      if (serverData.composer) {
+        setSettings(prev => ({
+          ...prev,
+          ...serverData.composer,
+        }));
+      }
+    }
+  }, [serverId, serverSettings]);
+
+  const handleSettingChange = async (key: keyof ComposerSettingsData, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }));
-    // Changes tracking removed for now
+    
+    if (!serverId) return;
+    
+    try {
+      // Update server configuration
+      await updateServerConfig(serverId, {
+        composer: {
+          ...settings,
+          [key]: value
+        }
+      });
+    } catch (error) {
+      console.error('Failed to update composer settings:', error);
+    }
   };
 
   const getValidationStatus = (key: keyof ComposerSettingsData) => {

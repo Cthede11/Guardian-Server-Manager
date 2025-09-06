@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { useServersStore } from '@/store/servers';
+import { api } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -28,6 +31,7 @@ import {
 import { CrashSignaturesTable } from '@/components/Diagnostics/CrashSignaturesTable';
 import { CreateBundleModal } from '@/components/Diagnostics/CreateBundleModal';
 import { SystemHealth } from '@/components/Diagnostics/SystemHealth';
+import { ErrorEmptyState } from '@/components/ui/EmptyState';
 
 interface DiagnosticStats {
   totalCrashes: number;
@@ -41,6 +45,9 @@ interface DiagnosticStats {
 }
 
 export const Diagnostics: React.FC = () => {
+  const { id: serverId } = useParams<{ id: string }>();
+  const { getServerById } = useServersStore();
+  const server = serverId ? getServerById(serverId) : null;
   const [activeTab, setActiveTab] = useState('crashes');
   const [stats, setStats] = useState<DiagnosticStats>({
     totalCrashes: 0,
@@ -58,23 +65,36 @@ export const Diagnostics: React.FC = () => {
   const fetchStats = async () => {
     setIsLoading(true);
     try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setStats({
-        totalCrashes: 23,
-        criticalCrashes: 3,
-        resolvedCrashes: 18,
-        systemHealth: 87,
-        lastCrash: new Date(Date.now() - 3600000).toISOString(),
-        averageUptime: 99.2,
-        memoryLeaks: 2,
-        performanceIssues: 5
-      });
+      const response = await api.getDiagnostics(serverId || '');
+      if (response.ok && response.data) {
+        setStats(response.data as DiagnosticStats);
+      } else {
+        console.error('Failed to fetch diagnostic stats:', response.error);
+        setStats({
+          totalCrashes: 0,
+          criticalCrashes: 0,
+          resolvedCrashes: 0,
+          systemHealth: 0,
+          lastCrash: 'Never',
+          averageUptime: 0,
+          memoryLeaks: 0,
+          performanceIssues: 0
+        });
+      }
       
       setLastRefresh(new Date());
     } catch (error) {
       console.error('Failed to fetch diagnostic stats:', error);
+      setStats({
+        totalCrashes: 0,
+        criticalCrashes: 0,
+        resolvedCrashes: 0,
+        systemHealth: 0,
+        lastCrash: 'Never',
+        averageUptime: 0,
+        memoryLeaks: 0,
+        performanceIssues: 0
+      });
     } finally {
       setIsLoading(false);
     }
@@ -113,6 +133,17 @@ export const Diagnostics: React.FC = () => {
   };
 
   const uptimeTrend = getUptimeTrend(stats.averageUptime);
+
+  if (!server) {
+    return (
+      <div className="p-6">
+        <ErrorEmptyState
+          title="No server selected"
+          description="Please select a server from the sidebar to view its diagnostics."
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col space-y-6">

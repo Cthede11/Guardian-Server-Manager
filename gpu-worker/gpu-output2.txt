@@ -1,0 +1,15 @@
+[2m2025-09-06T15:15:55.774684Z[0m [32m INFO[0m [2mgpu_worker[0m[2m:[0m Starting GPU Worker...
+[2m2025-09-06T15:15:55.775854Z[0m [32m INFO[0m [2mgpu_worker[0m[2m:[0m Initializing GPU worker...
+[2m2025-09-06T15:15:55.902127Z[0m [32m INFO[0m [2mwgpu_hal::vulkan::instance[0m[2m:[0m Debug utils not enabled: debug_utils_user_data not passed to Instance::from_raw
+[2m2025-09-06T15:15:56.092386Z[0m [32m INFO[0m [2mwgpu_core::instance[0m[2m:[0m Adapter Vulkan AdapterInfo { name: "NVIDIA GeForce RTX 4070 SUPER", vendor: 4318, device: 10115, device_type: DiscreteGpu, driver: "NVIDIA", driver_info: "580.97", backend: Vulkan }
+[2m2025-09-06T15:15:56.129294Z[0m [32m INFO[0m [2mgpu_worker[0m[2m:[0m WebGPU adapter: AdapterInfo { name: "NVIDIA GeForce RTX 4070 SUPER", vendor: 4318, device: 10115, device_type: DiscreteGpu, driver: "NVIDIA", driver_info: "580.97", backend: Vulkan }
+[2m2025-09-06T15:15:56.165380Z[0m [32m INFO[0m [2mgpu_worker[0m[2m:[0m WebGPU device initialized successfully
+[2m2025-09-06T15:15:56.166388Z[0m [31mERROR[0m [2mwgpu_core::device::global[0m[2m:[0m Device::create_shader_module error: 
+Shader 'Chunk Generator Shader' parsing error: expected ';', found '{'
+    ┌─ wgsl:141:54
+    │
+141 │         output.mask_data[index] = if (density > 0.0) { 1u } else { 0u };
+    │                                                      ^ expected ';'
+
+
+[2m2025-09-06T15:15:56.166587Z[0m [31mERROR[0m [2mwgpu::backend::wgpu_core[0m[2m:[0m Handling wgpu errors as fatal by default

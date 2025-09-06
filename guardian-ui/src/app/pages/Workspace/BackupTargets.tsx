@@ -70,75 +70,7 @@ interface BackupTargetData {
 }
 
 export const BackupTargets: React.FC = () => {
-  const [targets, setTargets] = useState<BackupTargetData[]>([
-    {
-      id: '1',
-      name: 'Local Storage',
-      description: 'Local disk storage for backups',
-      type: 'local',
-      status: 'active',
-      endpoint: '/opt/guardian/backups',
-      credentials: {},
-      settings: {
-        path: '/opt/guardian/backups',
-        compression: true,
-        encryption: false,
-        retention: 30,
-        maxSize: '100G',
-        chunkSize: '64M',
-        threads: 4,
-        timeout: 300,
-        retries: 3
-      },
-      health: {
-        lastTested: '2024-01-15T10:30:00Z',
-        lastBackup: '2024-01-15T09:00:00Z',
-        totalBackups: 45,
-        totalSize: '2.3T',
-        availableSpace: '500G',
-        responseTime: 5,
-        successRate: 99.8
-      },
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-15T10:30:00Z'
-    },
-    {
-      id: '2',
-      name: 'AWS S3 Bucket',
-      description: 'Amazon S3 bucket for cloud backups',
-      type: 's3',
-      status: 'active',
-      endpoint: 's3://guardian-backups',
-      credentials: {
-        accessKey: 'AKIAIOSFODNN7EXAMPLE',
-        secretKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
-      },
-      settings: {
-        bucket: 'guardian-backups',
-        region: 'us-east-1',
-        path: '/backups',
-        compression: true,
-        encryption: true,
-        retention: 90,
-        maxSize: '1T',
-        chunkSize: '128M',
-        threads: 8,
-        timeout: 600,
-        retries: 5
-      },
-      health: {
-        lastTested: '2024-01-15T10:25:00Z',
-        lastBackup: '2024-01-15T08:30:00Z',
-        totalBackups: 120,
-        totalSize: '5.7T',
-        availableSpace: 'Unlimited',
-        responseTime: 150,
-        successRate: 99.5
-      },
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-15T10:25:00Z'
-    }
-  ]);
+  const [targets, setTargets] = useState<BackupTargetData[]>([]);
 
   // const [isLoading, setIsLoading] = useState(false);
   // const [hasChanges, setHasChanges] = useState(false);
