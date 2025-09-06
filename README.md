@@ -1,270 +1,230 @@
-# Guardian - Enterprise Minecraft Server Hosting Platform
+# Guardian - Minecraft Server Management Platform
 
-A comprehensive, production-ready hosting platform designed specifically for modded Minecraft servers. Guardian provides non-destructive crash prevention, GPU-accelerated world generation, intelligent mod compatibility management, multi-tenancy, AI-powered predictive analytics, and enterprise-grade security.
+A comprehensive server management platform designed for modded Minecraft servers. Guardian provides server administration tools, mod management capabilities, and real-time monitoring through a modern desktop application.
 
-## 🌟 Key Features
+## Current Features
 
-### 🛡️ Non-Destructive Stability
-- **Freeze/Quarantine System**: Instead of deleting problematic entities or blocks, Guardian freezes them and logs repair tickets
-- **SafeTick Wrappers**: Prevents crashes by intercepting dangerous ticks without data loss
-- **Automatic Thaw**: Reintroduces frozen objects once compatibility patches are applied
+### Desktop Application
+- **Cross-Platform Desktop App**: Built with Tauri for Windows, macOS, and Linux
+- **Modern User Interface**: React-based UI with TypeScript and Vite
+- **Theme System**: Dark/light themes with multiple color schemes
+- **Server Management**: Real-time server monitoring and control
+- **Settings Management**: Comprehensive configuration options
+- **Error Handling**: Robust error boundaries and user feedback
 
-### ⚡ GPU Acceleration
-- **Chunk Generation**: Offloads density/noise calculations and terrain generation to GPU
-- **World Supervisor**: GPU-powered batch scans for anomaly detection and hotspot analysis
-- **Deterministic Results**: Ensures identical output across different hardware configurations
+### Mod Management
+- **API Integration**: Direct integration with CurseForge and Modrinth APIs
+- **Visual Mod Browser**: Tile-based interface for browsing mods
+- **Comprehensive Version Support**: Support for Minecraft versions 1.12.2 through 1.21.1
+- **Smart Search**: Advanced filtering by version, loader, and category
+- **Direct Downloads**: Links to official mod platforms for downloads
+- **API Key Management**: Secure storage and validation of API keys
 
-### 🔧 Mod Compatibility Engine
-- **Runtime Patching**: Applies compatibility fixes without redistributing modified mods
-- **License-Aware**: Respects mod licenses, only bakes patches when permitted
-- **Rules DSL**: YAML-based configuration for managing mod conflicts and fixes
+### Server Administration
+- **Server Creation**: Wizard-based server setup process
+- **Server Monitoring**: Real-time status and performance tracking
+- **Server Deletion**: Complete cleanup including file system removal
+- **Folder Management**: Direct access to server directories
+- **Configuration Management**: YAML-based server configuration
 
-### 📦 Advanced Modpack Management
-- **Visual Mod Browser**: Tile-based interface for browsing mods from CurseForge and Modrinth
-- **Real-Time API Integration**: Direct integration with CurseForge and Modrinth APIs
-- **Comprehensive Version Support**: Support for Minecraft versions 1.12.2 through latest (1.21.1+)
-- **Mod Compatibility Database**: Community-driven compatibility information and conflict resolution
-- **Smart Mod Search**: Advanced filtering by version, loader, category, and compatibility
-- **One-Click Installation**: Direct download links to official mod platforms
-- **Modpack Creation Tools**: Build custom modpacks with dependency resolution
+### Backend Services
+- **Rust Backend**: High-performance server management daemon
+- **Database Integration**: SQLite database for persistent storage
+- **API Endpoints**: RESTful API for frontend communication
+- **Process Management**: Child process supervision and management
+- **File System Operations**: Cross-platform file management
 
-### 🚀 High Availability
-- **Watchdog Supervision**: Automatic crash detection and instant restart
-- **Blue/Green Deployments**: Zero-downtime updates with automatic rollback
-- **Snapshot System**: Journaling saves with deduplicated backups
+## In Development
 
-### 🏢 Multi-Tenancy
-- **Isolated Instances**: Complete resource isolation between tenants
-- **Scalable Architecture**: Support for hundreds of concurrent server instances
-- **Resource Management**: CPU, memory, disk, and network quotas per tenant
-- **Tenant Administration**: Self-service portal for tenant management
+### Advanced Server Features
+- **GPU Acceleration**: Offload world generation to GPU using wgpu
+- **Crash Prevention**: Non-destructive freeze/quarantine system for problematic entities
+- **Mod Compatibility Engine**: Runtime patching and conflict resolution
+- **Multi-Tenancy**: Support for multiple isolated server instances
+- **Plugin System**: Hot-reloadable plugins with sandboxed execution
 
-### 🔌 Plugin System
-- **Hot-Reloading**: Install and update plugins without server restart
-- **Sandboxed Execution**: Secure plugin isolation with resource limits
-- **Event System**: Plugin communication through event bus
-- **API Access**: Comprehensive API for plugin development
-
-### 🔗 Webhook Integration
-- **Event Notifications**: Real-time webhook delivery for server events
-- **Retry Logic**: Automatic retry with exponential backoff
-- **Signature Verification**: HMAC-SHA256 signature validation
-- **Delivery Tracking**: Complete audit trail of webhook deliveries
-
-### 📊 Compliance & Security
-- **GDPR Compliance**: Data protection and privacy controls
-- **SOC2 Ready**: Security and compliance framework
-- **Audit Logging**: Comprehensive audit trails
-- **Data Retention**: Automated data lifecycle management
-
-### 🌐 Community Features
-- **Mod Database**: Community-driven mod compatibility information
-- **Sharing Platform**: Share configurations, mod packs, and rules
-- **Compatibility Reports**: Crowdsourced mod compatibility testing
-- **Rating System**: Community ratings and reviews
-
-### 🤖 AI-Powered Analytics
+### AI and Analytics
 - **Crash Prediction**: ML-based crash probability prediction
 - **Performance Optimization**: Automated performance tuning
 - **Anomaly Detection**: Real-time anomaly detection and alerting
-- **Recommendation Engine**: Personalized optimization recommendations
+- **Predictive Maintenance**: Proactive server health management
 
-### 🖥️ Modern Desktop Application
-- **Cross-Platform Desktop App**: Built with Tauri for Windows, macOS, and Linux
-- **Intuitive User Interface**: Modern, responsive design with dark/light themes
-- **Real-Time Server Management**: Live server monitoring and control
-- **API Key Management**: Secure storage and validation of CurseForge/Modrinth API keys
-- **Theme Customization**: Multiple color schemes and theme options
-- **Error Handling**: Comprehensive error boundaries and user feedback
-- **Offline Capability**: Core functionality works without internet connection
+### Enterprise Features
+- **High Availability**: Watchdog supervision and automatic restart
+- **Blue/Green Deployments**: Zero-downtime updates
+- **Compliance**: GDPR, SOC2, and audit logging
+- **Webhook Integration**: Real-time event notifications
+- **Community Features**: Mod compatibility database and sharing
 
 ## Architecture
 
 ```
 ┌─────────────┐    ┌──────────────┐    ┌─────────────┐
-│   Players   │───▶│ MC Server    │───▶│ GPU Worker  │
-│             │    │ (NeoForge)   │    │ (Rust/wgpu) │
+│   Desktop   │───▶│   Backend    │───▶│   Database   │
+│   App       │    │   (Rust)     │    │   (SQLite)  │
 └─────────────┘    └──────┬───────┘    └─────────────┘
                           │
                     ┌─────▼─────┐
-                    │ Guardian  │
-                    │ Agent     │
-                    │ (Java)    │
-                    └─────┬─────┘
-                          │
-                    ┌─────▼─────┐
-                    │ Host      │
-                    │ Daemon    │
-                    │ (Rust)    │
-                    └─────┬─────┘
-                          │
-        ┌─────────────────┼─────────────────┐
-        │                 │                 │
-   ┌────▼────┐      ┌─────▼─────┐      ┌────▼────┐
-   │ Multi-  │      │   AI/ML   │      │Community│
-   │Tenancy  │      │ Analytics │      │Features │
-   └─────────┘      └───────────┘      └─────────┘
-        │                 │                 │
-   ┌────▼────┐      ┌─────▼─────┐      ┌────▼────┐
-   │Plugins  │      │Compliance │      │Webhooks │
-   │System   │      │& Security │      │& Events │
-   └─────────┘      └───────────┘      └─────────┘
+                    │  Minecraft │
+                    │  Server    │
+                    │  Process   │
+                    └────────────┘
 ```
 
 ## Quick Start
 
-1. **Clone and Setup**
+### Prerequisites
+- Node.js 18+ and npm
+- Rust 1.70+
+- Git
+
+### Installation
+
+1. **Clone the Repository**
    ```bash
    git clone https://github.com/Cthede11/Guardian-Server-Manager.git
    cd Guardian-Server-Manager
-   chmod +x scripts/build.sh
-   ./scripts/build.sh
    ```
 
-2. **Configure API Keys**
-   - **CurseForge API**: Get your API key from [CurseForge Developer Portal](https://docs.curseforge.com/#authentication)
-   - **Modrinth API**: Get your token from [Modrinth Settings](https://modrinth.com/settings/tokens) (optional)
-   - **Desktop App**: Open Settings → API Keys to configure your keys
-   - **Detailed Guide**: See [API_SETUP.md](API_SETUP.md) for step-by-step instructions
-
-3. **Configure Your Server**
+2. **Install Dependencies**
    ```bash
-   # Edit server.yaml with your modpack details
-   nano configs/server.yaml
+   # Install frontend dependencies
+   cd guardian-ui
+   npm install
    
-   # Edit rules.yaml for mod compatibility
-   nano configs/rules.yaml
+   # Install backend dependencies
+   cd ../hostd
+   cargo build --release
    ```
 
-4. **Start the Platform**
+3. **Configure API Keys**
+   - Get CurseForge API key from [CurseForge Developer Portal](https://docs.curseforge.com/#authentication)
+   - Get Modrinth token from [Modrinth Settings](https://modrinth.com/settings/tokens) (optional)
+   - Configure in the desktop app: Settings → API Keys
+
+4. **Build and Run**
    ```bash
-   # Using Docker Compose (Recommended)
-   docker-compose up -d
+   # Build the desktop application
+   cd guardian-ui
+   npm run tauri build
    
-   # Or manually
-   cd guardian-dist
-   ./start.sh
+   # Run the backend server
+   cd ../hostd
+   cargo run --release
    ```
 
-5. **Access Services**
-   - **Desktop Application**: Launch Guardian.exe (Windows) or Guardian.app (macOS)
-   - **Web Dashboard**: http://localhost:8080
-   - **API Documentation**: http://localhost:8080/docs
-   - **Prometheus Metrics**: http://localhost:9090
-   - **Grafana Dashboard**: http://localhost:3000 (admin/admin)
-   - **Minecraft Server**: localhost:25565
+5. **Launch the Application**
+   - Windows: Run `Guardian.exe` from the build output
+   - macOS: Run `Guardian.app` from the build output
+   - Linux: Run the generated binary
 
-### Default Credentials
-- **Admin Username**: admin
-- **Admin Password**: admin123
-- **Grafana**: admin/admin
+## API Requirements
 
-### API Requirements
 - **CurseForge API Key**: Required for mod browsing and search functionality
-- **Modrinth API Token**: Optional but recommended for higher rate limits (300 req/min)
+- **Modrinth API Token**: Optional but recommended for higher rate limits
 - **Rate Limits**: 
-  - CurseForge: 100 requests/minute
-  - Modrinth: 300 requests/minute (same with or without token)
-- **Compliance**: Full compliance with CurseForge 3rd Party API Terms and Conditions
+  - CurseForge: 100 requests per minute
+  - Modrinth: 300 requests per minute
 
-## Components
+## Project Structure
 
-- **guardian-ui/**: Cross-platform desktop application built with React, TypeScript, and Tauri
-- **guardian-agent/**: Java/Kotlin agent with NeoForge/Forge integration
-- **gpu-worker/**: Rust sidecar using wgpu for GPU acceleration
-- **hostd/**: Rust host daemon with multi-tenancy, plugins, webhooks, compliance, community features, and AI analytics
-- **configs/**: Configuration templates and example rules
-- **docs/**: Comprehensive documentation including API specs and production deployment guides
-- **tests/**: Unit tests, integration tests, and performance tests
-- **monitoring/**: Prometheus and Grafana configurations
-
-### Desktop Application Features
-
-- **Modern UI Framework**: Built with React 18, TypeScript, and Vite
-- **Cross-Platform**: Tauri-based desktop app for Windows, macOS, and Linux
-- **Theme System**: Dark/light themes with multiple color schemes
-- **API Integration**: Direct integration with CurseForge and Modrinth APIs
-- **Mod Management**: Visual mod browser with tile-based interface
-- **Server Management**: Real-time server monitoring and control
-- **Settings Management**: Comprehensive configuration options
-- **Error Handling**: Robust error boundaries and user feedback
-
-## Production Features
-
-### 🔐 Security & Authentication
-- JWT-based authentication with role-based access control
-- Rate limiting and API security
-- Multi-factor authentication support
-- Audit logging and compliance reporting
-
-### 🏢 Enterprise Multi-Tenancy
-- Complete tenant isolation with resource quotas
-- Self-service tenant management portal
-- Scalable architecture supporting hundreds of instances
-- Resource monitoring and alerting
-
-### 🔌 Extensible Plugin System
-- Hot-reloadable plugins with sandboxed execution
-- Event-driven plugin communication
-- Comprehensive plugin API
-- Plugin marketplace and sharing
-
-### 📡 Webhook & Integration Platform
-- Real-time event notifications
-- Retry logic with exponential backoff
-- HMAC signature verification
-- Complete delivery audit trails
-
-### 📊 Compliance & Data Protection
-- GDPR, SOC2, and HIPAA compliance frameworks
-- Automated data retention policies
-- Consent management system
-- Privacy controls and data anonymization
-
-### 🌐 Community Platform
-- Mod compatibility database
-- Configuration and mod pack sharing
-- Community ratings and reviews
-- Crowdsourced compatibility testing
-
-### 🤖 AI-Powered Intelligence
-- Machine learning crash prediction
-- Automated performance optimization
-- Real-time anomaly detection
-- Personalized recommendations
-
-## Documentation
-
-- **[API Documentation](docs/api/openapi.yaml)**: Complete OpenAPI 3.0 specification
-- **[Production Deployment Guide](docs/PRODUCTION_DEPLOYMENT.md)**: Enterprise deployment instructions
-- **[Development Guide](DEVELOPMENT.md)**: Development setup and contribution guidelines
-- **[Architecture Overview](docs/ARCHITECTURE.md)**: Detailed system architecture
+```
+Guardian-Server-Manager/
+├── guardian-ui/          # Desktop application (React + Tauri)
+├── hostd/                # Backend server (Rust)
+├── gpu-worker/           # GPU acceleration worker (Rust + wgpu)
+├── guardian-agent/       # Minecraft server agent (Java)
+├── configs/              # Configuration templates
+├── docs/                 # Documentation
+├── scripts/              # Build and deployment scripts
+└── monitoring/           # Prometheus and Grafana configs
+```
 
 ## Development
 
-See [DEVELOPMENT.md](DEVELOPMENT.md) for detailed development setup and contribution guidelines.
+### Frontend Development
+```bash
+cd guardian-ui
+npm run dev
+```
 
-## 📁 Project Structure
+### Backend Development
+```bash
+cd hostd
+cargo run
+```
 
-- **`launchers/`** - All launcher scripts and desktop shortcut tools
-- **`tools/`** - Build tools, installers, and cleanup utilities  
-- **`guardian-ui/`** - Tauri desktop application
-- **`hostd/`** - Backend service (Rust)
-- **`gpu-worker/`** - GPU acceleration service (Rust)
-- **`configs/`** - Configuration files
+### Building
+```bash
+# Build desktop application
+cd guardian-ui
+npm run tauri build
 
-## 🖥️ Desktop App Usage
+# Build backend
+cd ../hostd
+cargo build --release
+```
 
-### Quick Launch
-Double-click `Launch-Guardian.bat` in the project root to start Guardian with backend services.
+## Configuration
 
-### Advanced Launch
-Run `launchers\start-guardian-with-backend.ps1` for detailed output and error handling.
+### Server Configuration
+Edit `configs/server.yaml` to configure server settings:
+```yaml
+name: "My Server"
+version: "1.21.1"
+loader: "vanilla"
+max_players: 20
+memory: 4096
+```
 
-### Desktop Shortcut
-Run `launchers\create-desktop-shortcut.ps1` to create a desktop shortcut.
+### API Configuration
+Configure API keys in the desktop application:
+1. Open Settings → API Keys
+2. Enter your CurseForge API key
+3. Enter your Modrinth token (optional)
+4. Test and save configuration
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
 
 ## License
 
-This project is licensed under the MIT License - see [LICENSE](LICENSE) for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+## Support
+
+- **Documentation**: See the [docs/](docs/) directory
+- **Issues**: Report bugs via GitHub Issues
+- **Discussions**: Use GitHub Discussions for questions
+- **API Setup**: See [API_SETUP.md](API_SETUP.md) for detailed API configuration
+
+## Roadmap
+
+### Phase 1 (Current)
+- Desktop application with basic server management
+- Mod browsing and search functionality
+- API integration with CurseForge and Modrinth
+- Server creation and deletion
+
+### Phase 2 (In Development)
+- GPU acceleration for world generation
+- Advanced mod compatibility features
+- Plugin system for extensibility
+- Multi-tenant architecture
+
+### Phase 3 (Planned)
+- AI-powered analytics and predictions
+- Enterprise features and compliance
+- Community features and sharing
+- Advanced monitoring and alerting
+
+## Status
+
+**Current Version**: 1.0.0-alpha
+**Development Status**: Active development
+**Last Updated**: January 2025
