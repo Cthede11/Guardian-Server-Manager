@@ -1,0 +1,85 @@
+# Guardian Server Configuration
+# This file configures the Guardian Agent for your Minecraft server
+
+minecraft:
+  loader: neoforge
+  version: "1.20.1"
+  java:
+    heap_gb: 10
+    flags: g1gc-balanced
+    # Additional JVM flags can be added here
+    extra_flags: []
+
+paths:
+  mods_dir: "./mods"
+  config_dir: "./config"
+  world_dir: "./world"
+  backup_dir: "./backups"
+
+compat:
+  rules_file: "./configs/rules.yaml"
+  allow_bake_for_permissive_licenses: false
+  auto_apply_rules: true
+  rule_refresh_interval_minutes: 5
+
+self_heal:
+  entity_freeze_threshold: 3
+  block_entity_freeze_threshold: 3
+  quarantine_dimension: "guardian_hold"
+  thaw_on_rule_update: true
+  max_frozen_entities: 1000
+  max_frozen_block_entities: 500
+
+gpu:
+  enabled: true
+  worker_ipc: "shm"  # shm, tcp, or unix
+  batch_size_chunks: 64
+  max_cache_size: 1000
+  health_check_interval_seconds: 60
+  fallback_to_cpu: true
+
+worldgen:
+  gpu_acceleration: true
+  async_generation: true
+  pregeneration_enabled: false
+  pregeneration_radius: 1000
+  pregeneration_threads: 4
+
+ha:
+  autosave_minutes: 5
+  snapshot_keep: 24
+  blue_green: true
+  rollback_on_failure: true
+  max_restart_attempts: 3
+  restart_delay_seconds: 10
+
+monitoring:
+  metrics_enabled: true
+  metrics_port: 9090
+
+  log_level: "INFO"
+  crash_reporting: true
+
+performance:
+  tick_time_warning_ms: 50
+  tick_time_critical_ms: 100
+  memory_warning_percent: 80
+  memory_critical_percent: 90
+  gc_optimization: true
+
+# Mod-specific configurations
+mod_configs:
+  create:
+    # Create mod specific settings
+    contraption_optimization: true
+    flywheel_integration: true
+  
+  flywheel:
+    # Flywheel specific settings
+    render_optimization: true
+    batching_enabled: true
+  
+  embeddium:
+    # Embeddium specific settings
+    render_optimization: true
+    shader_optimization: true

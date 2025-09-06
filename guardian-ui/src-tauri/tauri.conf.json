@@ -46,9 +46,9 @@
     "shortDescription": "Professional Minecraft Server Management",
     "longDescription": "Guardian is a professional Minecraft server management application with advanced monitoring, automation, and optimization features.",
     "resources": [
-      "../../hostd/target/release/hostd.exe",
-      "../../gpu-worker/target/release/gpu-worker.exe",
-      "../../configs"
+      "hostd.exe",
+      "gpu-worker.exe",
+      "configs"
     ],
     "windows": {
       "certificateThumbprint": null,

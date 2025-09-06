@@ -164,7 +164,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = SocketAddr::from(([0, 0, 0, 0], args.port));
     info!("🌐 Starting HTTP server on {}", addr);
     
-    let server_handle = tokio::spawn(async move {
+    let mut server_handle = tokio::spawn(async move {
         let listener = match TcpListener::bind(&addr).await {
             Ok(listener) => {
                 info!("✅ HTTP server listening on {}", addr);
@@ -189,7 +189,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     
     // Start the main daemon loop
-    let daemon_handle = tokio::spawn(async move {
+    let mut daemon_handle = tokio::spawn(async move {
         info!("🔄 Starting daemon services...");
         
         // Start health monitoring

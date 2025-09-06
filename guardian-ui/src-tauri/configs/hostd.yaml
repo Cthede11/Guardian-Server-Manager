@@ -1,0 +1,113 @@
+# Guardian Host Daemon Configuration
+server:
+  name: "Guardian Host Daemon"
+  version: "1.0.0"
+  environment: "production"
+
+# Database configuration
+database:
+  url: "sqlite:./guardian.db"
+  max_connections: 10
+  connection_timeout: 30
+
+# WebSocket configuration
+websocket:
+  enabled: true
+  port: 8080
+  max_connections: 100
+  ping_interval: 30
+  pong_timeout: 10
+
+# Minecraft server management
+minecraft:
+  loader: "vanilla"
+  version: "1.20.1"
+  java:
+    heap_gb: 4
+    flags: "-Xmx4G -Xms2G -XX:+UseG1GC"
+    extra_flags: []
+
+# Paths configuration
+paths:
+  mods_dir: "data/servers"
+  config_dir: "configs"
+  world_dir: "data/servers"
+  backup_dir: "data/backups"
+
+# Compatibility configuration
+compat:
+  rules_file: "configs/rules.yaml"
+  allow_bake_for_permissive_licenses: true
+  auto_apply_rules: true
+  rule_refresh_interval_minutes: 30
+
+# Self-heal configuration
+self_heal:
+  entity_freeze_threshold: 100
+  block_entity_freeze_threshold: 50
+  quarantine_dimension: "quarantine"
+  thaw_on_rule_update: true
+  max_frozen_entities: 1000
+  max_frozen_block_entities: 500
+
+# GPU worker configuration
+gpu:
+  enabled: false
+  worker_ipc: "gpu-worker.exe"
+  batch_size_chunks: 100
+  max_cache_size: 1000
+  health_check_interval_seconds: 30
+  fallback_to_cpu: true
+
+# World generation configuration
+worldgen:
+  gpu_acceleration: true
+  async_generation: true
+  pregeneration_enabled: true
+  pregeneration_radius: 1000
+  pregeneration_threads: 4
+
+# High availability configuration
+ha:
+  autosave_minutes: 5
+  snapshot_keep: 10
+  blue_green: false
+  rollback_on_failure: true
+  max_restart_attempts: 3
+  restart_delay_seconds: 30
+
+# Monitoring configuration
+monitoring:
+  metrics_enabled: true
+  metrics_port: 9090
+  log_level: "info"
+  crash_reporting: true
+
+# Performance configuration
+performance:
+  tick_time_warning_ms: 50
+  tick_time_critical_ms: 100
+  memory_warning_percent: 80
+  memory_critical_percent: 90
+  gc_optimization: true
+
+# Mod configurations
+mod_configs:
+  create:
+    contraption_optimization: true
+    flywheel_integration: true
+    render_optimization: true
+    batching_enabled: true
+    shader_optimization: true
+  flywheel:
+    contraption_optimization: true
+    flywheel_integration: true
+    render_optimization: true
+    batching_enabled: true
+    shader_optimization: true
+  embeddium:
+    contraption_optimization: true
+    flywheel_integration: true
+    render_optimization: true
+    batching_enabled: true
+    shader_optimization: true

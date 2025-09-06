@@ -1,0 +1,73 @@
+# Guardian Platform Test Configuration
+
+# Server Configuration
+server:
+  name: "Guardian Test Server"
+  version: "1.20.1"
+  mod_loader: "neoforge"
+  port: 25565
+  max_players: 20
+  memory_gb: 4
+  cpu_cores: 2
+
+# Monitoring Configuration
+monitoring:
+
+  metrics_port: 9090
+  log_level: "info"
+  enable_prometheus: true
+  enable_grafana: false
+
+# GPU Worker Configuration
+gpu_worker:
+  enabled: true
+  device: "auto"
+  memory_limit_gb: 8
+  chunk_batch_size: 16
+
+# Guardian Agent Configuration
+guardian_agent:
+  enabled: true
+  rules_file: "configs/rules.yaml"
+  safe_tick_enabled: true
+  gpu_acceleration: true
+  auto_healing: true
+
+# Security Configuration
+security:
+  enable_auth: false  # Disabled for testing
+  session_timeout_minutes: 60
+  max_login_attempts: 5
+  enable_2fa: false
+  api_rate_limit: 100
+
+# Backup Configuration
+backup:
+  enabled: true
+  strategy: "full"
+  retention_days: 7
+  local_path: "./backups"
+  compression: true
+  encryption: false
+
+# Performance Configuration
+performance:
+  jvm_args: "-Xmx4G -Xms4G -XX:+UseG1GC"
+  garbage_collector: "G1GC"
+  enable_async_worldgen: true
+  chunk_loading_distance: 10
+
+# Network Configuration
+network:
+  enable_cors: true
+  allowed_origins:
+    - "http://localhost:3000"
+    - "http://localhost:8080"
+  ssl_enabled: false
+
+# Logging Configuration
+logging:
+  level: "info"
+  file: "./logs/guardian.log"
+  max_size_mb: 100
+  max_files: 5
