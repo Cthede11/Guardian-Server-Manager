@@ -97,9 +97,11 @@ A comprehensive server management platform designed for modded Minecraft servers
    cargo build --release
    ```
 
-3. **Configure API Keys**
-   - Get CurseForge API key from [CurseForge Developer Portal](https://docs.curseforge.com/#authentication)
-   - Get Modrinth token from [Modrinth Settings](https://modrinth.com/settings/tokens) (optional)
+3. **API Keys (Optional)**
+   - The app works out of the box with default API keys
+   - For higher rate limits, you can add your own keys:
+     - CurseForge API key from [CurseForge Developer Portal](https://docs.curseforge.com/#authentication)
+     - Modrinth token from [Modrinth Settings](https://modrinth.com/settings/tokens)
    - Configure in the desktop app: Settings → API Keys
 
 4. **Build and Run**

@@ -61,8 +61,8 @@ export const WorkspaceTokens: React.FC = () => {
         status: 'inactive',
         lastTested: null,
         rateLimit: { requests: 100, period: 'minute' },
-        description: 'Required for accessing CurseForge mod data',
-        isRequired: true,
+        description: 'Optional: Add your own key for higher rate limits. App works with default key.',
+        isRequired: false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       },
@@ -74,7 +74,7 @@ export const WorkspaceTokens: React.FC = () => {
         status: 'inactive',
         lastTested: null,
         rateLimit: { requests: 300, period: 'minute' },
-        description: 'Optional but recommended for higher rate limits',
+        description: 'Optional: Add your token for higher rate limits (300 req/min). App works without it.',
         isRequired: false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -264,6 +264,14 @@ export const WorkspaceTokens: React.FC = () => {
           Configure API keys for external services to access real mod data
         </p>
       </div>
+
+      <Alert className="border-blue-200 bg-blue-50">
+        <Info className="h-4 w-4" />
+        <AlertDescription>
+          <strong>Good news!</strong> The app works out of the box with default API keys. 
+          You only need to add your own keys if you want higher rate limits or personal usage tracking.
+        </AlertDescription>
+      </Alert>
 
       {message && (
         <Alert className={messageType === 'error' ? 'border-red-200 bg-red-50' : messageType === 'success' ? 'border-green-200 bg-green-50' : ''}>
