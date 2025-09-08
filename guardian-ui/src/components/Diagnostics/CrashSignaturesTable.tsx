@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +18,7 @@ import {
   Clock,
   Activity
 } from 'lucide-react';
+import { api } from '@/lib/api';
 
 interface CrashSignature {
   id: string;
@@ -50,6 +52,7 @@ interface CrashStats {
 }
 
 export const CrashSignaturesTable: React.FC = () => {
+  const { id: serverId } = useParams<{ id: string }>();
   const [crashes, setCrashes] = useState<CrashSignature[]>([]);
   const [stats, setStats] = useState<CrashStats>({
     total: 0,
@@ -66,141 +69,65 @@ export const CrashSignaturesTable: React.FC = () => {
   const [selectedCrash, setSelectedCrash] = useState<CrashSignature | null>(null);
 
   const fetchCrashes = async () => {
+    if (!serverId) return;
+    
     setIsLoading(true);
     try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const mockCrashes: CrashSignature[] = [
-        {
-          id: 'crash-1',
-          signature: 'NullPointerException in EntityTick',
-          description: 'Null pointer exception occurs during entity tick processing, likely due to unloaded chunks',
-          severity: 'high',
-          frequency: 15,
-          lastOccurrence: new Date(Date.now() - 3600000).toISOString(),
-          firstSeen: new Date(Date.now() - 86400000 * 7).toISOString(),
-          affectedVersions: ['1.20.1', '1.20.2'],
-          stackTrace: 'java.lang.NullPointerException\n  at net.minecraft.world.entity.Entity.tick(Entity.java:123)\n  at net.minecraft.server.level.ServerLevel.tickEntities(ServerLevel.java:456)',
-          rootCause: 'Entity references unloaded chunk data',
-          status: 'active',
-          assignedTo: 'dev-team',
-          tags: ['entity', 'chunk', 'tick'],
-          impact: {
-            playersAffected: 45,
-            downtimeMinutes: 12,
-            dataLoss: false
-          }
-        },
-        {
-          id: 'crash-2',
-          signature: 'OutOfMemoryError in WorldGen',
-          description: 'Memory exhaustion during world generation, particularly in large biomes',
-          severity: 'critical',
-          frequency: 8,
-          lastOccurrence: new Date(Date.now() - 7200000).toISOString(),
-          firstSeen: new Date(Date.now() - 86400000 * 14).toISOString(),
-          affectedVersions: ['1.20.1', '1.20.2', '1.19.4'],
-          stackTrace: 'java.lang.OutOfMemoryError: Java heap space\n  at net.minecraft.world.level.chunk.ChunkGenerator.generateChunk(ChunkGenerator.java:234)',
-          rootCause: 'Insufficient heap space for large biome generation',
-          status: 'investigating',
-          assignedTo: 'performance-team',
-          tags: ['memory', 'worldgen', 'biome'],
-          impact: {
-            playersAffected: 120,
-            downtimeMinutes: 45,
-            dataLoss: true
-          }
-        },
-        {
-          id: 'crash-3',
-          signature: 'ConcurrentModificationException in PlayerList',
-          description: 'Concurrent modification of player list during server shutdown',
-          severity: 'medium',
-          frequency: 3,
-          lastOccurrence: new Date(Date.now() - 86400000 * 2).toISOString(),
-          firstSeen: new Date(Date.now() - 86400000 * 30).toISOString(),
-          affectedVersions: ['1.20.1'],
-          stackTrace: 'java.util.ConcurrentModificationException\n  at java.util.ArrayList$Itr.checkForComodification(ArrayList.java:909)\n  at net.minecraft.server.players.PlayerList.tick(PlayerList.java:123)',
-          rootCause: 'Race condition during server shutdown',
-          status: 'resolved',
-          resolution: 'Added synchronization to player list operations',
-          tags: ['concurrency', 'shutdown', 'players'],
-          impact: {
-            playersAffected: 8,
-            downtimeMinutes: 2,
-            dataLoss: false
-          }
-        },
-        {
-          id: 'crash-4',
-          signature: 'StackOverflowError in Recursive Block Update',
-          description: 'Infinite recursion in block update chain, likely caused by mod conflicts',
-          severity: 'high',
-          frequency: 12,
-          lastOccurrence: new Date(Date.now() - 1800000).toISOString(),
-          firstSeen: new Date(Date.now() - 86400000 * 5).toISOString(),
-          affectedVersions: ['1.20.1'],
-          stackTrace: 'java.lang.StackOverflowError\n  at net.minecraft.world.level.block.Block.updateShape(Block.java:456)\n  at net.minecraft.world.level.block.Block.updateShape(Block.java:456)',
-          rootCause: 'Mod conflict causing infinite block update loop',
-          status: 'active',
-          assignedTo: 'mod-team',
-          tags: ['mod', 'block', 'recursion'],
-          impact: {
-            playersAffected: 67,
-            downtimeMinutes: 8,
-            dataLoss: false
-          }
-        },
-        {
-          id: 'crash-5',
-          signature: 'IOException in World Save',
-          description: 'Disk I/O error during world save operation',
-          severity: 'critical',
-          frequency: 2,
-          lastOccurrence: new Date(Date.now() - 86400000 * 1).toISOString(),
-          firstSeen: new Date(Date.now() - 86400000 * 3).toISOString(),
-          affectedVersions: ['1.20.1', '1.20.2'],
-          stackTrace: 'java.io.IOException: No space left on device\n  at java.io.FileOutputStream.writeBytes(Native Method)\n  at net.minecraft.world.level.storage.LevelStorage.save(LevelStorage.java:789)',
-          rootCause: 'Insufficient disk space for world save',
-          status: 'resolved',
-          resolution: 'Increased disk space and added monitoring',
-          tags: ['io', 'disk', 'save'],
-          impact: {
-            playersAffected: 200,
-            downtimeMinutes: 30,
-            dataLoss: true
-          }
-        }
-      ];
+      // Real API call to get crash signatures
+      const response = await api.getDiagnostics(serverId);
+      if (response.ok && response.data) {
+        const diagnosticsData = response.data as any;
+        
+        // Extract crash signatures from diagnostics data
+        const crashes: CrashSignature[] = diagnosticsData.crashSignatures || [];
+        const stats: CrashStats = {
+          total: crashes.length,
+          active: crashes.filter(c => c.status === 'active').length,
+          resolved: crashes.filter(c => c.status === 'resolved').length,
+          critical: crashes.filter(c => c.severity === 'critical').length,
+          trend: diagnosticsData.crashTrend || 'stable',
+          averageResolutionTime: diagnosticsData.averageResolutionTime || 0
+        };
 
-      setCrashes(mockCrashes);
-
-      // Calculate stats
-      const newStats: CrashStats = {
-        total: mockCrashes.length,
-        active: mockCrashes.filter(c => c.status === 'active').length,
-        resolved: mockCrashes.filter(c => c.status === 'resolved').length,
-        critical: mockCrashes.filter(c => c.severity === 'critical').length,
-        trend: 'down',
-        averageResolutionTime: 2.5
-      };
-
-      setStats(newStats);
+        setCrashes(crashes);
+        setStats(stats);
+      } else {
+        // If no data available, show empty state
+        setCrashes([]);
+        setStats({
+          total: 0,
+          active: 0,
+          resolved: 0,
+          critical: 0,
+          trend: 'stable',
+          averageResolutionTime: 0
+        });
+      }
     } catch (error) {
-      console.error('Failed to fetch crashes:', error);
+      console.error('Failed to fetch crash data:', error);
+      setCrashes([]);
+      setStats({
+        total: 0,
+        active: 0,
+        resolved: 0,
+        critical: 0,
+        trend: 'stable',
+        averageResolutionTime: 0
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchCrashes();
-    
-    // Auto-refresh every 60 seconds
-    const interval = setInterval(fetchCrashes, 60000);
-    return () => clearInterval(interval);
-  }, []);
+    if (serverId) {
+      fetchCrashes();
+      
+      // Auto-refresh every 60 seconds
+      const interval = setInterval(fetchCrashes, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [serverId]);
 
   const getSeverityIcon = (severity: CrashSignature['severity']) => {
     switch (severity) {

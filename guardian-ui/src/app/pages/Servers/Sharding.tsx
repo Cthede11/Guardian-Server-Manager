@@ -11,6 +11,7 @@ import { ShardingTopology } from '@/components/Sharding/ShardingTopology';
 import { ShardingAssignment } from '@/components/Sharding/ShardingAssignment';
 import { ShardingWarnings } from '@/components/Sharding/ShardingWarnings';
 import { ErrorEmptyState } from '@/components/ui/EmptyState';
+import { api } from '@/lib/api';
 
 interface ShardingStats {
   totalShards: number;
@@ -40,36 +41,64 @@ export const Sharding: React.FC = () => {
   // const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   const fetchStats = async () => {
+    if (!serverId) return;
+    
     setIsLoading(true);
     try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setStats({
-        totalShards: 8,
-        activeShards: 6,
-        healthyShards: 5,
-        unhealthyShards: 1,
-        totalPlayers: 142,
-        averageLoad: 68.5,
-        lastHealthCheck: new Date().toISOString()
-      });
-      
-      // setLastRefresh(new Date());
+      // Real API call to get sharding stats
+      const response = await api.getShardingTopology();
+      if (response.ok && response.data) {
+        const topologyData = response.data as any;
+        const nodes = topologyData.nodes || [];
+        
+        const stats: ShardingStats = {
+          totalShards: nodes.length,
+          activeShards: nodes.filter((node: any) => node.status !== 'offline').length,
+          healthyShards: nodes.filter((node: any) => node.status === 'healthy').length,
+          unhealthyShards: nodes.filter((node: any) => node.status === 'critical' || node.status === 'warning').length,
+          totalPlayers: nodes.reduce((sum: number, node: any) => sum + (node.players || 0), 0),
+          averageLoad: nodes.length > 0 ? nodes.reduce((sum: number, node: any) => sum + (node.cpu || 0), 0) / nodes.length : 0,
+          lastHealthCheck: new Date().toISOString()
+        };
+        
+        setStats(stats);
+      } else {
+        // If no data available, show empty state
+        setStats({
+          totalShards: 0,
+          activeShards: 0,
+          healthyShards: 0,
+          unhealthyShards: 0,
+          totalPlayers: 0,
+          averageLoad: 0,
+          lastHealthCheck: 'Never'
+        });
+      }
     } catch (error) {
       console.error('Failed to fetch sharding stats:', error);
+      setStats({
+        totalShards: 0,
+        activeShards: 0,
+        healthyShards: 0,
+        unhealthyShards: 0,
+        totalPlayers: 0,
+        averageLoad: 0,
+        lastHealthCheck: 'Never'
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchStats();
-    
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(fetchStats, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    if (serverId) {
+      fetchStats();
+      
+      // Auto-refresh every 30 seconds
+      const interval = setInterval(fetchStats, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [serverId]);
 
   const handleRefresh = () => {
     fetchStats();

@@ -136,12 +136,6 @@ export const ServerCreationWizard: React.FC<ServerCreationWizardProps> = ({
         type: formData.type,
         version: formData.version,
         loader: formData.type,
-        memory: formData.memory,
-        port: formData.serverPort,
-        world: 'world',
-        mods: [],
-        properties: {},
-        javaInstallations: [],
         java: {
           path: formData.javaPath,
           args: formData.javaArgs,
@@ -161,7 +155,11 @@ export const ServerCreationWizard: React.FC<ServerCreationWizardProps> = ({
           backups: formData.paths.backups
         },
         settings: {
-          ...formData.settings,
+          autoStart: false,
+          autoRestart: true,
+          maxRestarts: 3,
+          backupInterval: 24,
+          backupRetention: 7,
           memory: formData.memory,
           javaArgs: formData.javaArgs
         },

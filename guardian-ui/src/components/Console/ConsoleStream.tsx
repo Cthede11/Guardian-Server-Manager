@@ -11,7 +11,8 @@ import {
   AlertTriangle,
   Info,
   Bug,
-  CheckCircle
+  CheckCircle,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,6 +40,7 @@ export const ConsoleStream: React.FC<ConsoleStreamProps> = ({ className = '' }) 
   const [isPaused, setIsPaused] = useState(false);
   const [eulaStatus, setEulaStatus] = useState<'accepted' | 'pending' | 'missing' | null>(null);
   const [eulaBusy, setEulaBusy] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [filters, setFilters] = useState({
     level: 'all' as 'all' | 'info' | 'warn' | 'error' | 'debug',
     search: '',
@@ -77,20 +79,56 @@ export const ConsoleStream: React.FC<ConsoleStreamProps> = ({ className = '' }) 
   // Connection status from live store
   const { connected: isConnected } = useConnectionStatus();
 
-  // Poll EULA status while on console page
+  // Load initial console data and poll EULA status
   useEffect(() => {
+    if (!serverId) return;
+    
+    const loadInitialData = async () => {
+      setIsLoading(true);
+      try {
+        // Load initial console messages
+        const consoleResponse = await api.getConsoleMessages(serverId);
+        if (consoleResponse.ok && consoleResponse.data) {
+          liveStore.getState().appendConsole(serverId, consoleResponse.data as any);
+        }
+        
+        // Load EULA status
+        const eulaResponse = await api.getEulaStatus(serverId);
+        if (eulaResponse.ok && eulaResponse.data) {
+          const status = (eulaResponse.data as any).status as 'accepted' | 'pending' | 'missing';
+          setEulaStatus(status);
+        }
+      } catch (error) {
+        console.error('Failed to load initial console data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadInitialData();
+    
+    // Poll EULA status
     let timer: any;
     const poll = async () => {
-      if (!serverId) return;
-      const res = await api.getEulaStatus(serverId);
-      if (res.ok && res.data) {
-        const status = (res.data as any).status as 'accepted' | 'pending' | 'missing';
-        setEulaStatus(status);
+      try {
+        const res = await api.getEulaStatus(serverId);
+        if (res.ok && res.data) {
+          const status = (res.data as any).status as 'accepted' | 'pending' | 'missing';
+          setEulaStatus(status);
+        }
+      } catch (error) {
+        console.error('Failed to fetch EULA status:', error);
       }
       timer = setTimeout(poll, 5000);
     };
-    poll();
-    return () => timer && clearTimeout(timer);
+    
+    // Start polling after initial load
+    const pollTimer = setTimeout(poll, 5000);
+    
+    return () => {
+      if (timer) clearTimeout(timer);
+      if (pollTimer) clearTimeout(pollTimer);
+    };
   }, [serverId]);
 
   const handleAcceptEula = async () => {
@@ -129,9 +167,23 @@ export const ConsoleStream: React.FC<ConsoleStreamProps> = ({ className = '' }) 
         setCommand('');
       } else {
         console.error('Failed to send command:', response.error);
+        // Add error message to console
+        const errorMessage: ConsoleMessage = {
+          ts: new Date().toISOString(),
+          level: 'error',
+          msg: `Failed to send command: ${response.error}`,
+        };
+        liveStore.getState().appendConsole(serverId, [errorMessage]);
       }
     } catch (error) {
       console.error('Error sending command:', error);
+      // Add error message to console
+      const errorMessage: ConsoleMessage = {
+        ts: new Date().toISOString(),
+        level: 'error',
+        msg: `Error sending command: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+      liveStore.getState().appendConsole(serverId, [errorMessage]);
     }
   };
 
@@ -332,10 +384,17 @@ export const ConsoleStream: React.FC<ConsoleStreamProps> = ({ className = '' }) 
       {/* Console Output - Virtualized */}
       <div 
         ref={parentRef}
-        className="flex-1 overflow-auto bg-black text-green-400 font-mono text-sm"
+        className="flex-1 overflow-auto bg-black text-green-400 font-mono text-sm relative"
         style={{ height: '100%' }}
       >
-        {filteredMessages.length === 0 ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Loading console...</span>
+            </div>
+          </div>
+        ) : filteredMessages.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground p-4">
             No console messages to display
           </div>

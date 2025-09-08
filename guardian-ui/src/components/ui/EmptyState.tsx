@@ -137,18 +137,29 @@ export const NoServersEmptyState: React.FC<{ onCreateServer: () => void }> = ({ 
   />
 );
 
-export const NoPlayersEmptyState: React.FC<{ onRefresh: () => void }> = ({ onRefresh }) => (
-  <EmptyState
-    icon={defaultIcons.players}
-    title="No players online"
-    description="The server is running but no players are currently connected. Players will appear here when they join."
-    secondaryAction={{
-      label: 'Refresh',
-      onClick: onRefresh,
-      variant: 'outline',
-    }}
-  />
-);
+export const NoPlayersEmptyState: React.FC<{ 
+  onRefresh: () => void;
+  serverStatus?: string;
+}> = ({ onRefresh, serverStatus = 'running' }) => {
+  const isServerRunning = serverStatus === 'running';
+  
+  return (
+    <EmptyState
+      icon={defaultIcons.players}
+      title="No players online"
+      description={
+        isServerRunning 
+          ? "The server is running but no players are currently connected. Players will appear here when they join."
+          : "The server is not running. Start the server to allow players to connect."
+      }
+      secondaryAction={{
+        label: 'Refresh',
+        onClick: onRefresh,
+        variant: 'outline',
+      }}
+    />
+  );
+};
 
 export const NoDataEmptyState: React.FC<{ 
   title: string; 

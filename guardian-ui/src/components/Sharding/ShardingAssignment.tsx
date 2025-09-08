@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +14,7 @@ import {
   Target,
   Loader2
 } from 'lucide-react';
+import { api } from '@/lib/api';
 
 interface PlayerAssignment {
   id: string;
@@ -36,6 +38,7 @@ interface ShardInfo {
 }
 
 export const ShardingAssignment: React.FC = () => {
+  const { id: serverId } = useParams<{ id: string }>();
   const [assignments, setAssignments] = useState<PlayerAssignment[]>([]);
   const [shards, setShards] = useState<ShardInfo[]>([]);
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
@@ -44,117 +47,55 @@ export const ShardingAssignment: React.FC = () => {
   const [isAssigning, setIsAssigning] = useState(false);
 
   const fetchData = async () => {
+    if (!serverId) return;
+    
     setIsLoading(true);
     try {
-      // Mock API calls
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const mockAssignments: PlayerAssignment[] = [
-        {
-          id: 'player-1',
-          name: 'PlayerOne',
-          currentShard: 'shard-1',
-          targetShard: 'shard-2',
-          priority: 'high',
-          reason: 'Load balancing',
-          status: 'pending',
-          estimatedTime: 30,
-          lastSeen: new Date().toISOString()
-        },
-        {
-          id: 'player-2',
-          name: 'MinerPro',
-          currentShard: 'shard-3',
-          targetShard: 'shard-1',
-          priority: 'medium',
-          reason: 'Player request',
-          status: 'in_progress',
-          estimatedTime: 45,
-          lastSeen: new Date().toISOString()
-        },
-        {
-          id: 'player-3',
-          name: 'BuilderBob',
-          currentShard: 'shard-2',
-          targetShard: 'shard-4',
-          priority: 'low',
-          reason: 'Maintenance',
-          status: 'completed',
-          estimatedTime: 20,
-          lastSeen: new Date().toISOString()
-        },
-        {
-          id: 'player-4',
-          name: 'ExplorerEve',
-          currentShard: 'shard-5',
-          targetShard: 'shard-1',
-          priority: 'high',
-          reason: 'Shard failure',
-          status: 'failed',
-          estimatedTime: 60,
-          lastSeen: new Date(Date.now() - 300000).toISOString()
-        }
-      ];
+      // Real API calls to get sharding data
+      const [assignmentsResponse, shardsResponse] = await Promise.all([
+        api.getShardingAssignments ? api.getShardingAssignments() : Promise.resolve({ ok: false, data: [] }),
+        api.getShardingTopology ? api.getShardingTopology() : Promise.resolve({ ok: false, data: { nodes: [] } })
+      ]);
 
-      const mockShards: ShardInfo[] = [
-        {
-          id: 'shard-1',
-          name: 'Main World',
-          currentPlayers: 45,
-          maxPlayers: 100,
-          load: 65,
-          status: 'healthy'
-        },
-        {
-          id: 'shard-2',
-          name: 'Nether',
-          currentPlayers: 23,
-          maxPlayers: 50,
-          load: 42,
-          status: 'healthy'
-        },
-        {
-          id: 'shard-3',
-          name: 'End',
-          currentPlayers: 12,
-          maxPlayers: 30,
-          load: 78,
-          status: 'warning'
-        },
-        {
-          id: 'shard-4',
-          name: 'Creative',
-          currentPlayers: 8,
-          maxPlayers: 20,
-          load: 35,
-          status: 'healthy'
-        },
-        {
-          id: 'shard-5',
-          name: 'Minigames',
-          currentPlayers: 0,
-          maxPlayers: 50,
-          load: 95,
-          status: 'critical'
-        }
-      ];
+      if (assignmentsResponse.ok && assignmentsResponse.data) {
+        setAssignments(assignmentsResponse.data as PlayerAssignment[]);
+      } else {
+        setAssignments([]);
+      }
 
-      setAssignments(mockAssignments);
-      setShards(mockShards);
+      if (shardsResponse.ok && shardsResponse.data) {
+        const topologyData = shardsResponse.data as any;
+        const shardNodes = topologyData.nodes || [];
+        const shards: ShardInfo[] = shardNodes.map((node: any) => ({
+          id: node.id,
+          name: node.name,
+          currentPlayers: node.players || 0,
+          maxPlayers: node.maxPlayers || 100,
+          load: node.cpu || 0,
+          status: node.status || 'offline'
+        }));
+        setShards(shards);
+      } else {
+        setShards([]);
+      }
     } catch (error) {
       console.error('Failed to fetch assignment data:', error);
+      setAssignments([]);
+      setShards([]);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
-    
-    // Auto-refresh every 10 seconds
-    const interval = setInterval(fetchData, 10000);
-    return () => clearInterval(interval);
-  }, []);
+    if (serverId) {
+      fetchData();
+      
+      // Auto-refresh every 10 seconds
+      const interval = setInterval(fetchData, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [serverId]);
 
   const getStatusIcon = (status: PlayerAssignment['status']) => {
     switch (status) {

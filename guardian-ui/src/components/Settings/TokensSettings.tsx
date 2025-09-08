@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { api } from '@/lib/api';
 import { 
   AlertTriangle,
   CheckCircle,
@@ -273,35 +274,68 @@ export const TokensSettings: React.FC = () => {
     }
   };
 
-  const handleCreateToken = () => {
+  const handleCreateToken = async () => {
+    if (!serverId) return;
+    
     setIsCreating(true);
-    // Mock token creation
-    setTimeout(() => {
-      const newToken: TokenData = {
-        id: Date.now().toString(),
+    try {
+      // Real API call to create token
+      const response = await api.createToken(serverId, {
         name: 'New Token',
         description: 'Newly created token',
         type: 'api',
         permissions: ['read'],
-        expiresAt: null,
-        lastUsedAt: null,
-        createdAt: new Date().toISOString(),
-        isActive: true,
-        token: `gt_${Math.random().toString(36).substr(2, 16)}`
-      };
-      setTokens(prev => [...prev, newToken]);
+        expiresAt: null
+      });
+      
+      if (response.ok && response.data) {
+        const newToken = response.data as TokenData;
+        setTokens(prev => [...prev, newToken]);
+      } else {
+        console.error('Failed to create token:', response.error);
+      }
+    } catch (error) {
+      console.error('Error creating token:', error);
+    } finally {
       setIsCreating(false);
-    }, 1000);
+    }
   };
 
-  const handleDeleteToken = (id: string) => {
-    setTokens(prev => prev.filter(token => token.id !== id));
+  const handleDeleteToken = async (id: string) => {
+    if (!serverId) return;
+    
+    try {
+      // Real API call to delete token
+      const response = await api.deleteToken(serverId, id);
+      if (response.ok) {
+        setTokens(prev => prev.filter(token => token.id !== id));
+      } else {
+        console.error('Failed to delete token:', response.error);
+      }
+    } catch (error) {
+      console.error('Error deleting token:', error);
+    }
   };
 
-  const handleToggleToken = (id: string) => {
-    setTokens(prev => prev.map(token => 
-      token.id === id ? { ...token, isActive: !token.isActive } : token
-    ));
+  const handleToggleToken = async (id: string) => {
+    if (!serverId) return;
+    
+    try {
+      const token = tokens.find(t => t.id === id);
+      if (!token) return;
+      
+      // Real API call to toggle token
+      const response = await api.updateToken(serverId, id, { isActive: !token.isActive });
+      if (response.ok) {
+        setTokens(prev => prev.map(t => 
+          t.id === id ? { ...t, isActive: !t.isActive } : t
+        ));
+      } else {
+        console.error('Failed to toggle token:', response.error);
+      }
+    } catch (error) {
+      console.error('Error toggling token:', error);
+    }
   };
 
   const handleCopyToken = (token: string) => {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +17,7 @@ import {
   Clock,
   ExternalLink
 } from 'lucide-react';
+import { api } from '@/lib/api';
 
 interface ShardingWarning {
   id: string;
@@ -44,6 +46,7 @@ interface WarningStats {
 }
 
 export const ShardingWarnings: React.FC = () => {
+  const { id: serverId } = useParams<{ id: string }>();
   const [warnings, setWarnings] = useState<ShardingWarning[]>([]);
   const [stats, setStats] = useState<WarningStats>({
     total: 0,
@@ -59,136 +62,69 @@ export const ShardingWarnings: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState<string>('active');
 
   const fetchWarnings = async () => {
+    if (!serverId) return;
+    
     setIsLoading(true);
     try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const mockWarnings: ShardingWarning[] = [
-        {
-          id: 'warning-1',
-          type: 'load_imbalance',
-          severity: 'high',
-          title: 'Severe Load Imbalance Detected',
-          description: 'Shard-5 is experiencing 95% load while Shard-4 is only at 35%. This creates an uneven player experience.',
-          affectedShards: ['shard-5', 'shard-4'],
-          impact: 'Players on overloaded shards may experience lag and disconnections',
-          suggestedActions: [
-            'Redistribute players from shard-5 to shard-4',
-            'Scale up shard-5 resources',
-            'Implement dynamic load balancing'
-          ],
-          status: 'active',
-          createdAt: new Date(Date.now() - 300000).toISOString(),
-          lastUpdated: new Date(Date.now() - 60000).toISOString(),
-          autoResolve: false
-        },
-        {
-          id: 'warning-2',
-          type: 'shard_failure',
-          severity: 'critical',
-          title: 'Shard-6 Complete Failure',
-          description: 'Shard-6 has been offline for over 1 hour. All backup connections are also failing.',
-          affectedShards: ['shard-6'],
-          impact: 'Complete loss of service for shard-6 players. No failover available.',
-          suggestedActions: [
-            'Immediately restart shard-6',
-            'Check hardware and network connectivity',
-            'Activate emergency backup shard',
-            'Notify affected players'
-          ],
-          status: 'active',
-          createdAt: new Date(Date.now() - 3600000).toISOString(),
-          lastUpdated: new Date(Date.now() - 300000).toISOString(),
-          autoResolve: false,
-          estimatedResolutionTime: 15
-        },
-        {
-          id: 'warning-3',
-          type: 'connection_issue',
-          severity: 'medium',
-          title: 'High Latency Between Shards',
-          description: 'Connection between shard-1 and shard-3 shows 150ms latency (normal: <50ms)',
-          affectedShards: ['shard-1', 'shard-3'],
-          impact: 'Cross-shard interactions may be delayed or fail',
-          suggestedActions: [
-            'Check network routing between shards',
-            'Optimize connection pooling',
-            'Consider geographic distribution'
-          ],
-          status: 'acknowledged',
-          createdAt: new Date(Date.now() - 900000).toISOString(),
-          lastUpdated: new Date(Date.now() - 180000).toISOString(),
-          autoResolve: true
-        },
-        {
-          id: 'warning-4',
-          type: 'capacity_warning',
-          severity: 'low',
-          title: 'Shard-2 Approaching Capacity',
-          description: 'Shard-2 is at 85% capacity (42/50 players). Consider scaling or load balancing.',
-          affectedShards: ['shard-2'],
-          impact: 'New players may be unable to join shard-2',
-          suggestedActions: [
-            'Increase shard-2 capacity',
-            'Redirect new players to other shards',
-            'Implement queue system'
-          ],
-          status: 'active',
-          createdAt: new Date(Date.now() - 600000).toISOString(),
-          lastUpdated: new Date(Date.now() - 120000).toISOString(),
-          autoResolve: true,
-          estimatedResolutionTime: 5
-        },
-        {
-          id: 'warning-5',
-          type: 'performance_degradation',
-          severity: 'medium',
-          title: 'TPS Degradation on Multiple Shards',
-          description: 'Shard-3 and shard-5 showing TPS below 15. Performance is significantly impacted.',
-          affectedShards: ['shard-3', 'shard-5'],
-          impact: 'Players experiencing lag, block breaking delays, and entity movement issues',
-          suggestedActions: [
-            'Restart affected shards',
-            'Check for memory leaks',
-            'Optimize world generation',
-            'Reduce entity count'
-          ],
-          status: 'resolved',
-          createdAt: new Date(Date.now() - 1800000).toISOString(),
-          lastUpdated: new Date(Date.now() - 300000).toISOString(),
-          autoResolve: false
-        }
-      ];
-
-      setWarnings(mockWarnings);
-
-      // Calculate stats
-      const newStats: WarningStats = {
-        total: mockWarnings.length,
-        critical: mockWarnings.filter(w => w.severity === 'critical').length,
-        high: mockWarnings.filter(w => w.severity === 'high').length,
-        medium: mockWarnings.filter(w => w.severity === 'medium').length,
-        low: mockWarnings.filter(w => w.severity === 'low').length,
-        resolved: mockWarnings.filter(w => w.status === 'resolved').length,
-        autoResolved: mockWarnings.filter(w => w.autoResolve).length
-      };
-
-      setStats(newStats);
+      // Real API call to get sharding warnings
+      const response = await api.getShardingTopology();
+      if (response.ok && response.data) {
+        const topologyData = response.data as any;
+        const warnings: ShardingWarning[] = topologyData.warnings || [];
+        
+        setWarnings(warnings);
+        
+        // Calculate stats from real data
+        const stats: WarningStats = {
+          total: warnings.length,
+          critical: warnings.filter(w => w.severity === 'critical').length,
+          high: warnings.filter(w => w.severity === 'high').length,
+          medium: warnings.filter(w => w.severity === 'medium').length,
+          low: warnings.filter(w => w.severity === 'low').length,
+          resolved: warnings.filter(w => w.status === 'resolved').length,
+          autoResolved: warnings.filter(w => w.autoResolve).length
+        };
+        
+        setStats(stats);
+      } else {
+        // If no data available, show empty state
+        setWarnings([]);
+        setStats({
+          total: 0,
+          critical: 0,
+          high: 0,
+          medium: 0,
+          low: 0,
+          resolved: 0,
+          autoResolved: 0
+        });
+      }
     } catch (error) {
-      console.error('Failed to fetch warnings:', error);
+      console.error('Failed to fetch sharding warnings:', error);
+      setWarnings([]);
+      setStats({
+        total: 0,
+        critical: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+        resolved: 0,
+        autoResolved: 0
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchWarnings();
-    
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(fetchWarnings, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    if (serverId) {
+      fetchWarnings();
+      
+      // Auto-refresh every 30 seconds
+      const interval = setInterval(fetchWarnings, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [serverId]);
 
   const getSeverityIcon = (severity: ShardingWarning['severity']) => {
     switch (severity) {

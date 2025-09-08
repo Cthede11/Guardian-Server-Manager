@@ -5,6 +5,7 @@ import { ServerHeader, ServerTabs } from './ServerHeader';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { Toaster } from '@/components/ui/toaster';
 import { realtimeProvider } from '@/lib/realtime-provider';
+import { ConnectionStatus } from '@/components/ConnectionStatus';
 
 export const AppShell: React.FC = () => {
   const { id: serverId } = useParams<{ id: string }>();
@@ -42,6 +43,9 @@ export const AppShell: React.FC = () => {
           
           {/* Server Tabs */}
           <ServerTabs />
+          
+          {/* Connection Status */}
+          <ConnectionStatus />
           
           {/* Content */}
           <main className="flex-1 overflow-auto p-6">

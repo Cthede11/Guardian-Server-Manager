@@ -89,27 +89,18 @@ export const Backups: React.FC<BackupsPageProps> = ({ className = '' }) => {
   }, [serverId]);
 
   const handleCreateSnapshot = async () => {
+    if (!serverId) return;
+    
     setIsLoading(true);
     try {
-      // Simulate creating a snapshot
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const newSnapshot = {
-        id: `snapshot-${Date.now()}`,
-        name: `Manual Backup ${new Date().toLocaleString()}`,
-        type: 'manual',
-        status: 'completed',
-        size: Math.floor(Math.random() * 3000) + 1500,
-        timestamp: Date.now(),
-        description: 'Manual backup created by user',
-        compression: Math.floor(Math.random() * 20) + 25,
-        checksum: `sha256:${Math.random().toString(36).substring(2, 15)}`,
-        verified: true,
-        retention: 7,
-        tags: []
-      };
-      
-      setSnapshots(prev => [newSnapshot, ...prev]);
+      // Real API call to create backup
+      const response = await api.createBackup(serverId);
+      if (response.ok && response.data) {
+        const newSnapshot = response.data as any;
+        setSnapshots(prev => [newSnapshot, ...prev]);
+      } else {
+        console.error('Failed to create backup:', response.error);
+      }
     } catch (error) {
       console.error('Error creating snapshot:', error);
     } finally {
@@ -123,10 +114,16 @@ export const Backups: React.FC<BackupsPageProps> = ({ className = '' }) => {
   };
 
   const handleDeleteSnapshot = async (snapshotId: string) => {
+    if (!serverId) return;
+    
     try {
-      // Simulate deletion
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setSnapshots(prev => prev.filter(s => s.id !== snapshotId));
+      // Real API call to delete backup
+      const response = await api.deleteBackup(serverId, snapshotId);
+      if (response.ok) {
+        setSnapshots(prev => prev.filter(s => s.id !== snapshotId));
+      } else {
+        console.error('Failed to delete backup:', response.error);
+      }
     } catch (error) {
       console.error('Error deleting snapshot:', error);
     }

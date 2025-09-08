@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +21,7 @@ import {
   Database,
   Server
 } from 'lucide-react';
+import { api } from '@/lib/api';
 
 interface SystemMetric {
   name: string;
@@ -45,6 +47,7 @@ interface SystemHealthData {
 }
 
 export const SystemHealth: React.FC = () => {
+  const { id: serverId } = useParams<{ id: string }>();
   const [healthData, setHealthData] = useState<SystemHealthData>({
     overall: 0,
     metrics: [],
@@ -58,102 +61,68 @@ export const SystemHealth: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchHealthData = async () => {
+    if (!serverId) return;
+    
     setIsLoading(true);
     try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const mockMetrics: SystemMetric[] = [
-        {
-          name: 'CPU Usage',
-          value: 45.2,
-          unit: '%',
-          status: 'healthy',
-          trend: 'stable',
-          threshold: { warning: 70, critical: 85 }
-        },
-        {
-          name: 'Memory Usage',
-          value: 68.5,
-          unit: '%',
-          status: 'warning',
-          trend: 'up',
-          threshold: { warning: 75, critical: 90 }
-        },
-        {
-          name: 'Disk Usage',
-          value: 82.1,
-          unit: '%',
-          status: 'warning',
-          trend: 'up',
-          threshold: { warning: 80, critical: 95 }
-        },
-        {
-          name: 'Network Latency',
-          value: 12.5,
-          unit: 'ms',
-          status: 'healthy',
-          trend: 'down',
-          threshold: { warning: 50, critical: 100 }
-        },
-        {
-          name: 'TPS',
-          value: 19.8,
-          unit: 'tps',
-          status: 'healthy',
-          trend: 'stable',
-          threshold: { warning: 15, critical: 10 }
-        },
-        {
-          name: 'Heap Usage',
-          value: 2.1,
-          unit: 'GB',
-          status: 'healthy',
-          trend: 'stable',
-          threshold: { warning: 3.5, critical: 4.0 }
-        },
-        {
-          name: 'Temperature',
-          value: 65.2,
-          unit: '°C',
-          status: 'healthy',
-          trend: 'stable',
-          threshold: { warning: 80, critical: 90 }
-        },
-        {
-          name: 'Database Connections',
-          value: 12,
-          unit: 'connections',
-          status: 'healthy',
-          trend: 'stable',
-          threshold: { warning: 50, critical: 75 }
-        }
-      ];
+      // Real API call to get system health data
+      const response = await api.getServerHealth(serverId);
+      if (response.ok && response.data) {
+        const healthData = response.data as any;
+        
+        // Transform the API response to match our interface
+        const metrics: SystemMetric[] = healthData.metrics || [];
+        const systemHealthData: SystemHealthData = {
+          overall: healthData.overall || 0,
+          metrics: metrics,
+          uptime: healthData.uptime || '0d 0h 0m',
+          lastRestart: healthData.lastRestart || 'Never',
+          version: healthData.version || 'Unknown',
+          javaVersion: healthData.javaVersion || 'Unknown',
+          os: healthData.os || 'Unknown',
+          architecture: healthData.architecture || 'Unknown'
+        };
 
-      setHealthData({
-        overall: 87,
-        metrics: mockMetrics,
-        uptime: '15d 8h 32m',
-        lastRestart: new Date(Date.now() - 86400000 * 15).toISOString(),
-        version: '1.20.1',
-        javaVersion: 'OpenJDK 17.0.2',
-        os: 'Linux Ubuntu 22.04',
-        architecture: 'x86_64'
-      });
+        setHealthData(systemHealthData);
+      } else {
+        // If no data available, show empty state
+        setHealthData({
+          overall: 0,
+          metrics: [],
+          uptime: '0d 0h 0m',
+          lastRestart: 'Never',
+          version: 'Unknown',
+          javaVersion: 'Unknown',
+          os: 'Unknown',
+          architecture: 'Unknown'
+        });
+      }
     } catch (error) {
       console.error('Failed to fetch system health:', error);
+      setHealthData({
+        overall: 0,
+        metrics: [],
+        uptime: '0d 0h 0m',
+        lastRestart: 'Never',
+        version: 'Unknown',
+        javaVersion: 'Unknown',
+        os: 'Unknown',
+        architecture: 'Unknown'
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchHealthData();
-    
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(fetchHealthData, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    if (serverId) {
+      fetchHealthData();
+      
+      // Auto-refresh every 30 seconds
+      const interval = setInterval(fetchHealthData, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [serverId]);
 
   const getStatusIcon = (status: SystemMetric['status']) => {
     switch (status) {

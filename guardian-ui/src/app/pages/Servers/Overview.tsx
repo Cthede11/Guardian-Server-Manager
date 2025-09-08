@@ -10,6 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, XCircle, AlertTriangle, Clock, Users, Zap, HardDrive } from 'lucide-react';
 import { useLoadingState } from '@/components/ui/LoadingStates';
+import { LoadingWrapper } from '@/components/LoadingWrapper';
+import { useStartupDelay } from '@/hooks/useStartupDelay';
 import { api } from '@/lib/api';
 
 export const Overview: React.FC = () => {
@@ -19,6 +21,7 @@ export const Overview: React.FC = () => {
   const metrics = useMetrics(serverId || '');
   const players = usePlayerData(serverId || '');
   const { isLoading, error, startLoading, stopLoading, setLoadingError } = useLoadingState();
+  const isStartupReady = useStartupDelay(1000); // 1 second delay
   
   // Real server health data - show appropriate values based on server status
   const [health, setHealth] = React.useState({
@@ -44,7 +47,7 @@ export const Overview: React.FC = () => {
 
   // Fetch real server data
   React.useEffect(() => {
-    if (!selectedServer || !serverId) return;
+    if (!selectedServer || !serverId || !isStartupReady) return;
 
     const fetchServerData = async () => {
       startLoading();
@@ -53,34 +56,55 @@ export const Overview: React.FC = () => {
         const healthResponse = await api.getServerHealth(serverId);
         if (healthResponse.ok) {
           setHealth(healthResponse.data as any);
+        } else {
+          console.warn('Failed to fetch server health:', healthResponse.error);
         }
 
         // Fetch players
         const playersResponse = await api.getPlayers(serverId);
         if (playersResponse.ok) {
           liveStore.getState().updatePlayers(serverId, playersResponse.data as any);
+        } else {
+          console.warn('Failed to fetch players:', playersResponse.error);
         }
 
         // Fetch real-time metrics
         const metricsResponse = await api.getRealtimeMetrics(serverId);
         if (metricsResponse.ok) {
           liveStore.getState().applyMetrics(serverId, metricsResponse.data as any);
+        } else {
+          console.warn('Failed to fetch metrics:', metricsResponse.error);
         }
 
         stopLoading();
       } catch (err) {
         console.error('Failed to fetch server data:', err);
         setLoadingError(err as Error);
+        stopLoading();
       }
     };
 
-    fetchServerData();
+    // Add a small delay to prevent rapid API calls
+    const timeoutId = setTimeout(fetchServerData, 100);
 
     // Set up polling for real-time data
-    const interval = setInterval(fetchServerData, 5000); // Poll every 5 seconds
+    const interval = setInterval(fetchServerData, 10000); // Poll every 10 seconds
 
-    return () => clearInterval(interval);
-  }, [selectedServer, serverId, startLoading, stopLoading, setLoadingError]);
+    return () => {
+      clearTimeout(timeoutId);
+      clearInterval(interval);
+    };
+  }, [selectedServer, serverId, isStartupReady, startLoading, stopLoading, setLoadingError]);
+
+  if (!isStartupReady) {
+    return (
+      <LoadingWrapper
+        isLoading={true}
+        error={null}
+        className="p-6"
+      />
+    );
+  }
 
   if (!selectedServer) {
     return (
@@ -136,8 +160,8 @@ export const Overview: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="TPS"
-          value={selectedServer.status === 'running' && metrics?.tps?.[metrics.tps.length - 1]?.value 
-            ? metrics.tps[metrics.tps.length - 1].value.toFixed(1)
+          value={selectedServer.status === 'running' && selectedServer.tps
+            ? selectedServer.tps.toFixed(1)
             : '0.0'}
           subtitle="Ticks per second"
           icon={<Zap className="h-4 w-4" />}
@@ -145,23 +169,23 @@ export const Overview: React.FC = () => {
         <StatCard
           title="Players"
           value={selectedServer.status === 'running' 
-            ? `${players.length}` 
+            ? `${selectedServer.playersOnline || 0}` 
             : '0'}
           subtitle={`${selectedServer.maxPlayers || 20} max`}
           icon={<Users className="h-4 w-4" />}
         />
         <StatCard
           title="Memory"
-          value={selectedServer.status === 'running' && metrics?.heap?.[metrics.heap.length - 1]?.value 
-            ? `${Math.round(metrics.heap[metrics.heap.length - 1].value / 1024 / 1024)}MB`
+          value={selectedServer.status === 'running' && selectedServer.heapMb
+            ? `${selectedServer.heapMb}MB`
             : '0MB'}
           subtitle={`${selectedServer.memory || 4096}MB max`}
           icon={<HardDrive className="h-4 w-4" />}
         />
         <StatCard
           title="Tick Time"
-          value={selectedServer.status === 'running' && metrics?.tickP95?.[metrics.tickP95.length - 1]?.value 
-            ? `${metrics.tickP95[metrics.tickP95.length - 1].value.toFixed(1)}ms`
+          value={selectedServer.status === 'running' && selectedServer.tickP95
+            ? `${selectedServer.tickP95.toFixed(1)}ms`
             : '0ms'}
           subtitle="95th percentile"
           icon={<Clock className="h-4 w-4" />}

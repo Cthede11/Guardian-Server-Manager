@@ -37,40 +37,65 @@ git clone <repository-url>
 cd modded-manager
 ```
 
-### Step 2: Build Backend Components
+### Step 2: Quick Build (Recommended)
 
-#### Build hostd (Main Backend Service)
+Use the automated build script that handles everything:
+
+```powershell
+# Windows PowerShell
+.\scripts\build-all.ps1
+```
+
+This will:
+- Clean up any existing build artifacts
+- Build all backend components (hostd, gpu-worker)
+- Build the frontend (guardian-ui)
+- Build the Tauri desktop application
+- Organize all build artifacts in the `build/` directory
+
+### Step 3: Manual Build (Alternative)
+
+If you prefer to build components individually:
+
+#### Build Backend Components
 ```bash
+# Build hostd (Main Backend Service)
 cd hostd
 cargo build --release
 cd ..
-```
 
-#### Build gpu-worker (GPU Acceleration Service)
-```bash
+# Build gpu-worker (GPU Acceleration Service)
 cd gpu-worker
 cargo build --release
 cd ..
 ```
 
-### Step 3: Build Frontend
-
+#### Build Frontend
 ```bash
 cd guardian-ui
 npm install
 npm run build
 ```
 
-### Step 4: Build Tauri Desktop Application
-
+#### Build Tauri Desktop Application
 ```bash
 # Ensure you're in the guardian-ui directory
 npm run tauri:build
 ```
 
-This will create:
-- `src-tauri/target/release/guardian.exe` (Windows)
-- `src-tauri/target/release/bundle/msi/Guardian_1.0.0_x64_en-US.msi` (Windows Installer)
+#### Organize Build Artifacts
+```powershell
+# Run cleanup to organize everything
+.\scripts\cleanup.ps1
+```
+
+### Build Output
+
+All build artifacts are organized in the `build/` directory:
+- `build/executables/` - All compiled executables (.exe files)
+- `build/installers/` - Installer packages and scripts
+- `build/logs/` - Build and runtime logs
+- `build/temp/` - Temporary build files
 
 ## 📦 Installation Methods
 
@@ -78,7 +103,7 @@ This will create:
 
 1. Navigate to the installer:
    ```bash
-   cd guardian-ui/src-tauri/target/release/bundle/msi/
+   cd build/installers/msi/
    ```
 
 2. Run the MSI installer:
@@ -91,10 +116,10 @@ This will create:
 
 ### Method 2: Portable Installation
 
-1. Copy the release directory:
+1. Copy the executables:
    ```bash
-   # Copy the entire release directory to your desired location
-   cp -r guardian-ui/src-tauri/target/release/ /path/to/guardian/
+   # Copy all executables to your desired location
+   cp -r build/executables/ /path/to/guardian/
    ```
 
 2. Run the application:
@@ -109,8 +134,8 @@ For development or testing:
 
 1. Start the backend:
    ```bash
-   cd hostd/target/release
-   ./hostd.exe --config ../../../configs/hostd.yaml --port 8080
+   cd build/executables
+   ./hostd.exe --config ../../configs/hostd.yaml --port 8080
    ```
 
 2. Start the frontend (in a new terminal):
@@ -169,25 +194,25 @@ export PORT=8080
 
 ### Windows
 
-#### Using the Launcher Script
+#### Using the Build Scripts
 ```powershell
-# Run the PowerShell launcher
-.\launch-guardian.ps1
+# Run the complete build and organization
+.\scripts\build-all.ps1
 
-# Or run the batch file
-launch-guardian.bat
+# Or just run the desktop build
+.\scripts\build-desktop.ps1
 ```
 
 #### Direct Execution
 ```powershell
-cd guardian-ui\src-tauri\target\release
+cd build\executables
 .\guardian.exe
 ```
 
 ### Linux/macOS
 
 ```bash
-cd guardian-ui/src-tauri/target/release
+cd build/executables
 ./guardian
 ```
 
@@ -267,22 +292,26 @@ After building, your directory structure should look like:
 
 ```
 modded-manager/
-├── hostd/
-│   └── target/release/
-│       └── hostd.exe
-├── gpu-worker/
-│   └── target/release/
-│       └── gpu-worker.exe
-├── guardian-ui/
-│   ├── src-tauri/target/release/
-│   │   ├── guardian.exe
+├── build/                    # 🆕 Centralized build directory
+│   ├── executables/         # All compiled executables
 │   │   ├── hostd.exe
 │   │   ├── gpu-worker.exe
-│   │   ├── configs/
-│   │   └── data/
-│   └── src-tauri/target/release/bundle/msi/
-│       └── Guardian_1.0.0_x64_en-US.msi
-└── configs/
+│   │   └── guardian.exe
+│   ├── installers/          # Installer packages and scripts
+│   │   ├── msi/
+│   │   │   └── Guardian_1.0.0_x64_en-US.msi
+│   │   ├── nsis-installer.nsi
+│   │   └── wix-installer.wxs
+│   ├── logs/               # Build and runtime logs
+│   └── temp/               # Temporary build files
+├── scripts/                 # Build and maintenance scripts
+│   ├── build-all.ps1       # Master build script
+│   ├── build-desktop.ps1   # Desktop build script
+│   └── cleanup.ps1         # Cleanup script
+├── hostd/                  # Backend source
+├── gpu-worker/            # GPU worker source
+├── guardian-ui/           # Frontend source
+└── configs/               # Configuration files
     └── hostd.yaml
 ```
 
@@ -296,13 +325,14 @@ modded-manager/
    ```
 
 2. Rebuild the application:
-   ```bash
-   # Clean previous builds
-   cargo clean
-   rm -rf guardian-ui/node_modules
+   ```powershell
+   # Clean and rebuild everything
+   .\scripts\build-all.ps1
    
-   # Rebuild
-   ./build-simple.ps1  # or follow manual build steps
+   # Or clean manually and rebuild
+   cargo clean
+   Remove-Item -Recurse -Force guardian-ui\node_modules
+   .\scripts\build-desktop.ps1
    ```
 
 ### From Installer

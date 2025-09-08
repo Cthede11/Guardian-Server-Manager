@@ -223,6 +223,13 @@ fn get_resource_path<R: tauri::Runtime>(handle: &tauri::AppHandle<R>, resource_n
         // Add more specific paths for our setup
         std::env::current_dir()?.join("src-tauri").join("target").join("release").join(resource_name),
         std::env::current_dir()?.join("src-tauri").join(resource_name),
+        // Add paths for installed app
+        app_dir.join("..").join(resource_name),
+        app_dir.join("..").join("..").join(resource_name),
+        // Try to find in the same directory as the executable
+        std::env::current_exe()?.parent().unwrap().join(resource_name),
+        std::env::current_exe()?.parent().unwrap().join("..").join(resource_name),
+        std::env::current_exe()?.parent().unwrap().join("..").join("..").join(resource_name),
     ];
     
     for (i, path) in possible_paths.iter().enumerate() {
@@ -236,10 +243,21 @@ fn get_resource_path<R: tauri::Runtime>(handle: &tauri::AppHandle<R>, resource_n
     // If not found, try to find it in the current working directory
     let current_dir = std::env::current_dir()?;
     log_debug(&format!("Current working directory: {:?}", current_dir));
+    log_debug(&format!("Current executable: {:?}", std::env::current_exe()?));
     
     // List files in current directory to help debug
     if let Ok(entries) = std::fs::read_dir(&current_dir) {
         log_debug("Files in current directory:");
+        for entry in entries.flatten() {
+            if let Some(name) = entry.file_name().to_str() {
+                log_debug(&format!("  - {}", name));
+            }
+        }
+    }
+    
+    // List files in app directory to help debug
+    if let Ok(entries) = std::fs::read_dir(&app_dir) {
+        log_debug("Files in app directory:");
         for entry in entries.flatten() {
             if let Some(name) = entry.file_name().to_str() {
                 log_debug(&format!("  - {}", name));
@@ -271,7 +289,20 @@ fn start_hostd_service<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> Resul
     log_debug("Starting hostd service...");
     
     // Use enhanced resource path resolution
-    let hostd_path = get_resource_path(handle, "hostd.exe")?;
+    let hostd_path = match get_resource_path(handle, "hostd.exe") {
+        Ok(path) => path,
+        Err(_) => {
+            log_debug("Could not find hostd.exe in resource directory, trying build directory...");
+            // Fallback to build directory
+            let build_path = std::env::current_dir()?.join("build").join("executables").join("hostd.exe");
+            if build_path.exists() {
+                log_debug(&format!("Found hostd.exe in build directory: {:?}", build_path));
+                build_path
+            } else {
+                return Err("Could not find hostd.exe in resource directory or build directory".into());
+            }
+        }
+    };
     start_hostd_process(handle, &hostd_path)
 }
 
@@ -280,7 +311,20 @@ fn start_gpu_worker_service<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> 
     log_debug("Starting GPU worker service...");
     
     // Use enhanced resource path resolution
-    let gpu_worker_path = get_resource_path(handle, "gpu-worker.exe")?;
+    let gpu_worker_path = match get_resource_path(handle, "gpu-worker.exe") {
+        Ok(path) => path,
+        Err(_) => {
+            log_debug("Could not find gpu-worker.exe in resource directory, trying build directory...");
+            // Fallback to build directory
+            let build_path = std::env::current_dir()?.join("build").join("executables").join("gpu-worker.exe");
+            if build_path.exists() {
+                log_debug(&format!("Found gpu-worker.exe in build directory: {:?}", build_path));
+                build_path
+            } else {
+                return Err("Could not find gpu-worker.exe in resource directory or build directory".into());
+            }
+        }
+    };
     start_gpu_worker_process(handle, &gpu_worker_path)
 }
 

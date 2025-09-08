@@ -93,57 +93,54 @@ export const Events: React.FC<EventsPageProps> = ({ className = '' }) => {
   }, [serverId]);
 
   const handleCreateEvent = async (eventData: any) => {
+    if (!serverId) return;
+    
     try {
-      // Simulate creating an event
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const newEvent = {
-        id: `event-${Date.now()}`,
-        ...eventData,
-        status: 'scheduled',
-        createdAt: Date.now(),
-        createdBy: 'admin'
-      };
-      
-      setEvents(prev => [newEvent, ...prev]);
-      setCreateEventOpen(false);
+      // Real API call to create event
+      const response = await api.createEvent(serverId, eventData);
+      if (response.ok && response.data) {
+        const newEvent = response.data as any;
+        setEvents(prev => [newEvent, ...prev]);
+        setCreateEventOpen(false);
+      } else {
+        console.error('Failed to create event:', response.error);
+      }
     } catch (error) {
       console.error('Error creating event:', error);
     }
   };
 
   const handleEventAction = async (eventId: string, action: string) => {
+    if (!serverId) return;
+    
     try {
-      // Simulate event action
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setEvents(prev => prev.map(event => {
-        if (event.id === eventId) {
-          switch (action) {
-            case 'start':
-              return { ...event, status: 'running', lastRun: Date.now() };
-            case 'pause':
-              return { ...event, status: 'paused' };
-            case 'stop':
-              return { ...event, status: 'cancelled' };
-            case 'complete':
-              return { ...event, status: 'completed', lastRun: Date.now() };
-            default:
-              return event;
-          }
-        }
-        return event;
-      }));
+      // Real API call to perform event action
+      const response = await api.createEvent(serverId, { eventId, action });
+      if (response.ok && response.data) {
+        setEvents(prev => prev.map(event => 
+          event.id === eventId 
+            ? { ...event, ...(response.data as any) }
+            : event
+        ));
+      } else {
+        console.error(`Failed to ${action} event:`, response.error);
+      }
     } catch (error) {
       console.error('Error performing event action:', error);
     }
   };
 
   const handleDeleteEvent = async (eventId: string) => {
+    if (!serverId) return;
+    
     try {
-      // Simulate deletion
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setEvents(prev => prev.filter(e => e.id !== eventId));
+      // Real API call to delete event
+      const response = await api.createEvent(serverId, { eventId, action: 'delete' });
+      if (response.ok) {
+        setEvents(prev => prev.filter(e => e.id !== eventId));
+      } else {
+        console.error('Failed to delete event:', response.error);
+      }
     } catch (error) {
       console.error('Error deleting event:', error);
     }

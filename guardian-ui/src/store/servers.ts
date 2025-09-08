@@ -201,6 +201,28 @@ export const useServersStore = create<ServersState>((set, get) => ({
             : server
         ),
       }));
+
+      // Poll server list to detect transition to stopped
+      (async () => {
+        for (let i = 0; i < 12; i++) { // up to ~60s
+          await new Promise((r) => setTimeout(r, 5000));
+          try {
+            const list = await api.getServers();
+            if (list.ok && list.data) {
+              const servers = list.data as ServerSummary[];
+              const found = servers.find(s => s.id === id);
+              if (found) {
+                set((state) => ({
+                  servers: state.servers.map(s => s.id === id ? { ...s, status: found.status } : s),
+                }));
+                if (found.status === 'stopped' || found.status === 'running') {
+                  break;
+                }
+              }
+            }
+          } catch {}
+        }
+      })();
       return true;
     } else {
       set({ error: response.error || 'Failed to stop server' });

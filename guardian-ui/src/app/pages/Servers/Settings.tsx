@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 // import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { api } from '@/lib/api';
 import { 
   Settings as SettingsIcon, 
   Save, 
@@ -41,6 +43,7 @@ interface SettingsStats {
 }
 
 export const Settings: React.FC = () => {
+  const { id: serverId } = useParams<{ id: string }>();
   const [activeTab, setActiveTab] = useState('general');
   const [stats, setStats] = useState<SettingsStats>({
     totalSettings: 0,
@@ -55,53 +58,83 @@ export const Settings: React.FC = () => {
   // const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   const fetchStats = async () => {
+    if (!serverId) return;
+    
     setIsLoading(true);
     try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setStats({
-        totalSettings: 47,
-        modifiedSettings: 3,
-        criticalSettings: 2,
-        lastModified: new Date(Date.now() - 1800000).toISOString(),
-        hasUnsavedChanges: true,
-        validationErrors: 1
-      });
-      
-      // setLastRefresh(new Date());
+      // Real API call to get settings stats
+      const response = await api.getServerSettings(serverId);
+      if (response.ok && response.data) {
+        const settingsData = response.data as any;
+        
+        const stats: SettingsStats = {
+          totalSettings: settingsData.totalSettings || 0,
+          modifiedSettings: settingsData.modifiedSettings || 0,
+          criticalSettings: settingsData.criticalSettings || 0,
+          lastModified: settingsData.lastModified || 'Never',
+          hasUnsavedChanges: settingsData.hasUnsavedChanges || false,
+          validationErrors: settingsData.validationErrors || 0
+        };
+        
+        setStats(stats);
+      } else {
+        // If no data available, show empty state
+        setStats({
+          totalSettings: 0,
+          modifiedSettings: 0,
+          criticalSettings: 0,
+          lastModified: 'Never',
+          hasUnsavedChanges: false,
+          validationErrors: 0
+        });
+      }
     } catch (error) {
       console.error('Failed to fetch settings stats:', error);
+      setStats({
+        totalSettings: 0,
+        modifiedSettings: 0,
+        criticalSettings: 0,
+        lastModified: 'Never',
+        hasUnsavedChanges: false,
+        validationErrors: 0
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchStats();
-    
-    // Auto-refresh every 60 seconds
-    const interval = setInterval(fetchStats, 60000);
-    return () => clearInterval(interval);
-  }, []);
+    if (serverId) {
+      fetchStats();
+      
+      // Auto-refresh every 60 seconds
+      const interval = setInterval(fetchStats, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [serverId]);
 
   const handleRefresh = () => {
     fetchStats();
   };
 
   const handleSave = async () => {
+    if (!serverId) return;
+    
     setIsSaving(true);
     try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      setStats(prev => ({
-        ...prev,
-        hasUnsavedChanges: false,
-        modifiedSettings: 0,
-        validationErrors: 0,
-        lastModified: new Date().toISOString()
-      }));
+      // Real API call to save settings
+      const response = await api.updateServerSettings(serverId, {});
+      if (response.ok) {
+        setStats(prev => ({
+          ...prev,
+          hasUnsavedChanges: false,
+          modifiedSettings: 0,
+          validationErrors: 0,
+          lastModified: new Date().toISOString()
+        }));
+      } else {
+        console.error('Failed to save settings:', response.error);
+      }
     } catch (error) {
       console.error('Failed to save settings:', error);
     } finally {

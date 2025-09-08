@@ -1,20 +1,68 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useServersStore } from '@/store/servers';
+import { ErrorEmptyState } from '@/components/ui/EmptyState';
 import WorldHeatmap from '@/components/World/WorldHeatmap';
+import { LoadingWrapper } from '@/components/LoadingWrapper';
+import { api } from '@/lib/api';
 
 export const World: React.FC = () => {
   const { id: serverId } = useParams<{ id: string }>();
   const { getServerById } = useServersStore();
   const server = serverId ? getServerById(serverId) : null;
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchWorldData = async () => {
+      if (!serverId) return;
+      
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        const response = await api.getWorldData(serverId);
+        if (!response.ok) {
+          setError(response.error || 'Failed to load world data');
+        }
+      } catch (err) {
+        setError('Network error while loading world data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchWorldData();
+  }, [serverId]);
 
   if (!server) {
     return (
       <div className="p-6">
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Select a server to view world data</p>
-        </div>
+        <ErrorEmptyState
+          title="No server selected"
+          description="Please select a server from the sidebar to view world data."
+        />
       </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <LoadingWrapper
+        isLoading={false}
+        error={error}
+        className="p-6"
+      />
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <LoadingWrapper
+        isLoading={true}
+        error={null}
+        className="p-6"
+      />
     );
   }
 

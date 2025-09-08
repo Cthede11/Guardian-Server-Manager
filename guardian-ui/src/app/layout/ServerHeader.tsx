@@ -252,6 +252,7 @@ export const ServerTabs: React.FC = () => {
   const { id: serverId } = useParams<{ id: string }>();
   const location = useLocation();
   const navigate = useNavigate();
+  const [isNavigating, setIsNavigating] = React.useState(false);
   
   // Determine current tab from pathname
   const currentTab = React.useMemo(() => {
@@ -262,9 +263,15 @@ export const ServerTabs: React.FC = () => {
 
   if (!serverId) return null;
 
-  const handleTabChange = (tabId: string) => {
-    navigate(`/servers/${serverId}/${tabId}`);
-  };
+  const handleTabChange = React.useCallback((tabId: string) => {
+    if (isNavigating || tabId === currentTab) return;
+    
+    setIsNavigating(true);
+    navigate(`/servers/${serverId}/${tabId}`, { replace: false });
+    
+    // Reset navigation state after a longer delay to prevent rapid API calls
+    setTimeout(() => setIsNavigating(false), 500);
+  }, [navigate, serverId, currentTab, isNavigating]);
 
   return (
     <div className="bg-card border-b border-border px-6 shadow-sm">
@@ -274,7 +281,8 @@ export const ServerTabs: React.FC = () => {
             <TabsTrigger
               key={tab.id}
               value={tab.id}
-              className="text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md rounded-md transition-all duration-200 hover:bg-accent/50"
+              disabled={isNavigating}
+              className="text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md rounded-md transition-all duration-200 hover:bg-accent/50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {tab.label}
             </TabsTrigger>

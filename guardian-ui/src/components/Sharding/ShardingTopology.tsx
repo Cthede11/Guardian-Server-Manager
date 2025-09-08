@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +16,7 @@ import {
   Cpu,
   HardDrive
 } from 'lucide-react';
+import { api } from '@/lib/api';
 
 interface ShardNode {
   id: string;
@@ -41,6 +43,7 @@ interface TopologyData {
 }
 
 export const ShardingTopology: React.FC = () => {
+  const { id: serverId } = useParams<{ id: string }>();
   const [topology, setTopology] = useState<TopologyData>({
     nodes: [],
     connections: []
@@ -51,115 +54,54 @@ export const ShardingTopology: React.FC = () => {
   const [canvasSize] = useState({ width: 800, height: 600 });
 
   const fetchTopology = async () => {
+    if (!serverId) return;
+    
     setIsLoading(true);
     try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const mockNodes: ShardNode[] = [
-        {
-          id: 'shard-1',
-          name: 'Main World',
-          status: 'healthy',
-          players: 45,
-          maxPlayers: 100,
-          tps: 19.8,
-          memory: 65,
-          cpu: 45,
-          position: { x: 200, y: 150 },
-          connections: ['shard-2', 'shard-3'],
-          lastSeen: new Date().toISOString()
-        },
-        {
-          id: 'shard-2',
-          name: 'Nether',
-          status: 'healthy',
-          players: 23,
-          maxPlayers: 50,
-          tps: 20.0,
-          memory: 42,
-          cpu: 38,
-          position: { x: 400, y: 100 },
-          connections: ['shard-1', 'shard-4'],
-          lastSeen: new Date().toISOString()
-        },
-        {
-          id: 'shard-3',
-          name: 'End',
-          status: 'warning',
-          players: 12,
-          maxPlayers: 30,
-          tps: 18.5,
-          memory: 78,
-          cpu: 62,
-          position: { x: 200, y: 300 },
-          connections: ['shard-1', 'shard-5'],
-          lastSeen: new Date().toISOString()
-        },
-        {
-          id: 'shard-4',
-          name: 'Creative',
-          status: 'healthy',
-          players: 8,
-          maxPlayers: 20,
-          tps: 20.0,
-          memory: 35,
-          cpu: 28,
-          position: { x: 500, y: 200 },
-          connections: ['shard-2'],
-          lastSeen: new Date().toISOString()
-        },
-        {
-          id: 'shard-5',
-          name: 'Minigames',
-          status: 'critical',
-          players: 0,
-          maxPlayers: 50,
-          tps: 5.2,
-          memory: 95,
-          cpu: 89,
-          position: { x: 300, y: 400 },
-          connections: ['shard-3'],
-          lastSeen: new Date(Date.now() - 300000).toISOString()
-        },
-        {
-          id: 'shard-6',
-          name: 'Backup',
-          status: 'offline',
-          players: 0,
-          maxPlayers: 100,
-          tps: 0,
-          memory: 0,
-          cpu: 0,
-          position: { x: 600, y: 350 },
-          connections: [],
-          lastSeen: new Date(Date.now() - 3600000).toISOString()
-        }
-      ];
+      // Real API call to get sharding topology
+      const response = await api.getShardingTopology();
+      if (response.ok && response.data) {
+        const topologyData = response.data as any;
+        
+        // Transform the API response to match our interface
+        const nodes: ShardNode[] = (topologyData.nodes || []).map((node: any, index: number) => ({
+          id: node.id || `shard-${index}`,
+          name: node.name || 'Unknown Shard',
+          status: node.status || 'offline',
+          players: node.players || 0,
+          maxPlayers: node.maxPlayers || 100,
+          tps: node.tps || 0,
+          memory: node.memory || 0,
+          cpu: node.cpu || 0,
+          position: node.position || { x: 200 + (index * 100), y: 150 + (index * 50) },
+          connections: node.connections || [],
+          lastSeen: node.lastSeen || new Date().toISOString()
+        }));
 
-      const mockConnections = [
-        { from: 'shard-1', to: 'shard-2', type: 'primary' as const, latency: 12 },
-        { from: 'shard-1', to: 'shard-3', type: 'primary' as const, latency: 8 },
-        { from: 'shard-2', to: 'shard-4', type: 'secondary' as const, latency: 15 },
-        { from: 'shard-3', to: 'shard-5', type: 'secondary' as const, latency: 22 },
-        { from: 'shard-6', to: 'shard-1', type: 'backup' as const, latency: 0 }
-      ];
+        const connections = topologyData.connections || [];
 
-      setTopology({ nodes: mockNodes, connections: mockConnections });
+        setTopology({ nodes, connections });
+      } else {
+        // If no data available, show empty state
+        setTopology({ nodes: [], connections: [] });
+      }
     } catch (error) {
       console.error('Failed to fetch topology:', error);
+      setTopology({ nodes: [], connections: [] });
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchTopology();
-    
-    // Auto-refresh every 15 seconds
-    const interval = setInterval(fetchTopology, 15000);
-    return () => clearInterval(interval);
-  }, []);
+    if (serverId) {
+      fetchTopology();
+      
+      // Auto-refresh every 15 seconds
+      const interval = setInterval(fetchTopology, 15000);
+      return () => clearInterval(interval);
+    }
+  }, [serverId]);
 
   const getStatusColor = (status: ShardNode['status']) => {
     switch (status) {

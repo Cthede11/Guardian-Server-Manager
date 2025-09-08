@@ -82,37 +82,40 @@ foreach ($Dir in $BuildDirs) {
 }
 
 # Move any remaining executables to build/executables
-Get-ChildItem -Path $ProjectRoot -Recurse -Name "*.exe" -File |
-    Where-Object { $_ -notlike "*target*" -and $_ -notlike "*node_modules*" -and $_ -notlike "*build*" } |
-    ForEach-Object {
-        $SourcePath = Join-Path $ProjectRoot $_
-        $DestPath = Join-Path $ProjectRoot "build/executables" (Split-Path $_ -Leaf)
-        Move-Item $SourcePath $DestPath -Force -ErrorAction SilentlyContinue
-        Write-Host "Moved executable: $_ -> build/executables/" -ForegroundColor Gray
-    }
+$Executables = Get-ChildItem -Path $ProjectRoot -Recurse -Filter "*.exe" -File |
+    Where-Object { $_.FullName -notlike "*target*" -and $_.FullName -notlike "*node_modules*" -and $_.FullName -notlike "*build*" }
+
+foreach ($Exe in $Executables) {
+    $SourcePath = $Exe.FullName
+    $DestPath = Join-Path (Join-Path $ProjectRoot "build/executables") $Exe.Name
+    Move-Item $SourcePath $DestPath -Force -ErrorAction SilentlyContinue
+    Write-Host "Moved executable: $($Exe.Name) -> build/executables/" -ForegroundColor Gray
+}
 
 # Move any remaining installer scripts to build/installers
 $InstallerPatterns = @("*.nsi", "*.wxs", "*.iss")
 foreach ($Pattern in $InstallerPatterns) {
-    Get-ChildItem -Path $ProjectRoot -Recurse -Name $Pattern -File |
-        Where-Object { $_ -notlike "*target*" -and $_ -notlike "*node_modules*" -and $_ -notlike "*build*" } |
-        ForEach-Object {
-            $SourcePath = Join-Path $ProjectRoot $_
-            $DestPath = Join-Path $ProjectRoot "build/installers" (Split-Path $_ -Leaf)
-            Move-Item $SourcePath $DestPath -Force -ErrorAction SilentlyContinue
-            Write-Host "Moved installer: $_ -> build/installers/" -ForegroundColor Gray
-        }
+    $Installers = Get-ChildItem -Path $ProjectRoot -Recurse -Filter $Pattern -File |
+        Where-Object { $_.FullName -notlike "*target*" -and $_.FullName -notlike "*node_modules*" -and $_.FullName -notlike "*build*" }
+    
+    foreach ($Installer in $Installers) {
+        $SourcePath = $Installer.FullName
+        $DestPath = Join-Path (Join-Path $ProjectRoot "build/installers") $Installer.Name
+        Move-Item $SourcePath $DestPath -Force -ErrorAction SilentlyContinue
+        Write-Host "Moved installer: $($Installer.Name) -> build/installers/" -ForegroundColor Gray
+    }
 }
 
 # Move any remaining log files to build/logs
-Get-ChildItem -Path $ProjectRoot -Recurse -Name "*.log" -File |
-    Where-Object { $_ -notlike "*target*" -and $_ -notlike "*node_modules*" -and $_ -notlike "*build*" } |
-    ForEach-Object {
-        $SourcePath = Join-Path $ProjectRoot $_
-        $DestPath = Join-Path $ProjectRoot "build/logs" (Split-Path $_ -Leaf)
-        Move-Item $SourcePath $DestPath -Force -ErrorAction SilentlyContinue
-        Write-Host "Moved log: $_ -> build/logs/" -ForegroundColor Gray
-    }
+$Logs = Get-ChildItem -Path $ProjectRoot -Recurse -Filter "*.log" -File |
+    Where-Object { $_.FullName -notlike "*target*" -and $_.FullName -notlike "*node_modules*" -and $_.FullName -notlike "*build*" }
+
+foreach ($Log in $Logs) {
+    $SourcePath = $Log.FullName
+    $DestPath = Join-Path (Join-Path $ProjectRoot "build/logs") $Log.Name
+    Move-Item $SourcePath $DestPath -Force -ErrorAction SilentlyContinue
+    Write-Host "Moved log: $($Log.Name) -> build/logs/" -ForegroundColor Gray
+}
 
 Write-Host "[COMPLETE] Cleanup completed!" -ForegroundColor Green
 Write-Host "[INFO] Build artifacts are now organized in the build/ directory" -ForegroundColor Blue

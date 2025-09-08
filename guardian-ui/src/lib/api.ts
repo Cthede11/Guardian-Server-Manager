@@ -5,9 +5,28 @@ const API_BASE_URL = config.api.baseUrl;
 
 class ApiClient {
   private baseUrl: string;
+  private retryCount: number = 0;
+  private maxRetries: number = 3;
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
+  }
+
+  private async retryRequest<T>(
+    endpoint: string,
+    options: RequestInit = {},
+    retryCount: number = 0
+  ): Promise<ApiResponse<T>> {
+    const result = await this.request<T>(endpoint, options);
+    
+    // If request failed and we haven't exceeded max retries, try again
+    if (!result.ok && retryCount < this.maxRetries) {
+      console.log(`Retrying request (${retryCount + 1}/${this.maxRetries}): ${endpoint}`);
+      await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Exponential backoff
+      return this.retryRequest<T>(endpoint, options, retryCount + 1);
+    }
+    
+    return result;
   }
 
   private async request<T>(
@@ -24,17 +43,42 @@ class ApiClient {
     console.log('Request body:', options.body);
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
       const response = await fetch(url, {
         ...options,
         headers: {
           ...defaultHeaders,
           ...options.headers,
         },
+        signal: controller.signal,
       });
 
+      clearTimeout(timeoutId);
       console.log(`API Response: ${response.status} ${response.statusText}`);
 
       if (!response.ok) {
+        // Handle specific HTTP status codes
+        if (response.status === 404) {
+          return {
+            ok: false,
+            error: 'Endpoint not found - server may not be running',
+            data: undefined
+          };
+        } else if (response.status === 500) {
+          return {
+            ok: false,
+            error: 'Server error - please check backend logs',
+            data: undefined
+          };
+        } else if (response.status === 0) {
+          return {
+            ok: false,
+            error: 'Cannot connect to server - is the backend running?',
+            data: undefined
+          };
+        }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
@@ -48,21 +92,40 @@ class ApiClient {
         console.error('API Error:', result.error);
         return {
           ok: false,
-          error: result.error || 'Unknown error',
+          error: result.error || 'Unknown error occurred',
+          data: undefined
         };
       }
     } catch (error) {
       console.error('API Request failed:', error);
+      
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          return {
+            ok: false,
+            error: 'Request timeout - server may be slow or unresponsive',
+            data: undefined
+          };
+        } else if (error.message.includes('Failed to fetch')) {
+          return {
+            ok: false,
+            error: 'Cannot connect to server - is the backend running on localhost:8080?',
+            data: undefined
+          };
+        }
+      }
+      
       return {
         ok: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : 'Network error',
+        data: undefined
       };
     }
   }
 
   // Server endpoints
   async getServers() {
-    return this.request('/api/servers');
+    return this.retryRequest('/api/servers');
   }
 
   async createServer(data: {
@@ -375,6 +438,15 @@ class ApiClient {
     });
   }
 
+  // World data endpoints
+  async getWorldData(id: string) {
+    return this.request(`/api/servers/${id}/world`);
+  }
+
+  async getFreezes(id: string) {
+    return this.request(`/api/servers/${id}/world/freezes`);
+  }
+
   // Pregen endpoints
   async getPregenJobs(id: string) {
     return this.request(`/api/servers/${id}/pregen`);
@@ -425,6 +497,10 @@ class ApiClient {
     return this.request('/api/sharding/topology');
   }
 
+  async getShardingAssignments() {
+    return this.request('/api/sharding/assignments');
+  }
+
   async updateShardingAssignments(assignments: any) {
     return this.request('/api/sharding/assignments', {
       method: 'POST',
@@ -452,6 +528,27 @@ class ApiClient {
     return this.request(`/api/servers/${id}/settings`, {
       method: 'PUT',
       body: JSON.stringify(settings),
+    });
+  }
+
+  // Token management
+  async createToken(id: string, tokenData: any) {
+    return this.request(`/api/servers/${id}/tokens`, {
+      method: 'POST',
+      body: JSON.stringify(tokenData),
+    });
+  }
+
+  async updateToken(id: string, tokenId: string, data: any) {
+    return this.request(`/api/servers/${id}/tokens/${tokenId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteToken(id: string, tokenId: string) {
+    return this.request(`/api/servers/${id}/tokens/${tokenId}`, {
+      method: 'DELETE',
     });
   }
 

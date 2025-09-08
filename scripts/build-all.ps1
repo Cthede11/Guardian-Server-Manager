@@ -35,16 +35,17 @@ foreach ($Dir in $BuildDirs) {
 }
 
 # Copy any remaining executables
-Get-ChildItem -Path $ProjectRoot -Recurse -Name "*.exe" -File |
-    Where-Object { $_ -notlike "*target*" -and $_ -notlike "*node_modules*" -and $_ -notlike "*build*" } |
-    ForEach-Object {
-        $SourcePath = Join-Path $ProjectRoot $_
-        $DestPath = Join-Path $ProjectRoot "build/executables" (Split-Path $_ -Leaf)
-        if (-not (Test-Path $DestPath)) {
-            Copy-Item $SourcePath $DestPath -Force -ErrorAction SilentlyContinue
-            Write-Host "Copied executable: $_ -> build/executables/" -ForegroundColor Gray
-        }
+$Executables = Get-ChildItem -Path $ProjectRoot -Recurse -Filter "*.exe" -File |
+    Where-Object { $_.FullName -notlike "*target*" -and $_.FullName -notlike "*node_modules*" -and $_.FullName -notlike "*build*" }
+
+foreach ($Exe in $Executables) {
+    $SourcePath = $Exe.FullName
+    $DestPath = Join-Path (Join-Path $ProjectRoot "build/executables") $Exe.Name
+    if (-not (Test-Path $DestPath)) {
+        Copy-Item $SourcePath $DestPath -Force -ErrorAction SilentlyContinue
+        Write-Host "Copied executable: $($Exe.Name) -> build/executables/" -ForegroundColor Gray
     }
+}
 
 Write-Host "[COMPLETE] Guardian project build completed!" -ForegroundColor Green
 Write-Host "[OUTPUT] All build artifacts are organized in the build/ directory" -ForegroundColor Blue

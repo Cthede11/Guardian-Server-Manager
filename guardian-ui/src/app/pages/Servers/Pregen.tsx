@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { ErrorEmptyState } from '@/components/ui/EmptyState';
+import { api } from '@/lib/api';
 import { 
   Map, 
   Plus, 
@@ -45,7 +47,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 // } from '@/components/ui/dropdown-menu';
 import { useServersStore } from '@/store/servers';
 import { usePregenJobs, liveStore } from '@/store/live';
-import { ErrorEmptyState } from '@/components/ui/EmptyState';
 import { PregenQueue } from '@/components/Pregen/PregenQueue';
 import { RegionSelector } from '@/components/Pregen/RegionSelector';
 import { PregenStats } from '@/components/Pregen/PregenStats';
@@ -68,78 +69,108 @@ export const Pregen: React.FC<PregenPageProps> = ({ className = '' }) => {
   // const [selectedRegion, setSelectedRegion] = useState<any>(null);
   const [regionSelectorOpen, setRegionSelectorOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Add error handling for server selection
+  if (!server) {
+    return (
+      <div className="p-6">
+        <ErrorEmptyState
+          title="No server selected"
+          description="Please select a server from the sidebar to view pregen jobs."
+        />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <ErrorEmptyState
+          title="Failed to load pregen data"
+          description={error}
+          onRetry={() => {
+            setError(null);
+            // Retry logic can be added here
+          }}
+        />
+      </div>
+    );
+  }
 
   // No need for fetchPregenJobs since we're using the live store
 
   // No need for mock data generation since we're using the live store
 
   const handleCreatePregenJob = async (regionData: any) => {
+    if (!serverId) return;
+    
     try {
-      // Simulate creating a pregen job
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const newJob = {
-        id: `pregen-${Date.now()}`,
-        ...regionData,
-        status: 'queued',
-        createdAt: Date.now(),
-        createdBy: 'admin',
-        completedChunks: 0,
-        progress: 0
-      };
-      
-      // Update live store instead of local state
-      liveStore.getState().addPregenJob(serverId || '', newJob);
-      setRegionSelectorOpen(false);
+      // Real API call to create pregen job
+      const response = await api.createPregenJob(serverId, regionData);
+      if (response.ok && response.data) {
+        const newJob = response.data as any;
+        // Update live store with real data
+        liveStore.getState().addPregenJob(serverId, newJob);
+        setRegionSelectorOpen(false);
+      } else {
+        console.error('Failed to create pregen job:', response.error);
+      }
     } catch (error) {
       console.error('Error creating pregen job:', error);
     }
   };
 
   const handleJobAction = async (jobId: string, action: string) => {
+    if (!serverId) return;
+    
     try {
-      // Simulate job action
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      let updates: any = {};
+      let response;
       switch (action) {
         case 'start':
-          updates = { status: 'running', startTime: Date.now() };
-          break;
-        case 'pause':
-          updates = { status: 'paused' };
+          response = await api.startPregenJob(serverId, jobId);
           break;
         case 'stop':
-          updates = { status: 'cancelled', endTime: Date.now() };
+          response = await api.stopPregenJob(serverId, jobId);
           break;
+        case 'pause':
         case 'resume':
-          updates = { status: 'running' };
+          response = await api.updatePregenJob(serverId, jobId, { status: action === 'pause' ? 'paused' : 'running' });
           break;
         default:
           return;
       }
       
-      // Update live store instead of local state
-      liveStore.getState().updatePregenJob(serverId || '', jobId, updates);
+      if (response && response.ok) {
+        // Update live store with real data
+        liveStore.getState().updatePregenJob(serverId, jobId, response.data || {});
+      } else {
+        console.error(`Failed to ${action} pregen job:`, response?.error);
+      }
     } catch (error) {
       console.error('Error performing job action:', error);
     }
   };
 
   const handleDeleteJob = async (jobId: string) => {
+    if (!serverId) return;
+    
     try {
-      // Simulate deletion
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Update live store instead of local state
-      const currentJobs = liveStore.getState().pregenJobs[serverId || ''] || [];
-      const updatedJobs = currentJobs.filter(job => job.id !== jobId);
-      liveStore.setState(state => ({
-        pregenJobs: {
-          ...state.pregenJobs,
-          [serverId || '']: updatedJobs,
-        },
-      }));
+      // Real API call to delete pregen job
+      const response = await api.deletePregenJob(serverId, jobId);
+      if (response.ok) {
+        // Update live store with real data
+        const currentJobs = liveStore.getState().pregenJobs[serverId] || [];
+        const updatedJobs = currentJobs.filter(job => job.id !== jobId);
+        liveStore.setState(state => ({
+          pregenJobs: {
+            ...state.pregenJobs,
+            [serverId]: updatedJobs,
+          },
+        }));
+      } else {
+        console.error('Failed to delete pregen job:', response.error);
+      }
     } catch (error) {
       console.error('Error deleting job:', error);
     }
@@ -234,17 +265,6 @@ export const Pregen: React.FC<PregenPageProps> = ({ className = '' }) => {
       return chunks.toString();
     }
   };
-
-  if (!server) {
-    return (
-      <div className="p-6">
-        <ErrorEmptyState
-          title="No server selected"
-          description="Please select a server from the sidebar to view its pregen jobs."
-        />
-      </div>
-    );
-  }
 
   return (
     <div className={`p-6 space-y-6 ${className}`}>

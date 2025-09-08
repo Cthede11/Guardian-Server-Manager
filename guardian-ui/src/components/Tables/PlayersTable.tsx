@@ -379,7 +379,7 @@ export const PlayersTable: React.FC<PlayersTableProps> = ({ className = '' }) =>
                 onClear={() => setSearchQuery('')}
               />
             ) : (
-              <NoPlayersEmptyState onRefresh={fetchPlayers} />
+              <NoPlayersEmptyState onRefresh={fetchPlayers} serverStatus={server?.status} />
             )
           ) : (
             <div 
