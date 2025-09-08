@@ -82,6 +82,8 @@ pub struct CreateServerRequest {
     pub loader: String,
     pub version: String,
     pub paths: ServerPaths,
+    #[serde(rename = "jarPath")]
+    pub jar_path: Option<String>,
 }
 
 /// Server paths configuration
@@ -259,6 +261,16 @@ pub fn create_api_router(state: AppState) -> Router {
         .route("/api/servers/:id/stop", post(stop_server))
         .route("/api/servers/:id/restart", post(restart_server))
         .route("/api/servers/:id/command", post(send_server_command))
+        // EULA endpoints
+        .route("/api/servers/:id/eula", get(get_eula_status))
+        .route("/api/servers/:id/eula/accept", post(accept_eula))
+        // Server.properties endpoints
+        .route("/api/servers/:id/config/server.properties", get(get_server_properties))
+        .route("/api/servers/:id/config/server.properties", put(update_server_properties))
+        // Config aggregate and JVM args
+        .route("/api/servers/:id/config", get(get_server_config))
+        .route("/api/servers/:id/config/jvm-args", get(get_jvm_args))
+        .route("/api/servers/:id/config/jvm-args", put(update_jvm_args))
         
         // Console endpoints
         .route("/api/servers/:id/console", get(get_console_messages))
@@ -366,20 +378,23 @@ async fn create_server(
 ) -> Result<Json<ApiResponse<ServerInfo>>, StatusCode> {
     let server_id = Uuid::new_v4().to_string();
     
-    // Create server configuration
+    // Determine server root under working directory (packaged app sets cwd to resource dir)
+    let server_root = std::path::Path::new("data").join("servers").join(&server_id);
+    let server_root_str = server_root.to_string_lossy().to_string();
+    
+    // Create server configuration - use server root as working directory
     let server_config = ServerConfig {
         id: server_id.clone(),
         name: payload.name.clone(),
-        host: payload.paths.world.clone(),
+        host: server_root_str.clone(),
         port: 25565,
         rcon_port: 25575,
         rcon_password: Uuid::new_v4().to_string(),
         java_path: "java".to_string(), // TODO: Make configurable
-        server_jar: format!("server-{}.jar", payload.version),
-        jvm_args: format!(
-            "-Xmx4G -Xms2G -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1HeapRegionSize=8M -XX:G1ReservePercent=20 -XX:G1HeapWastePercent=5 -XX:G1MixedGCCountTarget=4 -XX:InitiatingHeapOccupancyPercent=15 -XX:G1MixedGCLiveThresholdPercent=90 -XX:G1RSetUpdatingPauseTimePercent=5 -XX:SurvivorRatio=32 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1"
-        ),
-        server_args: format!("--nogui --world {}", payload.paths.world),
+        // If user provided a jar path, copy to server root as server.jar; otherwise default name and autodetect
+        server_jar: "server.jar".to_string(),
+        jvm_args: "-Xmx4G -Xms2G -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1HeapRegionSize=8M -XX:G1ReservePercent=20 -XX:G1HeapWastePercent=5 -XX:G1MixedGCCountTarget=4 -XX:InitiatingHeapOccupancyPercent=15 -XX:G1MixedGCLiveThresholdPercent=90 -XX:G1RSetUpdatingPauseTimePercent=5 -XX:SurvivorRatio=32 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1".to_string(),
+        server_args: "--nogui".to_string(),
         auto_start: false,
         auto_restart: true,
         created_at: chrono::Utc::now(),
@@ -391,11 +406,43 @@ async fn create_server(
         Ok(_) => {
             info!("Successfully created server: {} (ID: {})", payload.name, server_id);
             
-            // Create server directory structure
-            if let Err(e) = create_server_directories(&payload.paths).await {
+            // Create server directory structure (root with world/mods/config)
+            if let Err(e) = create_server_layout(&server_root_str).await {
                 error!("Failed to create server directories: {}", e);
             }
             
+            // If user provided a jar path (non-empty), copy it into server root as server.jar
+            if let Some(jar_src) = payload.jar_path.as_ref().filter(|p| !p.trim().is_empty()) {
+                let from = std::path::Path::new(jar_src);
+                let to = std::path::Path::new(&server_root_str).join("server.jar");
+                if !to.exists() {
+                    if let Some(parent) = to.parent() { let _ = tokio::fs::create_dir_all(parent).await; }
+                }
+                if let Err(e) = tokio::fs::copy(from, &to).await {
+                    warn!("Failed to copy provided jar from {:?} to {:?}: {}", from, to, e);
+                } else {
+                    info!("Copied provided server jar to {:?}", to);
+                }
+            } else if payload.loader.to_lowercase() == "vanilla" {
+                // Attempt to download vanilla server JAR automatically
+                let dest = std::path::Path::new(&server_root_str).join("server.jar");
+                if !dest.exists() {
+                    match download_vanilla_server_jar(&payload.version, &dest).await {
+                        Ok(_) => info!("Downloaded vanilla server jar for {}", payload.version),
+                        Err(e) => warn!("Failed to download vanilla server jar: {}", e),
+                    }
+                }
+            }
+            // Initialize default server.properties with RCON enabled
+            if let Err(e) = init_server_properties(&state, &server_id).await {
+                warn!("Failed to initialize server.properties for {}: {}", server_id, e);
+            }
+            
+            // Initialize server.properties with RCON enabled (best-effort)
+            if let Err(e) = init_server_properties(&state, &server_id).await {
+                warn!("Failed to initialize server.properties for {}: {}", server_id, e);
+            }
+
             // Return server info
             let server_info = ServerInfo {
                 id: server_id,
@@ -422,95 +469,35 @@ async fn create_server(
     }
 }
 
-/// Create server directory structure
-async fn create_server_directories(paths: &ServerPaths) -> Result<(), std::io::Error> {
+/// Create standard server directory structure under server root
+async fn create_server_layout(server_root: &str) -> Result<(), std::io::Error> {
     use tokio::fs;
+    let root = std::path::Path::new(server_root);
+    let world_dir = root.join("world");
+    let mods_dir = root.join("mods");
+    let config_dir = root.join("config");
+    let logs_dir = root.join("logs");
     
-    // Create directories
-    fs::create_dir_all(&paths.world).await?;
-    fs::create_dir_all(&paths.mods).await?;
-    fs::create_dir_all(&paths.config).await?;
+    fs::create_dir_all(&world_dir).await?;
+    fs::create_dir_all(&mods_dir).await?;
+    fs::create_dir_all(&config_dir).await?;
+    fs::create_dir_all(&logs_dir).await?;
     
-    // Create basic server.properties
-    let server_properties = format!(
-        r#"#Minecraft server properties
-server-port=25565
-level-name=world
-level-seed=
-level-type=minecraft\:normal
-generator-settings={}
-motd=A Minecraft Server
-enable-query=true
-query.port=25565
-enable-rcon=true
-rcon.port=25575
-rcon.password=changeme
-force-gamemode=false
-hardcore=false
-enable-command-block=false
-broadcast-console-to-ops=true
-enable-jmx-monitoring=false
-enable-status=true
-entity-broadcast-range-percentage=100
-function-permission-level=2
-network-compression-threshold=256
-max-chunk-send-rate=2.0
-max-tick-time=60000
-require-resource-pack=false
-use-native-transport=true
-max-players=20
-max-world-size=29999984
-rate-limit=0
-simulation-distance=10
-player-idle-timeout=0
-debug=false
-force-white-list=false
-sync-chunk-writes=true
-enable-query=true
-enable-rcon=true
-broadcast-rcon-to-ops=true
-server-ip=
-spawn-protection=16
-resource-pack=
-resource-pack-sha1=
-resource-pack-prompt=
-allow-nether=true
-server-name=Unknown Server
-allow-flight=false
-broadcast-console-to-ops=true
-enable-command-block=false
-spawn-monsters=true
-spawn-animals=true
-spawn-npcs=true
-snooper-enabled=true
-difficulty=easy
-pvp=true
-gamemode=survival
-player-idle-timeout=0
-max-build-height=320
-online-mode=true
-level-name=world
-view-distance=10
-resource-pack=
-allow-flight=false
-max-players=20
-server-port=25565
-server-ip=
-spawn-protection=16
-motd=A Minecraft Server
-"#,
-        if paths.mods.contains("forge") || paths.mods.contains("neoforge") {
-            "minecraft:flat"
-        } else {
-            "minecraft:normal"
-        }
-    );
-    
-    fs::write(format!("{}/server.properties", paths.world), server_properties).await?;
-    
-    // Create eula.txt
-    fs::write(format!("{}/eula.txt", paths.world), "eula=true\n").await?;
-    
+    Ok(())
+}
+
+/// Download Mojang vanilla server jar for the specified version
+async fn download_vanilla_server_jar(version: &str, dest_path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+    let client = reqwest::Client::new();
+    let manifest_url = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json";
+    let manifest: serde_json::Value = client.get(manifest_url).send().await?.json().await?;
+    let versions = manifest["versions"].as_array().ok_or("invalid manifest")?;
+    let ver = versions.iter().find(|v| v["id"].as_str() == Some(version)).ok_or("version not found")?;
+    let ver_url = ver["url"].as_str().ok_or("version url missing")?;
+    let ver_json: serde_json::Value = client.get(ver_url).send().await?.json().await?;
+    let server_url = ver_json["downloads"]["server"]["url"].as_str().ok_or("server url missing")?;
+    let bytes = client.get(server_url).send().await?.bytes().await?;
+    tokio::fs::write(dest_path, &bytes).await?;
     Ok(())
 }
 
@@ -518,39 +505,84 @@ async fn get_server(
     Path(id): Path<String>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<ServerInfo>>, StatusCode> {
-    // TODO: Implement actual server retrieval
-    let server = ServerInfo {
-        id: id.clone(),
-        name: format!("Server {}", id),
-        status: "running".to_string(),
-        tps: 20.0,
-        tick_p95: 45.2,
-        heap_mb: 2048,
-        players_online: 5,
-        gpu_queue_ms: 5.2,
-        last_snapshot_at: Some(chrono::Utc::now()),
-        blue_green: BlueGreenInfo {
-            active: "blue".to_string(),
-            candidate_healthy: true,
-        },
-    };
-    
-    Ok(Json(ApiResponse::success(server)))
+    // Load server from DB and runtime manager
+    match state.database.get_server(&id).await {
+        Ok(Some(cfg)) => {
+            // Determine status
+            let status = if let Some(srv) = state.minecraft_manager.get_server(&id).await {
+                match srv.status {
+                    crate::minecraft::ServerStatus::Stopped => "stopped",
+                    crate::minecraft::ServerStatus::Starting => "starting",
+                    crate::minecraft::ServerStatus::Running => "running",
+                    crate::minecraft::ServerStatus::Stopping => "stopping",
+                    crate::minecraft::ServerStatus::Crashed => "crashed",
+                    crate::minecraft::ServerStatus::Unknown => "unknown",
+                }
+            } else { "unknown" };
+
+            // Try metrics if running; otherwise zeros
+            let mut tps = 0.0;
+            let mut tick_p95 = 0.0;
+            let mut heap_mb = 0u64;
+            let mut players_online = 0u32;
+            let mut gpu_queue_ms = 0.0;
+            if status == "running" {
+                if let Ok(m) = state.minecraft_manager.get_server_metrics(&id).await {
+                    tps = m.tps;
+                    tick_p95 = m.tick_p95;
+                    heap_mb = m.heap_mb;
+                    players_online = m.players_online;
+                    gpu_queue_ms = m.gpu_queue_ms;
+                }
+            }
+
+            let server = ServerInfo {
+                id: cfg.id.clone(),
+                name: cfg.name.clone(),
+                status: status.to_string(),
+                tps,
+                tick_p95,
+                heap_mb,
+                players_online,
+                gpu_queue_ms,
+                last_snapshot_at: None,
+                blue_green: BlueGreenInfo { active: "blue".to_string(), candidate_healthy: false },
+            };
+
+            Ok(Json(ApiResponse::success(server)))
+        }
+        Ok(None) => Ok(Json(ApiResponse::error("Server not found".to_string()))),
+        Err(e) => {
+            error!("get_server error: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 async fn get_server_health(
     Path(id): Path<String>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<ServerHealth>>, StatusCode> {
-    // TODO: Implement actual health check
-    let health = ServerHealth {
-        rcon: true,
-        query: true,
-        crash_tickets: 0,
-        freeze_tickets: 0,
-    };
-    
-    Ok(Json(ApiResponse::success(health)))
+    match state.database.get_server(&id).await {
+        Ok(Some(cfg)) => {
+            // RCON health
+            let rcon_ok = crate::rcon::RconClient::new(cfg.host.clone(), cfg.rcon_port, cfg.rcon_password.clone())
+                .is_available();
+            // TCP query (simple connect to server port)
+            let query_ok = std::net::TcpStream::connect_timeout(
+                &format!("127.0.0.1:{}", cfg.port).parse().unwrap_or("127.0.0.1:25565".parse().unwrap()),
+                std::time::Duration::from_millis(400),
+            ).is_ok();
+
+            let health = ServerHealth { rcon: rcon_ok, query: query_ok, crash_tickets: 0, freeze_tickets: 0 };
+            Ok(Json(ApiResponse::success(health)))
+        }
+        Ok(None) => Ok(Json(ApiResponse::error("Server not found".to_string()))),
+        Err(e) => {
+            error!("get_server_health error: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 async fn start_server(
@@ -576,7 +608,8 @@ async fn start_server(
         }
         Err(e) => {
             error!("Failed to start server {}: {}", id, e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            // Return readable error message
+            Ok(Json(ApiResponse::error(format!("Failed to start: {}", e))))
         }
     }
 }
@@ -614,9 +647,10 @@ async fn restart_server(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<String>>, StatusCode> {
     info!("Restarting server: {}", id);
-    
-    // TODO: Implement actual server restart
-    Ok(Json(ApiResponse::success("Server restarting".to_string())))
+    match state.minecraft_manager.restart_server(&id).await {
+        Ok(_) => Ok(Json(ApiResponse::success("Server restarting".to_string()))),
+        Err(e) => Ok(Json(ApiResponse::error(format!("Failed to restart: {}", e)))),
+    }
 }
 
 async fn delete_server(
@@ -644,9 +678,10 @@ async fn delete_server(
     // Delete from database
     match state.database.delete_server(&id).await {
         Ok(_) => {
-            // Also remove from memory cache
-            if let Err(e) = state.minecraft_manager.remove_server(&id).await {
-                warn!("Failed to remove server from memory cache: {}", e);
+            // Always remove from memory cache even if DB delete succeeded
+            match state.minecraft_manager.remove_server(&id).await {
+                Ok(_) => info!("Removed server {} from memory cache", id),
+                Err(e) => warn!("Failed to remove server from memory cache: {}", e),
             }
             
             // Delete server folder if it exists
@@ -674,7 +709,7 @@ async fn delete_server(
         }
         Err(e) => {
             error!("Failed to delete server {}: {}", id, e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Ok(Json(ApiResponse::error(format!("Failed to delete: {}", e))))
         }
     }
 }
@@ -685,15 +720,10 @@ async fn send_server_command(
     Json(request): Json<ServerCommandRequest>,
 ) -> Result<Json<ApiResponse<ServerCommandResponse>>, StatusCode> {
     info!("Sending command to server {}: {}", id, request.command);
-    
-    // TODO: Implement actual command execution
-    let response = ServerCommandResponse {
-        success: true,
-        output: format!("Command executed: {}", request.command),
-        error: None,
-    };
-    
-    Ok(Json(ApiResponse::success(response)))
+    match state.minecraft_manager.send_command(&id, &request.command).await {
+        Ok(output) => Ok(Json(ApiResponse::success(ServerCommandResponse { success: true, output, error: None }))),
+        Err(e) => Ok(Json(ApiResponse::success(ServerCommandResponse { success: false, output: String::new(), error: Some(e.to_string()) }))),
+    }
 }
 
 // Console endpoints
@@ -702,16 +732,230 @@ async fn get_console_messages(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<ConsoleMessage>>>, StatusCode> {
-    // TODO: Implement actual console message retrieval
-    let messages = vec![
-        ConsoleMessage {
-            ts: chrono::Utc::now().to_rfc3339(),
-            level: "info".to_string(),
-            msg: "Server started successfully".to_string(),
-        },
-    ];
-    
-    Ok(Json(ApiResponse::success(messages)))
+    // Optional: support pagination via ?limit=
+    let limit = params
+        .get("limit")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(100);
+
+    // Pull recent console events from database
+    match state.database.get_events(Some(&id), Some(limit)).await {
+        Ok(events) => {
+            let messages: Vec<ConsoleMessage> = events
+                .into_iter()
+                .filter(|e| e.event_type == "console")
+                .map(|e| ConsoleMessage {
+                    ts: e.created_at.to_rfc3339(),
+                    level: e.level,
+                    msg: e.message,
+                })
+                .collect();
+            Ok(Json(ApiResponse::success(messages)))
+        }
+        Err(e) => {
+            error!("Failed to load console messages for {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+// Aggregate config
+async fn get_server_config(
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
+    match state.database.get_server(&id).await {
+        Ok(Some(cfg)) => {
+            let props_path = std::path::Path::new(&cfg.host).join("server.properties");
+            let props = tokio::fs::read_to_string(&props_path).await.unwrap_or_default();
+            let props_map = parse_properties(&props);
+            let data = serde_json::json!({
+                "serverProperties": props_map,
+                "jvmArgs": cfg.jvm_args,
+            });
+            Ok(Json(ApiResponse::success(data)))
+        }
+        Ok(None) => Ok(Json(ApiResponse::error("Server not found".to_string()))),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+async fn get_jvm_args(
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
+    match state.database.get_server(&id).await {
+        Ok(Some(cfg)) => Ok(Json(ApiResponse::success(serde_json::json!({ "args": cfg.jvm_args })))),
+        Ok(None) => Ok(Json(ApiResponse::error("Server not found".to_string()))),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+async fn update_jvm_args(
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
+    let new_args = payload.get("args").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    match state.database.get_server(&id).await {
+        Ok(Some(mut cfg)) => {
+            let mut cfg2 = cfg.clone();
+            cfg2.jvm_args = new_args.clone();
+            cfg2.updated_at = chrono::Utc::now();
+            if let Err(e) = state.database.update_server(&cfg2).await {
+                error!("Failed to update JVM args: {}", e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+            Ok(Json(ApiResponse::success(serde_json::json!({ "args": new_args }))))
+        }
+        Ok(None) => Ok(Json(ApiResponse::error("Server not found".to_string()))),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+/// EULA status payload
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct EulaStatus {
+    status: String, // "accepted" | "pending" | "missing"
+    #[serde(rename = "lastUpdated")]
+    last_updated: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+async fn get_eula_status(
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<EulaStatus>>, StatusCode> {
+    match state.database.get_server(&id).await {
+        Ok(Some(cfg)) => {
+            let path = std::path::Path::new(&cfg.host).join("eula.txt");
+            if !path.exists() {
+                let payload = EulaStatus { status: "missing".to_string(), last_updated: None };
+                return Ok(Json(ApiResponse::success(payload)));
+            }
+            let content = match tokio::fs::read_to_string(&path).await {
+                Ok(s) => s,
+                Err(e) => {
+                    error!("Failed reading eula.txt: {}", e);
+                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                }
+            };
+            let accepted = content.lines().any(|l| l.trim().eq_ignore_ascii_case("eula=true"));
+            let status = if accepted { "accepted" } else { "pending" };
+            let payload = EulaStatus { status: status.to_string(), last_updated: None };
+            Ok(Json(ApiResponse::success(payload)))
+        }
+        Ok(None) => Ok(Json(ApiResponse::error("Server not found".to_string()))),
+        Err(e) => {
+            error!("get_eula_status db error: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn accept_eula(
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<String>>, StatusCode> {
+    match state.database.get_server(&id).await {
+        Ok(Some(cfg)) => {
+            let path = std::path::Path::new(&cfg.host).join("eula.txt");
+            let content = format!(
+                "# EULA accepted by Guardian on {}\neula=true\n",
+                chrono::Utc::now().to_rfc3339()
+            );
+            if let Err(e) = tokio::fs::write(&path, content).await {
+                error!("Failed writing eula.txt: {}", e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+            Ok(Json(ApiResponse::success("EULA accepted".to_string())))
+        }
+        Ok(None) => Ok(Json(ApiResponse::error("Server not found".to_string()))),
+        Err(e) => {
+            error!("accept_eula db error: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+/// server.properties helpers
+fn parse_properties(content: &str) -> HashMap<String, String> {
+    content
+        .lines()
+        .filter(|l| !l.trim_start().starts_with('#'))
+        .filter_map(|l| l.split_once('='))
+        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+        .collect()
+}
+
+fn serialize_properties(mut props: HashMap<String, String>) -> String {
+    let mut keys: Vec<_> = props.keys().cloned().collect();
+    keys.sort();
+    let mut out = String::new();
+    out.push_str(&format!("# Generated by Guardian on {}\n", chrono::Utc::now().to_rfc3339()));
+    for k in keys {
+        let v = props.remove(&k).unwrap_or_default();
+        out.push_str(&format!("{}={}\n", k, v));
+    }
+    out
+}
+
+async fn get_server_properties(
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<HashMap<String, String>>>, StatusCode> {
+    match state.database.get_server(&id).await {
+        Ok(Some(cfg)) => {
+            let path = std::path::Path::new(&cfg.host).join("server.properties");
+            if !path.exists() {
+                return Ok(Json(ApiResponse::success(HashMap::new())));
+            }
+            let content = tokio::fs::read_to_string(&path).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            let props = parse_properties(&content);
+            Ok(Json(ApiResponse::success(props)))
+        }
+        Ok(None) => Ok(Json(ApiResponse::error("Server not found".to_string()))),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+async fn update_server_properties(
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+    Json(updates): Json<HashMap<String, String>>,
+) -> Result<Json<ApiResponse<HashMap<String, String>>>, StatusCode> {
+    match state.database.get_server(&id).await {
+        Ok(Some(cfg)) => {
+            let path = std::path::Path::new(&cfg.host).join("server.properties");
+            let mut props = if path.exists() {
+                let content = tokio::fs::read_to_string(&path).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+                parse_properties(&content)
+            } else {
+                HashMap::new()
+            };
+            for (k, v) in updates.iter() { props.insert(k.clone(), v.clone()); }
+            let content = serialize_properties(props.clone());
+            tokio::fs::write(&path, content).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            Ok(Json(ApiResponse::success(props)))
+        }
+        Ok(None) => Ok(Json(ApiResponse::error("Server not found".to_string()))),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+async fn init_server_properties(state: &AppState, server_id: &str) -> Result<(), anyhow::Error> {
+    let cfg = state.database.get_server(server_id).await?
+        .ok_or_else(|| anyhow::anyhow!("Server not found"))?;
+    let path = std::path::Path::new(&cfg.host).join("server.properties");
+    let mut props = if path.exists() {
+        let content = tokio::fs::read_to_string(&path).await.unwrap_or_default();
+        parse_properties(&content)
+    } else { HashMap::new() };
+    props.insert("enable-rcon".to_string(), "true".to_string());
+    props.insert("rcon.password".to_string(), cfg.rcon_password.clone());
+    props.insert("rcon.port".to_string(), cfg.rcon_port.to_string());
+    props.insert("server-port".to_string(), cfg.port.to_string());
+    let content = serialize_properties(props);
+    tokio::fs::write(&path, content).await?;
+    Ok(())
 }
 
 // #[axum::debug_handler]
@@ -731,34 +975,36 @@ async fn get_players(
     Path(id): Path<String>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<Player>>>, StatusCode> {
-    // TODO: Implement actual player retrieval
-    let players = vec![
-        Player {
-            uuid: "12345678-1234-1234-1234-123456789012".to_string(),
-            name: "TestPlayer".to_string(),
-            online: true,
-            last_seen: Some(chrono::Utc::now().to_rfc3339()),
-            playtime: Some(3600),
-        },
-    ];
-    
-    Ok(Json(ApiResponse::success(players)))
+    match state.minecraft_manager.get_server_players(&id).await {
+        Ok(players) => {
+            let players = players.into_iter().map(|p| Player {
+                uuid: p.uuid,
+                name: p.name,
+                online: p.online,
+                last_seen: p.last_seen.map(|t| t.to_rfc3339()),
+                playtime: p.playtime,
+            }).collect();
+            Ok(Json(ApiResponse::success(players)))
+        }
+        Err(e) => Ok(Json(ApiResponse::error(format!("Failed to get players: {}", e)))),
+    }
 }
 
 async fn get_player(
     Path((id, uuid)): Path<(String, String)>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Player>>, StatusCode> {
-    // TODO: Implement actual player retrieval
-    let player = Player {
-        uuid: uuid.clone(),
-        name: "TestPlayer".to_string(),
-        online: true,
-        last_seen: Some(chrono::Utc::now().to_rfc3339()),
-        playtime: Some(3600),
-    };
-    
-    Ok(Json(ApiResponse::success(player)))
+    match state.minecraft_manager.get_server_players(&id).await {
+        Ok(players) => {
+            if let Some(p) = players.into_iter().find(|p| p.uuid == uuid) {
+                let player = Player { uuid: p.uuid, name: p.name, online: p.online, last_seen: p.last_seen.map(|t| t.to_rfc3339()), playtime: p.playtime };
+                Ok(Json(ApiResponse::success(player)))
+            } else {
+                Ok(Json(ApiResponse::error("Player not found".to_string())))
+            }
+        }
+        Err(e) => Ok(Json(ApiResponse::error(format!("Failed to get players: {}", e)))),
+    }
 }
 
 async fn kick_player(
@@ -766,9 +1012,22 @@ async fn kick_player(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<String>>, StatusCode> {
     info!("Kicking player {} from server {}", uuid, id);
-    
-    // TODO: Implement actual player kick
-    Ok(Json(ApiResponse::success("Player kicked".to_string())))
+    match state.minecraft_manager.get_server_players(&id).await {
+        Ok(players) => {
+            if let Some(p) = players.into_iter().find(|p| p.uuid == uuid) {
+                let rc = crate::rcon::RconClient::new(id.clone(), 0, String::new()); // placeholder host override below
+                drop(rc);
+                // Use send_command to support any name characters
+                match state.minecraft_manager.send_command(&id, &format!("kick {}", p.name)).await {
+                    Ok(_) => Ok(Json(ApiResponse::success("Player kicked".to_string()))),
+                    Err(e) => Ok(Json(ApiResponse::error(format!("Failed to kick: {}", e)))),
+                }
+            } else {
+                Ok(Json(ApiResponse::error("Player not found".to_string())))
+            }
+        }
+        Err(e) => Ok(Json(ApiResponse::error(format!("Failed to get players: {}", e)))),
+    }
 }
 
 async fn ban_player(
@@ -776,9 +1035,19 @@ async fn ban_player(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<String>>, StatusCode> {
     info!("Banning player {} from server {}", uuid, id);
-    
-    // TODO: Implement actual player ban
-    Ok(Json(ApiResponse::success("Player banned".to_string())))
+    match state.minecraft_manager.get_server_players(&id).await {
+        Ok(players) => {
+            if let Some(p) = players.into_iter().find(|p| p.uuid == uuid) {
+                match state.minecraft_manager.send_command(&id, &format!("ban {}", p.name)).await {
+                    Ok(_) => Ok(Json(ApiResponse::success("Player banned".to_string()))),
+                    Err(e) => Ok(Json(ApiResponse::error(format!("Failed to ban: {}", e)))),
+                }
+            } else {
+                Ok(Json(ApiResponse::error("Player not found".to_string())))
+            }
+        }
+        Err(e) => Ok(Json(ApiResponse::error(format!("Failed to get players: {}", e)))),
+    }
 }
 
 // World endpoints
@@ -920,27 +1189,19 @@ async fn get_metrics(
     Path(id): Path<String>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Metrics>>, StatusCode> {
-    // TODO: Implement actual metrics retrieval
-    let metrics = Metrics {
-        tps: vec![MetricPoint {
-            timestamp: chrono::Utc::now().timestamp(),
-            value: 20.0,
-        }],
-        heap: vec![MetricPoint {
-            timestamp: chrono::Utc::now().timestamp(),
-            value: 2048.0,
-        }],
-        tick_p95: vec![MetricPoint {
-            timestamp: chrono::Utc::now().timestamp(),
-            value: 45.2,
-        }],
-        gpu_ms: vec![MetricPoint {
-            timestamp: chrono::Utc::now().timestamp(),
-            value: 5.2,
-        }],
-    };
-    
-    Ok(Json(ApiResponse::success(metrics)))
+    match state.minecraft_manager.get_server_metrics(&id).await {
+        Ok(m) => {
+            let now = chrono::Utc::now().timestamp();
+            let metrics = Metrics {
+                tps: vec![MetricPoint { timestamp: now, value: m.tps }],
+                heap: vec![MetricPoint { timestamp: now, value: m.heap_mb as f64 }],
+                tick_p95: vec![MetricPoint { timestamp: now, value: m.tick_p95 }],
+                gpu_ms: vec![MetricPoint { timestamp: now, value: m.gpu_queue_ms }],
+            };
+            Ok(Json(ApiResponse::success(metrics)))
+        }
+        Err(e) => Ok(Json(ApiResponse::error(format!("Failed to get metrics: {}", e)))),
+    }
 }
 
 async fn get_realtime_metrics(
@@ -956,16 +1217,27 @@ async fn get_backups(
     Path(id): Path<String>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, StatusCode> {
-    // TODO: Implement actual backup retrieval
-    let backups = vec![serde_json::json!({
-        "id": "backup-1",
-        "name": "Daily Backup",
-        "created_at": chrono::Utc::now(),
-        "size_mb": 1024,
-        "status": "completed"
-    })];
-    
-    Ok(Json(ApiResponse::success(backups)))
+    // List local backups in data/backups
+    let backup_dir = std::path::Path::new("data").join("backups");
+    let mut result = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&backup_dir) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if let Some(name) = p.file_stem().and_then(|s| s.to_str()) {
+                if p.extension().and_then(|e| e.to_str()) == Some("zip") {
+                    let size_mb = p.metadata().map(|m| (m.len() / (1024*1024)) as u64).unwrap_or(0);
+                    result.push(serde_json::json!({
+                        "id": name,
+                        "name": name,
+                        "created_at": chrono::Utc::now(),
+                        "size_mb": size_mb,
+                        "status": "completed"
+                    }));
+                }
+            }
+        }
+    }
+    Ok(Json(ApiResponse::success(result)))
 }
 
 async fn create_backup(
@@ -973,24 +1245,42 @@ async fn create_backup(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<String>>, StatusCode> {
     info!("Creating backup for server {}", id);
-    
-    // TODO: Implement actual backup creation
-    Ok(Json(ApiResponse::success("Backup created".to_string())))
+    let server_root = format!("data/servers/{}", id);
+    let backup_dir = std::path::Path::new("data").join("backups");
+    let config = crate::backup::BackupConfig {
+        strategy: crate::backup::BackupStrategy::Full,
+        retention: crate::backup::RetentionPolicy::default(),
+        storage: crate::backup::StorageConfig {
+            local_path: backup_dir.clone(),
+            remote: None,
+            compression_level: 6,
+            encryption_enabled: false,
+            encryption_key: None,
+        },
+        schedule: "manual".to_string(),
+        enabled: true,
+        include_paths: vec![std::path::PathBuf::from(server_root)],
+        exclude_paths: vec![],
+        max_size_bytes: 0,
+        compression_threads: 2,
+    };
+    let manager = crate::backup::BackupManager::new(config);
+    if let Err(e) = manager.start().await { warn!("backup manager start: {}", e); }
+    match manager.create_backup().await {
+        Ok(r) => Ok(Json(ApiResponse::success(r.backup_id))),
+        Err(e) => Ok(Json(ApiResponse::error(format!("Failed to create backup: {}", e)))),
+    }
 }
 
 async fn get_backup(
     Path((id, backup_id)): Path<(String, String)>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
-    // TODO: Implement actual backup retrieval
-    let backup = serde_json::json!({
-        "id": backup_id,
-        "name": "Daily Backup",
-        "created_at": chrono::Utc::now(),
-        "size_mb": 1024,
-        "status": "completed"
-    });
-    
+    let backup_dir = std::path::Path::new("data").join("backups");
+    let path = backup_dir.join(format!("{}.zip", backup_id));
+    if !path.exists() { return Ok(Json(ApiResponse::error("Backup not found".to_string()))); }
+    let size_mb = path.metadata().map(|m| (m.len() / (1024*1024)) as u64).unwrap_or(0);
+    let backup = serde_json::json!({ "id": backup_id, "name": backup_id, "created_at": chrono::Utc::now(), "size_mb": size_mb, "status": "completed" });
     Ok(Json(ApiResponse::success(backup)))
 }
 
@@ -999,9 +1289,23 @@ async fn restore_backup(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<String>>, StatusCode> {
     info!("Restoring backup {} for server {}", backup_id, id);
-    
-    // TODO: Implement actual backup restoration
-    Ok(Json(ApiResponse::success("Backup restored".to_string())))
+    let server_root = std::path::Path::new("data").join("servers").join(&id);
+    let config = crate::backup::BackupConfig {
+        strategy: crate::backup::BackupStrategy::Full,
+        retention: crate::backup::RetentionPolicy::default(),
+        storage: crate::backup::StorageConfig { local_path: std::path::PathBuf::from("data/backups"), remote: None, compression_level: 6, encryption_enabled: false, encryption_key: None },
+        schedule: "manual".to_string(),
+        enabled: true,
+        include_paths: vec![server_root.clone()],
+        exclude_paths: vec![],
+        max_size_bytes: 0,
+        compression_threads: 2,
+    };
+    let manager = crate::backup::BackupManager::new(config);
+    match manager.restore_from_backup(&backup_id, &server_root).await {
+        Ok(_) => Ok(Json(ApiResponse::success("Backup restored".to_string()))),
+        Err(e) => Ok(Json(ApiResponse::error(format!("Failed to restore: {}", e)))),
+    }
 }
 
 async fn delete_backup(
@@ -1009,9 +1313,21 @@ async fn delete_backup(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<String>>, StatusCode> {
     info!("Deleting backup {} from server {}", backup_id, id);
-    
-    // TODO: Implement actual backup deletion
-    Ok(Json(ApiResponse::success("Backup deleted".to_string())))
+    let manager = crate::backup::BackupManager::new(crate::backup::BackupConfig {
+        strategy: crate::backup::BackupStrategy::Full,
+        retention: crate::backup::RetentionPolicy::default(),
+        storage: crate::backup::StorageConfig { local_path: std::path::PathBuf::from("data/backups"), remote: None, compression_level: 6, encryption_enabled: false, encryption_key: None },
+        schedule: "manual".to_string(),
+        enabled: true,
+        include_paths: vec![],
+        exclude_paths: vec![],
+        max_size_bytes: 0,
+        compression_threads: 2,
+    });
+    match manager.delete_backup(&backup_id).await {
+        Ok(_) => Ok(Json(ApiResponse::success("Backup deleted".to_string()))),
+        Err(e) => Ok(Json(ApiResponse::error(format!("Failed to delete: {}", e)))),
+    }
 }
 
 // Settings endpoints
@@ -1019,19 +1335,20 @@ async fn get_server_settings(
     Path(id): Path<String>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
-    // TODO: Implement actual settings retrieval
-    let settings = serde_json::json!({
-        "jvm": {
-            "memory": "4G",
-            "gc": "G1GC"
-        },
-        "server": {
-            "port": 25565,
-            "max_players": 20
+    // Return server.properties + JVM args snapshots
+    match state.database.get_server(&id).await {
+        Ok(Some(cfg)) => {
+            let props = std::path::Path::new(&cfg.host).join("server.properties");
+            let props_map = if let Ok(content) = tokio::fs::read_to_string(&props).await { parse_properties(&content) } else { std::collections::HashMap::new() };
+            let settings = serde_json::json!({
+                "jvm": { "args": cfg.jvm_args },
+                "server": props_map,
+            });
+            Ok(Json(ApiResponse::success(settings)))
         }
-    });
-    
-    Ok(Json(ApiResponse::success(settings)))
+        Ok(None) => Ok(Json(ApiResponse::error("Server not found".to_string()))),
+        Err(e) => { error!("get_server_settings error: {}", e); Err(StatusCode::INTERNAL_SERVER_ERROR) }
+    }
 }
 
 // #[axum::debug_handler]

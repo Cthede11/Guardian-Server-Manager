@@ -24,6 +24,7 @@ interface ServersState {
     maxPlayers?: number;
     memory?: number;
     paths: { world: string; mods: string; config: string };
+    jarPath?: string;
   }) => Promise<boolean>;
   selectServer: (id: string) => void;
   getSelectedServer: () => ServerSummary | null;
@@ -95,7 +96,7 @@ export const useServersStore = create<ServersState>((set, get) => ({
     
     try {
       console.log('Creating server with data:', data);
-      const response = await api.createServer(data);
+      const response = await api.createServer(data as any);
       console.log('API response:', response);
       
       if (response.ok && response.data) {
@@ -149,7 +150,7 @@ export const useServersStore = create<ServersState>((set, get) => ({
   startServer: async (id: string) => {
     const response = await api.startServer(id);
     
-    if (response.ok) {
+    if (response.ok && !response.error) {
       // Optimistically update the server status
       set((state) => ({
         servers: state.servers.map(server =>
@@ -158,8 +159,31 @@ export const useServersStore = create<ServersState>((set, get) => ({
             : server
         ),
       }));
+
+      // Poll server list a few times to detect transition to running
+      (async () => {
+        for (let i = 0; i < 12; i++) { // up to ~60s
+          await new Promise((r) => setTimeout(r, 5000));
+          try {
+            const list = await api.getServers();
+            if (list.ok && list.data) {
+              const servers = list.data as ServerSummary[];
+              const found = servers.find(s => s.id === id);
+              if (found) {
+                set((state) => ({
+                  servers: state.servers.map(s => s.id === id ? { ...s, status: found.status } : s),
+                }));
+                if (found.status === 'running' || found.status === 'stopped') {
+                  break;
+                }
+              }
+            }
+          } catch {}
+        }
+      })();
       return true;
     } else {
+      // Show readable error if backend returned one
       set({ error: response.error || 'Failed to start server' });
       return false;
     }
@@ -196,6 +220,28 @@ export const useServersStore = create<ServersState>((set, get) => ({
             : server
         ),
       }));
+
+      // Poll server list a few times to detect transition to running
+      (async () => {
+        for (let i = 0; i < 12; i++) { // up to ~60s
+          await new Promise((r) => setTimeout(r, 5000));
+          try {
+            const list = await api.getServers();
+            if (list.ok && list.data) {
+              const servers = list.data as ServerSummary[];
+              const found = servers.find(s => s.id === id);
+              if (found) {
+                set((state) => ({
+                  servers: state.servers.map(s => s.id === id ? { ...s, status: found.status } : s),
+                }));
+                if (found.status === 'running' || found.status === 'stopped') {
+                  break;
+                }
+              }
+            }
+          } catch {}
+        }
+      })();
       return true;
     } else {
       set({ error: response.error || 'Failed to restart server' });

@@ -76,6 +76,7 @@ class ApiClient {
       mods: string;
       config: string;
     };
+    jarPath?: string;
   }) {
     return this.request('/api/servers', {
       method: 'POST',
@@ -113,6 +114,29 @@ class ApiClient {
     return this.request(`/api/servers/${id}/command`, {
       method: 'POST',
       body: JSON.stringify({ command }),
+    });
+  }
+
+  // EULA endpoints
+  async getEulaStatus(id: string) {
+    return this.request(`/api/servers/${id}/eula`);
+  }
+
+  async acceptEula(id: string) {
+    return this.request(`/api/servers/${id}/eula/accept`, {
+      method: 'POST',
+    });
+  }
+
+  // Server.properties endpoints (RCON toggle, etc.)
+  async getServerPropertiesConfig(id: string) {
+    return this.request(`/api/servers/${id}/config/server.properties`);
+  }
+
+  async updateServerPropertiesConfig(id: string, properties: Record<string, string>) {
+    return this.request(`/api/servers/${id}/config/server.properties`, {
+      method: 'PUT',
+      body: JSON.stringify(properties),
     });
   }
 

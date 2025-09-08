@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use axum::{
     extract::{
-        ws::{Message, WebSocket},
+        ws::WebSocket,
         State,
     },
     response::Response,

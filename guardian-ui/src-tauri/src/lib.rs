@@ -1,7 +1,8 @@
 use tauri::Manager;
-use std::process::{Command, Child};
+use tauri_plugin_dialog::DialogExt as _;
+use std::process::{Command, Child, Stdio};
 use std::fs;
-use std::io::Write;
+use std::io::{Write, BufRead, BufReader};
 use std::sync::Mutex;
 use std::path::PathBuf;
 
@@ -51,6 +52,8 @@ pub fn run() {
             hostd_process: Mutex::new(None),
             gpu_worker_process: Mutex::new(None),
         })
+        // register dialog plugin to enable native file dialogs from the frontend
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app: &mut tauri::App<tauri::Wry>| {
             log_debug("In setup function...");
             
@@ -117,7 +120,8 @@ pub fn run() {
             get_server_status,
             open_dev_tools,
             open_server_folder,
-            get_debug_info
+            get_debug_info,
+            ensure_backend
         ])
         .run(tauri::generate_context!());
 
@@ -146,9 +150,11 @@ fn validate_environment<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> Resu
         return Err("Resource directory does not exist".into());
     }
     
-    // Check required directories exist or can be created
-    let data_dir = resource_dir.join("data");
-    std::fs::create_dir_all(&data_dir)?;
+    // Ensure user-writable application data directory exists
+    let app_data_dir = dirs::data_dir().ok_or("Failed to resolve app data directory")?.join("Guardian");
+    std::fs::create_dir_all(&app_data_dir)?;
+    std::fs::create_dir_all(app_data_dir.join("data"))?;
+    std::fs::create_dir_all(app_data_dir.join("logs"))?;
     
     log_debug("Environment validation passed");
     Ok(())
@@ -158,7 +164,9 @@ fn validate_environment<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> Resu
 fn initialize_database<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> Result<(), Box<dyn std::error::Error>> {
     log_debug("Initializing database...");
     
-    let data_dir = handle.path().resource_dir()?.join("data");
+    // Place the database under the user-writable AppData directory
+    let app_data_dir = dirs::data_dir().ok_or("Failed to resolve app data directory")?.join("Guardian");
+    let data_dir = app_data_dir.join("data");
     std::fs::create_dir_all(&data_dir)?;
     
     let db_path = data_dir.join("guardian.db");
@@ -280,8 +288,9 @@ fn start_gpu_worker_service<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> 
 fn start_hostd_process<R: tauri::Runtime>(handle: &tauri::AppHandle<R>, hostd_path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
     log_debug(&format!("Starting hostd process from: {:?}", hostd_path));
     
-    // Create data directory structure
-    let data_dir = handle.path().resource_dir()?.join("data");
+    // Use user-writable AppData directory for all runtime data
+    let app_data_dir = dirs::data_dir().ok_or("Failed to resolve app data directory")?.join("Guardian");
+    let data_dir = app_data_dir.join("data");
     let servers_dir = data_dir.join("servers");
     let backups_dir = data_dir.join("backups");
     let logs_dir = data_dir.join("logs");
@@ -297,31 +306,59 @@ fn start_hostd_process<R: tauri::Runtime>(handle: &tauri::AppHandle<R>, hostd_pa
     // Resolve configuration file path
     let config_path = handle.path().resource_dir()?.join("configs").join("hostd.yaml");
     if !config_path.exists() {
-        return Err(format!("Configuration file not found: {:?}", config_path).into());
+        // Fallback to project configs when running unpackaged (dev/testing)
+        let project_config = std::env::current_dir()?.join("configs").join("hostd.yaml");
+        if project_config.exists() {
+            log_debug(&format!("Using fallback config from project: {:?}", project_config));
+        } else {
+            return Err(format!("Configuration file not found in resources or project: {:?}", config_path).into());
+        }
     }
     
     log_debug(&format!("Using config file: {:?}", config_path));
     
-    // Get absolute path to database
-    let db_path = data_dir.join("guardian.db");
-    let db_url = format!("sqlite:{}", db_path.to_string_lossy());
+    // Get database URL. We will set the working directory to the AppData folder,
+    // so a relative sqlite path will place the DB in AppData/Guardian/data/guardian.db
+    let db_url = "sqlite:data/guardian.db".to_string();
     
     log_debug(&format!("Using database: {}", db_url));
     
     // Start the hostd process in the background with proper error handling
-    let child = Command::new(hostd_path)
+    let mut child = Command::new(hostd_path)
         .arg("--port")
         .arg("8080")
         .arg("--database-url")
         .arg(&db_url)
         .arg("--config")
-        .arg(&config_path) // Use absolute path
+        .arg(&config_path) // Use absolute path (or fallback above)
         .arg("--log-level")
         .arg("info")
-        .current_dir(handle.path().resource_dir()?) // Set working directory
+        .current_dir(&app_data_dir) // Set working directory to user-writable directory
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()?;
     
     log_debug(&format!("Hostd process started with PID: {:?}", child.id()));
+
+    // Pipe stdout/stderr to guardian_hostd.log
+    if let Some(out) = child.stdout.take() {
+        let mut writer = fs::OpenOptions::new().create(true).append(true).open("guardian_hostd.log")?;
+        std::thread::spawn(move || {
+            let reader = BufReader::new(out);
+            for line in reader.lines().flatten() {
+                let _ = writeln!(writer, "[HOSTD OUT] {}", line);
+            }
+        });
+    }
+    if let Some(err) = child.stderr.take() {
+        let mut writer = fs::OpenOptions::new().create(true).append(true).open("guardian_hostd.log")?;
+        std::thread::spawn(move || {
+            let reader = BufReader::new(err);
+            for line in reader.lines().flatten() {
+                let _ = writeln!(writer, "[HOSTD ERR] {}", line);
+            }
+        });
+    }
     
     // Store the process handle in app state
     if let Ok(mut process) = handle.state::<AppState>().hostd_process.lock() {
@@ -329,6 +366,34 @@ fn start_hostd_process<R: tauri::Runtime>(handle: &tauri::AppHandle<R>, hostd_pa
     }
     
     Ok(())
+}
+
+// Ensure backend is running, attempt to start if not
+#[tauri::command]
+async fn ensure_backend<R: tauri::Runtime>(handle: tauri::AppHandle<R>) -> Result<String, String> {
+    // Quick health check
+    let ok = reqwest::Client::new()
+        .get("http://127.0.0.1:8080/health")
+        .timeout(std::time::Duration::from_millis(800))
+        .send().await
+        .map(|r| r.status().is_success())
+        .unwrap_or(false);
+    if ok {
+        return Ok("backend_running".to_string());
+    }
+    // Try to start hostd
+    if let Err(e) = start_hostd_service(&handle) {
+        return Err(format!("failed_to_start_backend: {}", e));
+    }
+    // Wait briefly and recheck
+    tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+    let ok2 = reqwest::Client::new()
+        .get("http://127.0.0.1:8080/health")
+        .timeout(std::time::Duration::from_millis(1000))
+        .send().await
+        .map(|r| r.status().is_success())
+        .unwrap_or(false);
+    if ok2 { Ok("backend_started".to_string()) } else { Err("backend_unreachable".to_string()) }
 }
 
 // Helper function to start the GPU worker process

@@ -29,9 +29,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useServersStore } from '@/store/servers';
-import { openDevTools, openServerFolder } from '@/lib/tauri-api';
+import { openDevTools, openServerFolder, ensureBackend } from '@/lib/tauri-api';
 import { StatusPill } from '@/components/StatusPill';
 import { getVersionsForModpack } from '@/lib/constants/minecraft-versions';
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import { listen } from '@tauri-apps/api/event';
 
 // Add Server Wizard Component
 const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
@@ -77,6 +79,34 @@ const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [javaInstallations, setJavaInstallations] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isDragOverJar, setIsDragOverJar] = useState(false);
+
+  // Tauri global file-drop listener; only accept when dragging over our dropzone
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<string[] | { paths: string[] }>('tauri://file-drop', (event: any) => {
+      if (!isDragOverJar) return;
+      const payload = event?.payload;
+      const paths: string[] = Array.isArray(payload)
+        ? payload as string[]
+        : Array.isArray(payload?.paths)
+          ? payload.paths
+          : [];
+      if (paths.length === 0) return;
+      const picked = paths.find(p => p.toLowerCase().endsWith('.jar')) || paths[0];
+      if (picked) {
+        setFormData(prev => ({ ...prev, serverJarPath: picked }));
+        const lower = picked.toLowerCase();
+        if (lower.includes('1.21')) {
+          setFormData(prev => ({ ...prev, version: '1.21.1' }));
+        } else if (lower.includes('1.20.6')) {
+          setFormData(prev => ({ ...prev, version: '1.20.6' }));
+        }
+        setIsDragOverJar(false);
+      }
+    }).then(fn => { unlisten = fn; });
+    return () => { if (unlisten) unlisten(); };
+  }, [isDragOverJar]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,7 +120,8 @@ const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         version: formData.version,
         maxPlayers: formData.maxPlayers,
         memory: formData.memory,
-        paths: formData.paths
+        paths: formData.paths,
+        jarPath: formData.serverJarPath
       });
       if (success) {
         console.log('Server created successfully:', formData);
@@ -161,35 +192,60 @@ const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       
       <div>
         <label className="block text-sm font-medium mb-2">Server JAR File</label>
-        <div className="flex gap-2">
+        <div
+          className={`flex gap-2 rounded-md border ${isDragOverJar ? 'border-primary border-dashed bg-primary/5' : 'border-border'} p-2`}
+          onDragEnter={(e) => { e.preventDefault(); setIsDragOverJar(true); }}
+          onDragOver={(e) => { e.preventDefault(); setIsDragOverJar(true); }}
+          onDragLeave={() => setIsDragOverJar(false)}
+        >
           <Input
             value={formData.serverJarPath}
             onChange={(e) => setFormData({ ...formData, serverJarPath: e.target.value })}
-            placeholder="Path to server.jar file"
+            placeholder="Drag a server.jar here or Browse (optional for Vanilla)"
             className="flex-1"
           />
           <Button
             type="button"
             variant="outline"
             onClick={() => {
-              // In a real app, this would open a file dialog
-              const path = prompt('Enter path to server.jar file:');
-              if (path) {
-                setFormData({ ...formData, serverJarPath: path });
-                // Auto-detect version from JAR file
-                if (path.includes('1.21')) {
-                  setFormData(prev => ({ ...prev, version: '1.21.1' }));
-                } else if (path.includes('1.20')) {
-                  setFormData(prev => ({ ...prev, version: '1.20.6' }));
+              (async () => {
+                try {
+                  const selected = await openDialog({
+                    multiple: false,
+                    filters: [
+                      { name: 'Java Archives', extensions: ['jar'] },
+                    ],
+                  });
+                  const path = Array.isArray(selected) ? selected[0] : selected;
+                  if (typeof path === 'string' && path.length > 0) {
+                    setFormData({ ...formData, serverJarPath: path });
+                    // Optional: naive version hint from filename
+                    const lower = path.toLowerCase();
+                    if (lower.includes('1.21')) {
+                      setFormData(prev => ({ ...prev, version: '1.21.1' }));
+                    } else if (lower.includes('1.20.6')) {
+                      setFormData(prev => ({ ...prev, version: '1.20.6' }));
+                    }
+                  }
+                } catch (e) {
+                  const fallback = prompt('Enter path to server.jar file:');
+                  if (fallback) {
+                    setFormData({ ...formData, serverJarPath: fallback });
+                  }
                 }
-              }
+              })();
             }}
           >
             Browse
           </Button>
         </div>
+        {isDragOverJar && (
+          <p className="text-xs text-primary mt-1">Drop the .jar file to select it</p>
+        )}
         <p className="text-xs text-muted-foreground mt-1">
-          Select the server.jar file. Version will be auto-detected.
+          {formData.type === 'vanilla'
+            ? 'Optional for Vanilla: If left empty, Guardian will automatically download the official Mojang server.jar for the selected version.'
+            : 'Provide the server.jar for this loader, or the installer-generated jar.'}
         </p>
       </div>
       
@@ -226,10 +282,17 @@ export const Sidebar: React.FC = () => {
     }
   }, [currentServerId, selectedServerId, selectServer]);
 
-  // Load servers on mount
+  // Ensure backend then load servers on mount
   useEffect(() => {
-    const { fetchServers } = useServersStore.getState();
-    fetchServers();
+    (async () => {
+      try {
+        await ensureBackend();
+      } catch (e) {
+        console.error('Failed to ensure backend:', e);
+      }
+      const { fetchServers } = useServersStore.getState();
+      fetchServers();
+    })();
   }, []);
 
   const handleContextMenu = (e: React.MouseEvent, _serverId: string) => {

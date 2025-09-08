@@ -37,6 +37,8 @@ export const ConsoleStream: React.FC<ConsoleStreamProps> = ({ className = '' }) 
   
   const [command, setCommand] = useState('');
   const [isPaused, setIsPaused] = useState(false);
+  const [eulaStatus, setEulaStatus] = useState<'accepted' | 'pending' | 'missing' | null>(null);
+  const [eulaBusy, setEulaBusy] = useState(false);
   const [filters, setFilters] = useState({
     level: 'all' as 'all' | 'info' | 'warn' | 'error' | 'debug',
     search: '',
@@ -74,6 +76,41 @@ export const ConsoleStream: React.FC<ConsoleStreamProps> = ({ className = '' }) 
 
   // Connection status from live store
   const { connected: isConnected } = useConnectionStatus();
+
+  // Poll EULA status while on console page
+  useEffect(() => {
+    let timer: any;
+    const poll = async () => {
+      if (!serverId) return;
+      const res = await api.getEulaStatus(serverId);
+      if (res.ok && res.data) {
+        const status = (res.data as any).status as 'accepted' | 'pending' | 'missing';
+        setEulaStatus(status);
+      }
+      timer = setTimeout(poll, 5000);
+    };
+    poll();
+    return () => timer && clearTimeout(timer);
+  }, [serverId]);
+
+  const handleAcceptEula = async () => {
+    if (!serverId) return;
+    setEulaBusy(true);
+    const res = await api.acceptEula(serverId);
+    setEulaBusy(false);
+    if (res.ok) {
+      setEulaStatus('accepted');
+      // Append confirmation to console
+      const msg: ConsoleMessage = {
+        ts: new Date().toISOString(),
+        level: 'info',
+        msg: 'EULA accepted. Restarting server...'
+      };
+      liveStore.getState().appendConsole(serverId, [msg]);
+      // Auto start server if not running
+      await api.startServer(serverId);
+    }
+  };
 
   const handleSendCommand = async () => {
     if (!command.trim() || !serverId) return;
@@ -216,6 +253,24 @@ export const ConsoleStream: React.FC<ConsoleStreamProps> = ({ className = '' }) 
           </Button>
         </div>
       </div>
+
+      {/* EULA Banner */}
+      {eulaStatus && eulaStatus !== 'accepted' && (
+        <div className="p-4 bg-yellow-500/10 border-b border-yellow-500/30 text-yellow-200 flex items-center justify-between">
+          <div className="text-sm">
+            {eulaStatus === 'missing' ? (
+              <span>The server EULA has not been created yet. Start the server once to generate files, then accept the EULA to continue.</span>
+            ) : (
+              <span>You must accept the Minecraft EULA to run the server.</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="default" onClick={handleAcceptEula} disabled={eulaBusy}>
+              {eulaBusy ? 'Applying…' : 'I Agree'}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex items-center gap-4 p-4 border-b border-border bg-muted/30">

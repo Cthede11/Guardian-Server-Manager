@@ -1,0 +1,53 @@
+const fs = require('fs');
+const path = require('path');
+
+function copyIfExists(src, dest) {
+  try {
+    if (!fs.existsSync(src)) {
+      console.warn(`[copy-binaries] Source not found: ${src}`);
+      return false;
+    }
+    fs.copyFileSync(src, dest);
+    console.log(`[copy-binaries] Copied ${src} -> ${dest}`);
+    return true;
+  } catch (e) {
+    console.error(`[copy-binaries] Failed to copy ${src} -> ${dest}:`, e.message);
+    return false;
+  }
+}
+
+try {
+  const here = __dirname; // .../guardian-ui/src-tauri/gen
+  const uiDir = path.resolve(here, '..'); // .../guardian-ui/src-tauri
+  const projectRoot = path.resolve(uiDir, '..'); // .../guardian-ui
+  const repoRoot = path.resolve(projectRoot, '..'); // repo root
+
+  // hostd.exe
+  const hostdSrc = path.join(repoRoot, 'hostd', 'target', 'release', 'hostd.exe');
+  const hostdDest = path.join(uiDir, 'hostd.exe');
+  copyIfExists(hostdSrc, hostdDest);
+
+  // gpu-worker.exe
+  const gpuSrc = path.join(repoRoot, 'gpu-worker', 'target', 'release', 'gpu-worker.exe');
+  const gpuDest = path.join(uiDir, 'gpu-worker.exe');
+  copyIfExists(gpuSrc, gpuDest);
+
+  // configs
+  const configsSrc = path.join(repoRoot, 'configs');
+  const configsDest = path.join(uiDir, 'configs');
+  if (fs.existsSync(configsSrc)) {
+    fs.mkdirSync(configsDest, { recursive: true });
+    for (const file of fs.readdirSync(configsSrc)) {
+      const s = path.join(configsSrc, file);
+      const d = path.join(configsDest, file);
+      if (fs.statSync(s).isFile()) {
+        copyIfExists(s, d);
+      }
+    }
+  }
+} catch (e) {
+  console.error('[copy-binaries] Unexpected error:', e);
+  process.exit(0); // don't fail build
+}
+
+

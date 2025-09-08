@@ -28,3 +28,4 @@ Run `start-guardian-with-backend.ps1` directly for more detailed output and erro
 3. **API Test** - Verifies the backend is responding
 4. **Guardian Launch** - Starts the main application
 5. **Clean Shutdown** - Stops backend when you close Guardian
+

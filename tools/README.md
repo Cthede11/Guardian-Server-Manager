@@ -24,3 +24,4 @@ Run `cleanup-guardian.ps1` to remove Guardian from your system (registry entries
 
 - **NSIS** - Required for custom installer (download from https://nsis.sourceforge.io/)
 - **PowerShell** - Required for all scripts
+
