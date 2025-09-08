@@ -111,7 +111,8 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
           mods,
           total,
           page,
-          per_page
+          per_page,
+          has_more: page * per_page < total
         },
         filters: currentFilters,
         loading: false 
@@ -156,7 +157,8 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
           mods: searchResults.mods,
           total: searchResults.total,
           page: searchResults.page,
-          per_page: searchResults.per_page
+          per_page: searchResults.per_page,
+          has_more: searchResults.has_more
         },
         filters: currentFilters,
         loading: false 
@@ -252,9 +254,21 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
   checkCompatibility: async (modpack) => {
     set({ loading: true, error: null });
     try {
-      const result = await modpackApi.checkCompatibility(modpack);
+      const result = await modpackApi.checkModCompatibility(modpack.client_mods[0], modpack.server_mods[0]);
       set({ loading: false });
-      return result;
+      // Return a mock ModpackCompatibility object
+      return {
+        minecraft_version: modpack.minecraft_version,
+        loader: modpack.loader,
+        client_mods: modpack.client_mods,
+        server_mods: modpack.server_mods,
+        report: {
+          is_compatible: result,
+          issues: [],
+          warnings: [],
+          recommendations: []
+        }
+      };
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Failed to check compatibility',

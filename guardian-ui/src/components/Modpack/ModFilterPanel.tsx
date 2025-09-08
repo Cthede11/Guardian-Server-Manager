@@ -81,7 +81,7 @@ export const ModFilterPanel: React.FC<ModFilterPanelProps> = ({
           onChange={(e) => handleVersionChange(e.target.value)}
           className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
         >
-          {versions.map((version) => (
+          {versions.map((version: any) => (
             <option key={version.version} value={version.version}>
               {version.version} {version.is_latest ? '(Latest)' : ''} - {version.description}
             </option>

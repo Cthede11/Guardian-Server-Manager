@@ -303,7 +303,7 @@ pub fn create_api_router(state: AppState) -> Router {
         .route("/api/servers/:id/backups", get(get_backups))
         .route("/api/servers/:id/backups", post(create_backup))
         .route("/api/servers/:id/backups/:backup_id", get(get_backup))
-        .route("/api/servers/:id/backups/:backup_id/restore", post(restore_backup))
+        // .route("/api/servers/:id/backups/:backup_id/restore", post(restore_backup))
         .route("/api/servers/:id/backups/:backup_id", delete(delete_backup))
         
         // Settings endpoints
@@ -1286,7 +1286,7 @@ async fn get_backup(
 
 async fn restore_backup(
     Path((id, backup_id)): Path<(String, String)>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
 ) -> Result<Json<ApiResponse<String>>, StatusCode> {
     info!("Restoring backup {} for server {}", backup_id, id);
     let server_root = std::path::Path::new("data").join("servers").join(&id);

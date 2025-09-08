@@ -6,13 +6,18 @@ yarn-error.log*
 
 # Build outputs
 dist/
-build/
 out/
 target/
 guardian-ui/dist/
 guardian-ui/src-tauri/target/
 hostd/target/
 gpu-worker/target/
+
+# Build artifacts (keep structure but ignore contents)
+build/executables/
+build/installers/
+build/temp/
+build/logs/
 
 # Rust
 Cargo.lock

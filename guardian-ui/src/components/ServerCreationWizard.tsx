@@ -148,20 +148,17 @@ export const ServerCreationWizard: React.FC<ServerCreationWizardProps> = ({
           version: '21' // Default Java version
         },
         network: {
-          port: formData.serverPort,
           serverPort: formData.serverPort,
           rconPort: formData.rconPort,
           rconPassword: formData.rconPassword,
-          queryPort: formData.queryPort,
-          maxPlayers: 20,
-          motd: 'A Minecraft Server'
+          queryPort: formData.queryPort
         },
         paths: {
-          serverDir: formData.paths.world,
-          worldDir: formData.paths.world,
-          logsDir: formData.paths.logs,
-          pluginsDir: formData.paths.config,
-          modsDir: formData.paths.mods
+          world: formData.paths.world,
+          mods: formData.paths.mods,
+          config: formData.paths.config,
+          logs: formData.paths.logs,
+          backups: formData.paths.backups
         },
         settings: {
           ...formData.settings,
@@ -277,7 +274,7 @@ export const ServerCreationWizard: React.FC<ServerCreationWizardProps> = ({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {getVersionsForModpack().map((version) => (
+                      {getVersionsForModpack().map((version: any) => (
                         <SelectItem key={version.version} value={version.version}>
                           {version.version} {version.is_latest ? '(Latest)' : ''}
                         </SelectItem>

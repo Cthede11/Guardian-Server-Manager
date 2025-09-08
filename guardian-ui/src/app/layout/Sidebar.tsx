@@ -182,7 +182,7 @@ const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           onChange={(e) => setFormData({ ...formData, version: e.target.value })}
           className="w-full px-3 py-2 border border-border rounded-md bg-background"
         >
-          {getVersionsForModpack().map((version) => (
+          {getVersionsForModpack().map((version: any) => (
             <option key={version.version} value={version.version}>
               {version.version} {version.is_latest ? '(Latest)' : ''}
             </option>
