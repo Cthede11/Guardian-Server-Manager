@@ -51,7 +51,7 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ className = 
           <div>
             <strong>Backend Connection Failed</strong>
             <p className="text-sm mt-1">
-              {lastError || 'Cannot connect to the backend server. Please ensure the backend is running on localhost:8080.'}
+              {lastError || 'Cannot connect to the backend server. Please ensure the backend is running on 127.0.0.1:52100-52150.'}
             </p>
           </div>
           <Button

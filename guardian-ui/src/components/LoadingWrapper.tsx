@@ -26,7 +26,7 @@ export const LoadingWrapper: React.FC<LoadingWrapperProps> = ({
           <h3 className="text-lg font-semibold mb-2">Connection Error</h3>
           <p className="text-muted-foreground mb-4">{error}</p>
           <p className="text-sm text-muted-foreground">
-            Please ensure the backend server is running on localhost:8080
+            Please ensure the backend server is running on 127.0.0.1:52100-52150
           </p>
         </div>
       </div>

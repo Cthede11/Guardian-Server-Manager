@@ -139,7 +139,11 @@ export default function Console() {
 
       console.log('Sending server creation request:', serverData);
       
-      const response = await fetch('http://localhost:8080/api/servers', {
+      // Use dynamic API base discovery instead of hardcoded localhost:8080
+      const { getAPI_BASE } = await import('../../lib/api');
+      const base = await getAPI_BASE();
+      
+      const response = await fetch(`${base}/api/servers`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
