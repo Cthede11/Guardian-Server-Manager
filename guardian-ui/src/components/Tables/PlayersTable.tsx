@@ -35,7 +35,7 @@ import { NoPlayersEmptyState, SearchEmptyState, ErrorEmptyState } from '@/compon
 import { useLoadingState } from '@/components/ui/LoadingStates';
 import { notifications } from '@/lib/notifications';
 import { handleApiError } from '@/lib/error-handler';
-import { api } from '@/lib/api';
+import { apiClient as api } from '@/lib/api';
 
 interface PlayersTableProps {
   className?: string;

@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use axum::{
     extract::{
+        Path, State, WebSocketUpgrade,
         ws::{WebSocket, Message},
-        Path, State,
     },
-    response::Response,
+    response::{Response, IntoResponse},
     routing::get,
     Router,
 };
@@ -286,6 +286,9 @@ impl WebSocketManager {
 }
 
 /// Create WebSocket router
+// NOTE: Temporarily commented out due to handler trait issues
+// This function is not currently used in the main application
+/*
 pub fn create_websocket_router() -> Router {
     let manager = Arc::new(WebSocketManager::new());
     
@@ -294,21 +297,24 @@ pub fn create_websocket_router() -> Router {
         .route("/ws/servers/:server_id", get(websocket_server_handler))
         .with_state(manager)
 }
+*/
 
 /// WebSocket handler for general connections
+#[axum::debug_handler]
 async fn websocket_handler(
-    ws: axum::extract::ws::WebSocketUpgrade,
+    ws: WebSocketUpgrade,
     State(manager): State<Arc<WebSocketManager>>,
-) -> Response {
+) -> axum::response::Response {
     ws.on_upgrade(|socket| websocket_connection(socket, manager, None))
 }
 
 /// WebSocket handler for server-specific connections
+#[axum::debug_handler]
 async fn websocket_server_handler(
-    ws: axum::extract::ws::WebSocketUpgrade,
+    ws: WebSocketUpgrade,
     Path(server_id): Path<String>,
     State(manager): State<Arc<WebSocketManager>>,
-) -> Response {
+) -> axum::response::Response {
     ws.on_upgrade(|socket| websocket_connection(socket, manager, Some(server_id)))
 }
 

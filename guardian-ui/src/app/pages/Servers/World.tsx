@@ -4,12 +4,22 @@ import { useServersStore } from '@/store/servers';
 import { ErrorEmptyState } from '@/components/ui/EmptyState';
 import WorldHeatmap from '@/components/World/WorldHeatmap';
 import { LoadingWrapper } from '@/components/LoadingWrapper';
-import { api } from '@/lib/api';
+import { apiClient as api } from '@/lib/api';
+
+type WorldInfo = {
+  name: string; 
+  seed: number; 
+  defaultDimension: string;
+  dimensions: string[]; 
+  world_border: { center: [number,number]; radius: number };
+  pregen: { suggested_radius: number; state: string };
+};
 
 export const World: React.FC = () => {
   const { id: serverId } = useParams<{ id: string }>();
   const { getServerById } = useServersStore();
   const server = serverId ? getServerById(serverId) : null;
+  const [data, setData] = useState<WorldInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -21,12 +31,14 @@ export const World: React.FC = () => {
       setError(null);
       
       try {
-        const response = await api.getWorldData(serverId);
-        if (!response.ok) {
-          setError(response.error || 'Failed to load world data');
+        const worldData = await api.call<WorldInfo>(`/servers/${serverId}/world`);
+        setData(worldData);
+      } catch (e: any) {
+        if (e.status === 404 || e.status === 501) {
+          setError("not-configured");
+        } else {
+          setError(e.message ?? "unknown");
         }
-      } catch (err) {
-        setError('Network error while loading world data');
       } finally {
         setIsLoading(false);
       }
@@ -46,23 +58,35 @@ export const World: React.FC = () => {
     );
   }
 
-  if (error) {
+  if (error === "not-configured") {
     return (
-      <LoadingWrapper
-        isLoading={false}
-        error={error}
-        className="p-6"
-      />
+      <div className="p-6">
+        <div className="text-center">
+          <h3 className="text-lg font-semibold mb-2">World info isn't configured yet</h3>
+          <p className="text-muted-foreground">Finish server setup and try again.</p>
+        </div>
+      </div>
     );
   }
 
-  if (isLoading) {
+  if (error) {
     return (
-      <LoadingWrapper
-        isLoading={true}
-        error={null}
-        className="p-6"
-      />
+      <div className="p-6">
+        <div className="text-center">
+          <h3 className="text-lg font-semibold mb-2">Failed to load world info</h3>
+          <p className="text-muted-foreground">{String(error)}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading || !data) {
+    return (
+      <div className="p-6">
+        <div className="text-center">
+          <p className="text-muted-foreground">Loading…</p>
+        </div>
+      </div>
     );
   }
 
@@ -72,8 +96,37 @@ export const World: React.FC = () => {
       <div>
         <h2 className="text-2xl font-bold">World Management</h2>
         <p className="text-muted-foreground">
-          World visualization and management tools for {server.name}
+          World visualization and management tools for {server?.name || 'Unknown Server'}
         </p>
+      </div>
+
+      {/* World Information */}
+      <div className="panel p-6">
+        <h3 className="text-lg font-semibold mb-4">World Information</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <div>
+              <span className="font-medium">World Name:</span> <span className="font-mono">{data.name}</span>
+            </div>
+            <div>
+              <span className="font-medium">Seed:</span> <span className="font-mono">{data.seed}</span>
+            </div>
+            <div>
+              <span className="font-medium">Default Dimension:</span> <span className="font-mono">{data.defaultDimension}</span>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div>
+              <span className="font-medium">Dimensions:</span> <span className="font-mono">{data.dimensions.join(", ")}</span>
+            </div>
+            <div>
+              <span className="font-medium">World Border Radius:</span> <span className="font-mono">{data.world_border.radius.toLocaleString()} blocks</span>
+            </div>
+            <div>
+              <span className="font-medium">Pregen State:</span> <span className="font-mono">{data.pregen.state}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* World Heatmap Description */}

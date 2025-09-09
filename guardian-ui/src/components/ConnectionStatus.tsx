@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Wifi, WifiOff, RefreshCw, AlertTriangle } from 'lucide-react';
-import { api } from '@/lib/api';
+import { apiClient as api } from '@/lib/api';
 
 interface ConnectionStatusProps {
   className?: string;

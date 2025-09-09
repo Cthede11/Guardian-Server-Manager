@@ -21,7 +21,7 @@ import {
   Database,
   Server
 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { apiClient as api } from '@/lib/api';
 
 interface SystemMetric {
   name: string;

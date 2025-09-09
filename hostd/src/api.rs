@@ -317,14 +317,6 @@ pub fn create_api_router(state: AppState) -> Router {
         .route("/api/servers/:id/world/freezes", get(get_world_freezes))
         .route("/api/servers/:id/world/heatmap", get(get_world_heatmap))
         
-        // Pregen endpoints (commented out to avoid duplicate routes)
-        // .route("/api/servers/:id/pregen", get(get_pregen_jobs))
-        // .route("/api/servers/:id/pregen", post(create_pregen_job))
-        // .route("/api/servers/:id/pregen/:job_id", get(get_pregen_job))
-        // .route("/api/servers/:id/pregen/:job_id", put(update_pregen_job))
-        // .route("/api/servers/:id/pregen/:job_id", delete(delete_pregen_job))
-        // .route("/api/servers/:id/pregen/:job_id/start", post(start_pregen_job))
-        // .route("/api/servers/:id/pregen/:job_id/stop", post(stop_pregen_job))
         
         // Metrics endpoints
         .route("/api/servers/:id/metrics", get(get_metrics))

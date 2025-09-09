@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api } from '@/lib/api';
+import { apiClient as api } from '@/lib/api';
 import type { ServerSummary, ServerHealth, ServerSettings } from '@/lib/types';
 
 interface ServersState {

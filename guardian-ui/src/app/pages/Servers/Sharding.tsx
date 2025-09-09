@@ -11,7 +11,7 @@ import { ShardingTopology } from '@/components/Sharding/ShardingTopology';
 import { ShardingAssignment } from '@/components/Sharding/ShardingAssignment';
 import { ShardingWarnings } from '@/components/Sharding/ShardingWarnings';
 import { ErrorEmptyState } from '@/components/ui/EmptyState';
-import { api } from '@/lib/api';
+import { apiClient as api } from '@/lib/api';
 
 interface ShardingStats {
   totalShards: number;
