@@ -103,11 +103,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let websocket_manager = Arc::new(websocket::WebSocketManager::new());
     info!("✅ WebSocket manager initialized");
     
-    let minecraft_manager = Arc::new(minecraft::MinecraftManager::new(db.clone()));
+    let mut minecraft_manager = minecraft::MinecraftManager::new(db.clone());
+    minecraft_manager.set_websocket_manager(websocket_manager.clone());
+    let minecraft_manager = Arc::new(minecraft_manager);
+    
     if let Err(e) = minecraft_manager.load_servers().await {
         warn!("⚠️  Failed to load existing servers: {}", e);
     }
-    info!("✅ Minecraft manager initialized");
+    
+    // Start metrics collection
+    minecraft_manager.start_metrics_collection().await;
+    
+    info!("✅ Minecraft manager initialized with WebSocket support");
     
     // Initialize mod manager with proper error handling
     let download_dir = "data/mods".to_string();

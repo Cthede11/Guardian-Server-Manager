@@ -38,3 +38,4 @@ lazy_static = "1.4"
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid", "migrate"] }
 tempfile = "3.0"
 sha1 = "0.10"
+gpu-worker = { path = "../gpu-worker" }

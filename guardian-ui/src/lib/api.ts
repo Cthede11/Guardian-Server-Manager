@@ -141,9 +141,22 @@ class ApiClient {
     };
     jarPath?: string;
   }) {
+    // Add fields that the backend expects
+    const requestData = {
+      ...data,
+      mc_version: data.version, // Backend expects both version and mc_version
+      pregeneration_policy: {
+        enabled: false,
+        radius: 0,
+        dimensions: ["overworld"],
+        gpu_acceleration: true,
+        efficiency_package: false
+      }
+    };
+    
     return this.request('/api/servers', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(requestData),
     });
   }
 

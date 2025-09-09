@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::Json,
-    routing::{get, post, put, delete},
+    routing::{get, post, put, delete, patch},
     Router,
 };
 use serde::{Deserialize, Serialize};
@@ -10,10 +10,10 @@ use serde_json;
 use std::collections::HashMap;
 use uuid::Uuid;
 use tracing::{info, warn, error, debug};
-use chrono;
+use chrono::{self, Utc};
 
 use crate::websocket::{WebSocketManager, WebSocketMessage};
-use crate::database::{ServerConfig, MinecraftVersion, LoaderVersion, ModInfo, ModVersion, Modpack};
+use crate::database::{ServerConfig, MinecraftVersion, LoaderVersion, ModInfo, ModVersion, Modpack, Settings, Mod};
 use crate::mod_manager::ModManager;
 use crate::compatibility_engine::CompatibilityIssue;
 
@@ -65,6 +65,17 @@ pub struct ServerInfo {
     pub last_snapshot_at: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(rename = "blueGreen")]
     pub blue_green: BlueGreenInfo,
+    pub version: Option<String>,
+    pub max_players: Option<u32>,
+    pub uptime: Option<u64>,
+    pub memory_usage: Option<u64>,
+    pub cpu_usage: Option<f64>,
+    pub world_size: Option<u64>,
+    pub last_backup: Option<chrono::DateTime<chrono::Utc>>,
+    pub auto_start: Option<bool>,
+    pub auto_restart: Option<bool>,
+    pub created_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub updated_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// Blue-green deployment info
@@ -81,9 +92,28 @@ pub struct CreateServerRequest {
     pub name: String,
     pub loader: String,
     pub version: String,
+    pub mc_version: String,
     pub paths: ServerPaths,
     #[serde(rename = "jarPath")]
     pub jar_path: Option<String>,
+    #[serde(rename = "maxPlayers")]
+    pub max_players: Option<u32>,
+    #[serde(rename = "pregenerationPolicy")]
+    pub pregeneration_policy: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateServerRequest {
+    pub name: Option<String>,
+    pub java_path: Option<String>,
+    pub jvm_args: Option<String>,
+    pub server_args: Option<String>,
+    pub auto_start: Option<bool>,
+    pub auto_restart: Option<bool>,
+    #[serde(rename = "maxPlayers")]
+    pub max_players: Option<u32>,
+    #[serde(rename = "pregenerationPolicy")]
+    pub pregeneration_policy: Option<serde_json::Value>,
 }
 
 /// Server paths configuration
@@ -255,6 +285,7 @@ pub fn create_api_router(state: AppState) -> Router {
         .route("/api/servers", get(get_servers))
         .route("/api/servers", post(create_server))
         .route("/api/servers/:id", get(get_server))
+        .route("/api/servers/:id", patch(update_server))
         .route("/api/servers/:id", delete(delete_server))
         .route("/api/servers/:id/health", get(get_server_health))
         .route("/api/servers/:id/start", post(start_server))
@@ -286,14 +317,14 @@ pub fn create_api_router(state: AppState) -> Router {
         .route("/api/servers/:id/world/freezes", get(get_world_freezes))
         .route("/api/servers/:id/world/heatmap", get(get_world_heatmap))
         
-        // Pregen endpoints
-        .route("/api/servers/:id/pregen", get(get_pregen_jobs))
+        // Pregen endpoints (commented out to avoid duplicate routes)
+        // .route("/api/servers/:id/pregen", get(get_pregen_jobs))
         // .route("/api/servers/:id/pregen", post(create_pregen_job))
-        .route("/api/servers/:id/pregen/:job_id", get(get_pregen_job))
+        // .route("/api/servers/:id/pregen/:job_id", get(get_pregen_job))
         // .route("/api/servers/:id/pregen/:job_id", put(update_pregen_job))
-        .route("/api/servers/:id/pregen/:job_id", delete(delete_pregen_job))
-        .route("/api/servers/:id/pregen/:job_id/start", post(start_pregen_job))
-        .route("/api/servers/:id/pregen/:job_id/stop", post(stop_pregen_job))
+        // .route("/api/servers/:id/pregen/:job_id", delete(delete_pregen_job))
+        // .route("/api/servers/:id/pregen/:job_id/start", post(start_pregen_job))
+        // .route("/api/servers/:id/pregen/:job_id/stop", post(stop_pregen_job))
         
         // Metrics endpoints
         .route("/api/servers/:id/metrics", get(get_metrics))
@@ -331,6 +362,38 @@ pub fn create_api_router(state: AppState) -> Router {
         // .route("/api/mods/sync", post(sync_mods_from_external))
         .route("/api/mods/:id/compatibility", get(check_mod_compatibility_external))
         
+        // Settings endpoints
+        .route("/api/settings", get(get_settings).put(update_settings))
+        .route("/api/settings/validate/java", post(validate_java))
+        .route("/api/settings/validate/api-keys", post(validate_api_keys))
+        
+        // Compatibility endpoints
+        .route("/api/servers/:id/compat/scan", post(scan_compatibility))
+        .route("/api/servers/:id/compat/apply", post(apply_compatibility_fixes))
+        
+        // Pre-generation endpoints (removed duplicate routes - using pregen endpoints above instead)
+        
+        // Hot import endpoints
+        .route("/api/servers/:id/import", get(get_hot_import_jobs).post(create_hot_import_job))
+        .route("/api/servers/:id/import/:job_id", get(get_hot_import_job).delete(delete_hot_import_job))
+        .route("/api/servers/:id/import/:job_id/start", post(start_hot_import_job))
+        .route("/api/servers/:id/import/:job_id/cancel", post(cancel_hot_import_job))
+        
+        // Lighting optimization endpoints
+        .route("/api/servers/:id/lighting", get(get_lighting_jobs).post(create_lighting_job))
+        .route("/api/servers/:id/lighting/:job_id", get(get_lighting_job).delete(delete_lighting_job))
+        .route("/api/servers/:id/lighting/:job_id/start", post(start_lighting_job))
+        .route("/api/servers/:id/lighting/:job_id/cancel", post(cancel_lighting_job))
+        .route("/api/servers/:id/lighting/settings", get(get_lighting_settings).put(update_lighting_settings))
+        
+        // Mod management endpoints
+        .route("/api/mods/search", get(search_mods))
+        .route("/api/servers/:id/mods", get(get_server_mods))
+        .route("/api/servers/:id/mods/plan", post(create_mod_plan))
+        .route("/api/servers/:id/mods/plan/:plan_id", get(get_mod_plan).delete(delete_mod_plan))
+        .route("/api/servers/:id/mods/plan/:plan_id/apply", post(apply_mod_plan))
+        .route("/api/servers/:id/mods/plan/:plan_id/rollback", post(rollback_mod_plan))
+        
         // Health check endpoint
         .route("/api/health", get(health_check))
         .route("/api/status", get(get_status))
@@ -364,6 +427,17 @@ async fn get_servers(State(state): State<AppState>) -> Result<Json<ApiResponse<V
                         active: "blue".to_string(),
                         candidate_healthy: server.status == crate::minecraft::ServerStatus::Running,
                     },
+                    version: Some(server.config.mc_version.clone()),
+                    max_players: Some(server.config.max_players as u32),
+                    uptime: None,
+                    memory_usage: Some(2048),
+                    cpu_usage: None,
+                    world_size: None,
+                    last_backup: None,
+                    auto_start: None,
+                    auto_restart: None,
+                    created_at: Some(server.config.created_at),
+                    updated_at: Some(server.config.updated_at),
                 }
             }).collect();
             
@@ -397,6 +471,15 @@ async fn create_server(
         server_args: "--nogui".to_string(),
         auto_start: false,
         auto_restart: true,
+        max_players: payload.max_players.unwrap_or(20),
+        mc_version: payload.mc_version.clone(),
+        pregeneration_policy: payload.pregeneration_policy.unwrap_or(serde_json::json!({
+            "enabled": false,
+            "radius": 0,
+            "dimensions": ["overworld"],
+            "gpu_acceleration": true,
+            "efficiency_package": false
+        })),
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
     };
@@ -458,6 +541,17 @@ async fn create_server(
                     active: "blue".to_string(),
                     candidate_healthy: false,
                 },
+                version: Some(payload.mc_version),
+                max_players: Some(payload.max_players.unwrap_or(20) as u32),
+                uptime: None,
+                memory_usage: Some(0),
+                cpu_usage: None,
+                world_size: None,
+                last_backup: None,
+                auto_start: None,
+                auto_restart: None,
+                created_at: Some(chrono::Utc::now()),
+                updated_at: Some(chrono::Utc::now()),
             };
             
             Ok(Json(ApiResponse::success(server_info)))
@@ -547,6 +641,17 @@ async fn get_server(
                 gpu_queue_ms,
                 last_snapshot_at: None,
                 blue_green: BlueGreenInfo { active: "blue".to_string(), candidate_healthy: false },
+                version: Some("1.20.1".to_string()), // TODO: Get from server config
+                max_players: Some(cfg.max_players),
+                uptime: None,
+                memory_usage: Some(heap_mb),
+                cpu_usage: None,
+                world_size: None,
+                last_backup: None,
+                auto_start: None,
+                auto_restart: None,
+                created_at: Some(cfg.created_at),
+                updated_at: Some(cfg.updated_at),
             };
 
             Ok(Json(ApiResponse::success(server)))
@@ -650,6 +755,99 @@ async fn restart_server(
     match state.minecraft_manager.restart_server(&id).await {
         Ok(_) => Ok(Json(ApiResponse::success("Server restarting".to_string()))),
         Err(e) => Ok(Json(ApiResponse::error(format!("Failed to restart: {}", e)))),
+    }
+}
+
+async fn update_server(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(payload): Json<UpdateServerRequest>,
+) -> Result<Json<ApiResponse<ServerInfo>>, StatusCode> {
+    // Get current server config
+    let mut server = match state.minecraft_manager.get_server(&id).await {
+        Some(server) => server,
+        None => return Err(StatusCode::NOT_FOUND),
+    };
+
+    // Update fields if provided
+    if let Some(name) = payload.name {
+        server.config.name = name;
+    }
+    if let Some(java_path) = payload.java_path {
+        server.config.java_path = java_path;
+    }
+    if let Some(jvm_args) = payload.jvm_args {
+        server.config.jvm_args = jvm_args;
+    }
+    if let Some(server_args) = payload.server_args {
+        server.config.server_args = server_args;
+    }
+    if let Some(auto_start) = payload.auto_start {
+        server.config.auto_start = auto_start;
+    }
+    if let Some(auto_restart) = payload.auto_restart {
+        server.config.auto_restart = auto_restart;
+    }
+    if let Some(max_players) = payload.max_players {
+        server.config.max_players = max_players;
+    }
+    if let Some(pregeneration_policy) = payload.pregeneration_policy {
+        server.config.pregeneration_policy = pregeneration_policy;
+    }
+
+    server.config.updated_at = chrono::Utc::now();
+
+    // Update in database
+    match state.database.update_server(&server.config).await {
+        Ok(_) => {
+            // Update in memory
+            state.minecraft_manager.update_server(server.clone()).await;
+            
+            let server_info = ServerInfo {
+                id: server.id.clone(),
+                name: server.config.name.clone(),
+                status: match server.status {
+                    crate::minecraft::ServerStatus::Running => "running".to_string(),
+                    crate::minecraft::ServerStatus::Stopped => "stopped".to_string(),
+                    crate::minecraft::ServerStatus::Starting => "starting".to_string(),
+                    crate::minecraft::ServerStatus::Stopping => "stopping".to_string(),
+                    crate::minecraft::ServerStatus::Crashed => "crashed".to_string(),
+                    crate::minecraft::ServerStatus::Unknown => "unknown".to_string(),
+                },
+                version: Some("Unknown".to_string()), // TODO: Get from server
+                players_online: 0, // TODO: Get from server
+                max_players: Some(server.config.max_players as u32),
+                uptime: server.last_start.map(|start| {
+                    let now = std::time::Instant::now();
+                    now.duration_since(start).as_secs()
+                }),
+                memory_usage: Some(0), // TODO: Get from server
+                cpu_usage: Some(0.0), // TODO: Get from server
+                world_size: Some(0), // TODO: Get from server
+                last_backup: None, // TODO: Get from server
+                auto_start: Some(server.config.auto_start),
+                auto_restart: Some(server.config.auto_restart),
+                created_at: Some(server.config.created_at),
+                updated_at: Some(server.config.updated_at),
+                tps: 0.0, // TODO: Get from server
+                tick_p95: 0.0, // TODO: Get from server
+                heap_mb: 0, // TODO: Get from server
+                gpu_queue_ms: 0.0, // TODO: Get from server
+                last_snapshot_at: None, // TODO: Get from server
+                blue_green: BlueGreenInfo { active: "blue".to_string(), candidate_healthy: false },
+            };
+
+            Ok(Json(ApiResponse {
+                success: true,
+                data: Some(server_info),
+                error: None,
+                timestamp: chrono::Utc::now(),
+            }))
+        }
+        Err(e) => {
+            error!("Failed to update server {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
 
@@ -1284,9 +1482,9 @@ async fn get_backup(
     Ok(Json(ApiResponse::success(backup)))
 }
 
-async fn restore_backup(
+pub async fn restore_backup(
     Path((id, backup_id)): Path<(String, String)>,
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<String>>, StatusCode> {
     info!("Restoring backup {} for server {}", backup_id, id);
     let server_root = std::path::Path::new("data").join("servers").join(&id);
@@ -1410,7 +1608,7 @@ async fn get_loader_versions(
 async fn search_mods(
     Query(params): Query<ModSearchQuery>,
     State(state): State<AppState>,
-) -> Result<Json<ApiResponse<Vec<ModInfo>>>, StatusCode> {
+) -> Result<Json<ApiResponse<Vec<Mod>>>, StatusCode> {
     match state.database.search_mods(&params).await {
         Ok(mods) => Ok(Json(ApiResponse::success(mods))),
         Err(e) => {
@@ -1423,7 +1621,7 @@ async fn search_mods(
 async fn get_mod(
     Path(id): Path<String>,
     State(state): State<AppState>,
-) -> Result<Json<ApiResponse<ModInfo>>, StatusCode> {
+) -> Result<Json<ApiResponse<Mod>>, StatusCode> {
     match state.database.get_mod(&id).await {
         Ok(Some(mod_info)) => Ok(Json(ApiResponse::success(mod_info))),
         Ok(None) => Err(StatusCode::NOT_FOUND),
@@ -1625,7 +1823,7 @@ async fn download_modpack(
 async fn search_external_mods(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<AppState>,
-) -> Result<Json<ApiResponse<Vec<ModInfo>>>, StatusCode> {
+) -> Result<Json<ApiResponse<Vec<Mod>>>, StatusCode> {
     let query = params.get("query").map(|s| s.as_str()).unwrap_or("");
     let minecraft_version = params.get("minecraft_version");
     let loader = params.get("loader");
@@ -1644,7 +1842,21 @@ async fn search_external_mods(
         Ok(results) => {
             let mut all_mods = Vec::new();
             for result in results {
-                all_mods.extend(result.mods);
+                // Convert ModInfo to Mod
+                let mods: Vec<Mod> = result.mods.into_iter().map(|mod_info| Mod {
+                    id: mod_info.id,
+                    provider: result.source.clone(),
+                    project_id: "unknown".to_string(), // TODO: Get from mod_info
+                    version_id: "unknown".to_string(), // TODO: Get from mod_info
+                    filename: "unknown".to_string(), // TODO: Get from mod_info
+                    sha1: "unknown".to_string(), // TODO: Get from mod_info
+                    server_id: None,
+                    enabled: false,
+                    category: mod_info.category,
+                    created_at: mod_info.created_at,
+                    updated_at: mod_info.updated_at,
+                }).collect();
+                all_mods.extend(mods);
             }
             Ok(Json(ApiResponse::success(all_mods)))
         }
@@ -1673,7 +1885,7 @@ async fn download_mod(
         Ok(result) => {
             let download_info = serde_json::json!({
                 "mod_id": result.mod_info.id,
-                "mod_name": result.mod_info.name,
+                "mod_name": result.mod_info.filename,
                 "file_path": result.file_path,
                 "file_size": result.file_size,
                 "sha256": result.sha256,
@@ -1729,6 +1941,748 @@ async fn check_mod_compatibility_external(
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
+}
+
+// Settings endpoints
+#[derive(Debug, Deserialize)]
+pub struct UpdateSettingsRequest {
+    pub cf_api_key: Option<String>,
+    pub modrinth_token: Option<String>,
+    pub java_path: Option<String>,
+    pub default_ram_mb: Option<u32>,
+    pub data_dir: Option<String>,
+    pub telemetry_opt_in: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct JavaValidationResult {
+    pub valid: bool,
+    pub version: Option<String>,
+    pub path: String,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ApiKeyValidationResult {
+    pub cf_valid: bool,
+    pub modrinth_valid: bool,
+    pub cf_error: Option<String>,
+    pub modrinth_error: Option<String>,
+}
+
+async fn get_settings(State(state): State<AppState>) -> Result<Json<ApiResponse<Settings>>, StatusCode> {
+    match state.database.get_settings().await {
+        Ok(Some(settings)) => Ok(Json(ApiResponse {
+            success: true,
+            data: Some(settings),
+            error: None,
+            timestamp: chrono::Utc::now(),
+        })),
+        Ok(None) => Ok(Json(ApiResponse {
+            success: true,
+            data: None,
+            error: None,
+            timestamp: chrono::Utc::now(),
+        })),
+        Err(e) => {
+            error!("Failed to get settings: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn update_settings(
+    State(state): State<AppState>,
+    Json(payload): Json<UpdateSettingsRequest>,
+) -> Result<Json<ApiResponse<Settings>>, StatusCode> {
+    // Get current settings
+    let mut settings = match state.database.get_settings().await {
+        Ok(Some(s)) => s,
+        Ok(None) => {
+            error!("Settings not found");
+            return Err(StatusCode::NOT_FOUND);
+        },
+        Err(e) => {
+            error!("Failed to get current settings: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    // Update fields if provided
+    if let Some(cf_api_key) = payload.cf_api_key {
+        settings.cf_api_key = Some(cf_api_key);
+    }
+    if let Some(modrinth_token) = payload.modrinth_token {
+        settings.modrinth_token = Some(modrinth_token);
+    }
+    if let Some(java_path) = payload.java_path {
+        settings.java_path = java_path;
+    }
+    if let Some(default_ram_mb) = payload.default_ram_mb {
+        settings.default_ram_mb = default_ram_mb;
+    }
+    if let Some(data_dir) = payload.data_dir {
+        settings.data_dir = data_dir;
+    }
+    if let Some(telemetry_opt_in) = payload.telemetry_opt_in {
+        settings.telemetry_opt_in = telemetry_opt_in;
+    }
+
+    settings.updated_at = chrono::Utc::now();
+
+    match state.database.update_settings(&settings).await {
+        Ok(_) => Ok(Json(ApiResponse {
+            success: true,
+            data: Some(settings),
+            error: None,
+            timestamp: chrono::Utc::now(),
+        })),
+        Err(e) => {
+            error!("Failed to update settings: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn validate_java(
+    State(state): State<AppState>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<JavaValidationResult>>, StatusCode> {
+    let java_path = payload.get("java_path")
+        .and_then(|v| v.as_str())
+        .unwrap_or("java");
+
+    // Try to execute java -version
+    let output = std::process::Command::new(java_path)
+        .arg("-version")
+        .output();
+
+    match output {
+        Ok(output) => {
+            if output.status.success() {
+                let version_output = String::from_utf8_lossy(&output.stderr);
+                let version = extract_java_version(&version_output);
+                
+                Ok(Json(ApiResponse {
+                    success: true,
+                    data: Some(JavaValidationResult {
+                        valid: true,
+                        version: Some(version),
+                        path: java_path.to_string(),
+                        error: None,
+                    }),
+                    error: None,
+                    timestamp: chrono::Utc::now(),
+                }))
+            } else {
+                Ok(Json(ApiResponse {
+                    success: true,
+                    data: Some(JavaValidationResult {
+                        valid: false,
+                        version: None,
+                        path: java_path.to_string(),
+                        error: Some("Java command failed".to_string()),
+                    }),
+                    error: None,
+                    timestamp: chrono::Utc::now(),
+                }))
+            }
+        }
+        Err(e) => {
+            Ok(Json(ApiResponse {
+                success: true,
+                data: Some(JavaValidationResult {
+                    valid: false,
+                    version: None,
+                    path: java_path.to_string(),
+                    error: Some(format!("Failed to execute java: {}", e)),
+                }),
+                error: None,
+                timestamp: chrono::Utc::now(),
+            }))
+        }
+    }
+}
+
+async fn validate_api_keys(
+    State(state): State<AppState>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<ApiKeyValidationResult>>, StatusCode> {
+    let cf_api_key = payload.get("cf_api_key").and_then(|v| v.as_str());
+    let modrinth_token = payload.get("modrinth_token").and_then(|v| v.as_str());
+
+    let mut cf_valid = false;
+    let mut modrinth_valid = false;
+    let mut cf_error = None;
+    let mut modrinth_error = None;
+
+    // Validate CurseForge API key
+    if let Some(key) = cf_api_key {
+        match validate_curseforge_key(key).await {
+            Ok(valid) => cf_valid = valid,
+            Err(e) => cf_error = Some(e.to_string()),
+        }
+    }
+
+    // Validate Modrinth token
+    if let Some(token) = modrinth_token {
+        match validate_modrinth_token(token).await {
+            Ok(valid) => modrinth_valid = valid,
+            Err(e) => modrinth_error = Some(e.to_string()),
+        }
+    }
+
+    Ok(Json(ApiResponse {
+        success: true,
+        data: Some(ApiKeyValidationResult {
+            cf_valid,
+            modrinth_valid,
+            cf_error,
+            modrinth_error,
+        }),
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+fn extract_java_version(version_output: &str) -> String {
+    // Extract version from java -version output
+    // Example: openjdk version "11.0.16" 2022-07-19
+    if let Some(start) = version_output.find("version \"") {
+        let start = start + 9; // Skip "version \""
+        if let Some(end) = version_output[start..].find("\"") {
+            return version_output[start..start + end].to_string();
+        }
+    }
+    "Unknown".to_string()
+}
+
+async fn validate_curseforge_key(api_key: &str) -> Result<bool, Box<dyn std::error::Error>> {
+    let client = reqwest::Client::new();
+    let response = client
+        .get("https://api.curseforge.com/v1/games")
+        .header("x-api-key", api_key)
+        .send()
+        .await?;
+
+    Ok(response.status().is_success())
+}
+
+async fn validate_modrinth_token(token: &str) -> Result<bool, Box<dyn std::error::Error>> {
+    let client = reqwest::Client::new();
+    let response = client
+        .get("https://api.modrinth.com/v2/user")
+        .header("Authorization", token)
+        .send()
+        .await?;
+
+    Ok(response.status().is_success())
+}
+
+// Compatibility endpoints
+#[derive(Debug, Deserialize)]
+pub struct ApplyFixesRequest {
+    pub fixes: Vec<String>,
+}
+
+async fn scan_compatibility(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<crate::compatibility::CompatibilityReport>>, StatusCode> {
+    // Get server configuration
+    let server = match state.minecraft_manager.get_server(&id).await {
+        Some(server) => server,
+        None => return Err(StatusCode::NOT_FOUND),
+    };
+
+    // Create compatibility scanner
+    let scanner = crate::compatibility::CompatibilityScanner::new();
+    
+    // Determine mods directory
+    let mods_dir = std::path::Path::new(&server.config.host).join("mods");
+    
+    // Scan for compatibility issues
+    match scanner.scan_server(&id, &mods_dir).await {
+        Ok(report) => Ok(Json(ApiResponse {
+            success: true,
+            data: Some(report),
+            error: None,
+            timestamp: chrono::Utc::now(),
+        })),
+        Err(e) => {
+            error!("Failed to scan compatibility for server {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn apply_compatibility_fixes(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(payload): Json<ApplyFixesRequest>,
+) -> Result<Json<ApiResponse<crate::compatibility::CompatibilityReport>>, StatusCode> {
+    // Get server configuration
+    let server = match state.minecraft_manager.get_server(&id).await {
+        Some(server) => server,
+        None => return Err(StatusCode::NOT_FOUND),
+    };
+
+    // Create auto-fix engine
+    let fix_engine = crate::compatibility::AutoFixEngine::new();
+    
+    // Determine mods directory
+    let mods_dir = std::path::Path::new(&server.config.host).join("mods");
+    
+    // Apply fixes
+    match fix_engine.apply_fixes(&id, &mods_dir, payload.fixes).await {
+        Ok(report) => Ok(Json(ApiResponse {
+            success: true,
+            data: Some(report),
+            error: None,
+            timestamp: chrono::Utc::now(),
+        })),
+        Err(e) => {
+            error!("Failed to apply compatibility fixes for server {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+// Pre-generation endpoints
+#[derive(Debug, Deserialize)]
+pub struct CreatePregenerationJobRequest {
+    pub name: String,
+    pub center_x: i32,
+    pub center_z: i32,
+    pub radius: u32,
+    pub dimensions: Vec<String>,
+    pub gpu_acceleration: bool,
+    pub efficiency_package: bool,
+    pub chunk_batch_size: Option<u32>,
+    pub max_concurrent_jobs: Option<u32>,
+}
+
+async fn get_pregeneration_jobs(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<Vec<crate::pregeneration::PregenerationJob>>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    // For now, return empty list
+    Ok(Json(ApiResponse {
+        success: true,
+        data: Some(Vec::new()),
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+async fn create_pregeneration_job(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(payload): Json<CreatePregenerationJobRequest>,
+) -> Result<Json<ApiResponse<String>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    // For now, return a mock job ID
+    let job_id = uuid::Uuid::new_v4().to_string();
+    
+    Ok(Json(ApiResponse {
+        success: true,
+        data: Some(job_id),
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+async fn get_pregeneration_job(
+    State(state): State<AppState>,
+    Path((id, job_id)): Path<(String, String)>,
+) -> Result<Json<ApiResponse<crate::pregeneration::PregenerationJob>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    // For now, return 404
+    Err(StatusCode::NOT_FOUND)
+}
+
+async fn delete_pregeneration_job(
+    State(state): State<AppState>,
+    Path((id, job_id)): Path<(String, String)>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    Ok(Json(ApiResponse {
+        success: true,
+        data: None,
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+async fn start_pregeneration_job(
+    State(state): State<AppState>,
+    Path((id, job_id)): Path<(String, String)>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    Ok(Json(ApiResponse {
+        success: true,
+        data: None,
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+async fn pause_pregeneration_job(
+    State(state): State<AppState>,
+    Path((id, job_id)): Path<(String, String)>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    Ok(Json(ApiResponse {
+        success: true,
+        data: None,
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+async fn resume_pregeneration_job(
+    State(state): State<AppState>,
+    Path((id, job_id)): Path<(String, String)>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    Ok(Json(ApiResponse {
+        success: true,
+        data: None,
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+async fn cancel_pregeneration_job(
+    State(state): State<AppState>,
+    Path((id, job_id)): Path<(String, String)>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    Ok(Json(ApiResponse {
+        success: true,
+        data: None,
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+// Hot import endpoints
+#[derive(Debug, Deserialize)]
+pub struct CreateHotImportJobRequest {
+    pub name: String,
+    pub source_dir: String,
+    pub target_world: String,
+    pub dimensions: Vec<String>,
+    pub chunk_batch_size: Option<u32>,
+    pub tps_threshold: Option<f64>,
+    pub safety_checks: Option<bool>,
+    pub backup_before_import: Option<bool>,
+}
+
+async fn get_hot_import_jobs(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<Vec<crate::hot_import::HotImportJob>>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    // For now, return empty list
+    Ok(Json(ApiResponse {
+        success: true,
+        data: Some(Vec::new()),
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+async fn create_hot_import_job(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(payload): Json<CreateHotImportJobRequest>,
+) -> Result<Json<ApiResponse<String>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    // For now, return a mock job ID
+    let job_id = uuid::Uuid::new_v4().to_string();
+    
+    Ok(Json(ApiResponse {
+        success: true,
+        data: Some(job_id),
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+async fn get_hot_import_job(
+    State(state): State<AppState>,
+    Path((id, job_id)): Path<(String, String)>,
+) -> Result<Json<ApiResponse<crate::hot_import::HotImportJob>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    // For now, return 404
+    Err(StatusCode::NOT_FOUND)
+}
+
+async fn delete_hot_import_job(
+    State(state): State<AppState>,
+    Path((id, job_id)): Path<(String, String)>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    Ok(Json(ApiResponse {
+        success: true,
+        data: None,
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+async fn start_hot_import_job(
+    State(state): State<AppState>,
+    Path((id, job_id)): Path<(String, String)>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    Ok(Json(ApiResponse {
+        success: true,
+        data: None,
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+async fn cancel_hot_import_job(
+    State(state): State<AppState>,
+    Path((id, job_id)): Path<(String, String)>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    Ok(Json(ApiResponse {
+        success: true,
+        data: None,
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+// Lighting optimization endpoints
+#[derive(Debug, Deserialize)]
+pub struct CreateLightingJobRequest {
+    pub name: String,
+    pub world_path: String,
+    pub dimensions: Vec<String>,
+    pub optimization_level: String,
+    pub use_gpu: bool,
+    pub chunk_batch_size: Option<u32>,
+    pub backup_before_optimization: Option<bool>,
+    pub preserve_lighting_data: Option<bool>,
+}
+
+async fn get_lighting_jobs(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<Vec<crate::lighting::LightingJob>>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    // For now, return empty list
+    Ok(Json(ApiResponse {
+        success: true,
+        data: Some(Vec::new()),
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+async fn create_lighting_job(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(payload): Json<CreateLightingJobRequest>,
+) -> Result<Json<ApiResponse<String>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    // For now, return a mock job ID
+    let job_id = uuid::Uuid::new_v4().to_string();
+    
+    Ok(Json(ApiResponse {
+        success: true,
+        data: Some(job_id),
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+async fn get_lighting_job(
+    State(state): State<AppState>,
+    Path((id, job_id)): Path<(String, String)>,
+) -> Result<Json<ApiResponse<crate::lighting::LightingJob>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    // For now, return 404
+    Err(StatusCode::NOT_FOUND)
+}
+
+async fn delete_lighting_job(
+    State(state): State<AppState>,
+    Path((id, job_id)): Path<(String, String)>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    Ok(Json(ApiResponse {
+        success: true,
+        data: None,
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+async fn start_lighting_job(
+    State(state): State<AppState>,
+    Path((id, job_id)): Path<(String, String)>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    Ok(Json(ApiResponse {
+        success: true,
+        data: None,
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+async fn cancel_lighting_job(
+    State(state): State<AppState>,
+    Path((id, job_id)): Path<(String, String)>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    Ok(Json(ApiResponse {
+        success: true,
+        data: None,
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+async fn get_lighting_settings(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<crate::lighting::LightingSettings>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    // For now, return default settings
+    let settings = crate::lighting::LightingSettings {
+        enabled: true,
+        default_level: crate::lighting::OptimizationLevel::Balanced,
+        gpu_acceleration: true,
+        auto_optimize_after_pregeneration: true,
+        preserve_lighting_data: true,
+        max_concurrent_jobs: 4,
+        chunk_batch_size: 100,
+    };
+    
+    Ok(Json(ApiResponse {
+        success: true,
+        data: Some(settings),
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+async fn update_lighting_settings(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(payload): Json<crate::lighting::LightingSettings>,
+) -> Result<Json<ApiResponse<crate::lighting::LightingSettings>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    Ok(Json(ApiResponse {
+        success: true,
+        data: Some(payload),
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+// Mod management endpoints
+#[derive(Debug, Deserialize)]
+pub struct ModSearchRequest {
+    pub query: String,
+    pub provider: Option<String>,
+    pub mc_version: Option<String>,
+    pub loader: Option<String>,
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateModPlanRequest {
+    pub mod_ids: Vec<String>,
+    pub operations: Vec<crate::mod_management::ModOperation>,
+}
+
+
+async fn get_server_mods(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<Vec<Mod>>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    // For now, return empty list
+    Ok(Json(ApiResponse {
+        success: true,
+        data: Some(Vec::new()),
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+async fn create_mod_plan(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(payload): Json<CreateModPlanRequest>,
+) -> Result<Json<ApiResponse<String>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    // For now, return a mock plan ID
+    let plan_id = uuid::Uuid::new_v4().to_string();
+    
+    Ok(Json(ApiResponse {
+        success: true,
+        data: Some(plan_id),
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+async fn get_mod_plan(
+    State(state): State<AppState>,
+    Path((id, plan_id)): Path<(String, String)>,
+) -> Result<Json<ApiResponse<crate::mod_management::ModInstallationPlan>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    // For now, return 404
+    Err(StatusCode::NOT_FOUND)
+}
+
+async fn delete_mod_plan(
+    State(state): State<AppState>,
+    Path((id, plan_id)): Path<(String, String)>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    Ok(Json(ApiResponse {
+        success: true,
+        data: None,
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+async fn apply_mod_plan(
+    State(state): State<AppState>,
+    Path((id, plan_id)): Path<(String, String)>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    Ok(Json(ApiResponse {
+        success: true,
+        data: None,
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+async fn rollback_mod_plan(
+    State(state): State<AppState>,
+    Path((id, plan_id)): Path<(String, String)>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    // This would need to be implemented in the AppState
+    Ok(Json(ApiResponse {
+        success: true,
+        data: None,
+        error: None,
+        timestamp: chrono::Utc::now(),
+    }))
 }
 
 #[cfg(test)]

@@ -18,6 +18,7 @@ use uuid::Uuid;
 
 use crate::database::{DatabaseManager, ServerConfig, EventLog};
 use crate::rcon::RconClient;
+use crate::websocket::WebSocketManager;
 
 /// Minecraft server process manager
 #[derive(Debug, Clone)]
@@ -595,6 +596,7 @@ impl MinecraftServer {
 pub struct MinecraftManager {
     servers: Arc<RwLock<HashMap<String, MinecraftServer>>>,
     db: DatabaseManager,
+    websocket_manager: Option<Arc<WebSocketManager>>,
 }
 
 impl MinecraftManager {
@@ -603,7 +605,13 @@ impl MinecraftManager {
         Self {
             servers: Arc::new(RwLock::new(HashMap::new())),
             db,
+            websocket_manager: None,
         }
+    }
+
+    /// Set the WebSocket manager for real-time updates
+    pub fn set_websocket_manager(&mut self, websocket_manager: Arc<WebSocketManager>) {
+        self.websocket_manager = Some(websocket_manager);
     }
 
     /// Load servers from database
@@ -660,6 +668,11 @@ impl MinecraftManager {
         let mut servers = self.servers.write().await;
         if let Some(server) = servers.get_mut(id) {
             server.start(&self.db).await?;
+            
+            // Send WebSocket notification
+            if let Some(ws_manager) = &self.websocket_manager {
+                ws_manager.send_server_status(id, "starting".to_string()).await;
+            }
         } else {
             return Err(anyhow!("Server not found: {}", id));
         }
@@ -671,6 +684,11 @@ impl MinecraftManager {
         let mut servers = self.servers.write().await;
         if let Some(server) = servers.get_mut(id) {
             server.stop(&self.db).await?;
+            
+            // Send WebSocket notification
+            if let Some(ws_manager) = &self.websocket_manager {
+                ws_manager.send_server_status(id, "stopping".to_string()).await;
+            }
         } else {
             return Err(anyhow!("Server not found: {}", id));
         }
@@ -682,6 +700,11 @@ impl MinecraftManager {
         let mut servers = self.servers.write().await;
         if let Some(server) = servers.get_mut(id) {
             server.restart(&self.db).await?;
+            
+            // Send WebSocket notification
+            if let Some(ws_manager) = &self.websocket_manager {
+                ws_manager.send_server_status(id, "restarting".to_string()).await;
+            }
         } else {
             return Err(anyhow!("Server not found: {}", id));
         }
@@ -715,6 +738,36 @@ impl MinecraftManager {
             server.get_players().await
         } else {
             Err(anyhow!("Server not found: {}", id))
+        }
+    }
+
+    pub async fn update_server(&self, server: MinecraftServer) {
+        let mut servers = self.servers.write().await;
+        servers.insert(server.id.clone(), server);
+    }
+
+    /// Start metrics collection and broadcasting
+    pub async fn start_metrics_collection(&self) {
+        if let Some(ws_manager) = &self.websocket_manager {
+            let ws_manager = ws_manager.clone();
+            let servers = self.servers.clone();
+            
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(Duration::from_secs(5));
+                
+                loop {
+                    interval.tick().await;
+                    
+                    let servers_read = servers.read().await;
+                    for (server_id, server) in servers_read.iter() {
+                        if server.status == ServerStatus::Running {
+                            if let Ok(metrics) = server.get_metrics().await {
+                                ws_manager.send_metrics(server_id, metrics).await;
+                            }
+                        }
+                    }
+                }
+            });
         }
     }
 }
