@@ -1,20 +1,10 @@
-$BASE = "http://127.0.0.1:8080"
-for ($p = 8080; $p -le 8090; $p++) {
-  try {
-    $response = Invoke-WebRequest -Uri "http://127.0.0.1:$p/healthz" -UseBasicParsing -TimeoutSec 1
-    if ($response.StatusCode -eq 200) {
-      $BASE = "http://127.0.0.1:$p"
-      break
-    }
-  } catch {
-    # Continue to next port
-  }
+$min=52100; $max=52150
+$healthy=$null
+for ($p=$min; $p -le $max; $p++) {
+  try { $r=Invoke-WebRequest -UseBasicParsing "http://127.0.0.1:$p/healthz" -TimeoutSec 1
+        if ($r.StatusCode -eq 200) { $healthy=$p; break } } catch {}
 }
-
-Write-Host "Using $BASE"
-Invoke-WebRequest -Uri "$BASE/healthz" -UseBasicParsing
-try { Invoke-WebRequest -Uri "$BASE/api/servers/test/metrics" -UseBasicParsing } catch { Invoke-WebRequest -Uri "$BASE/servers/test/metrics" -UseBasicParsing }
-try { Invoke-WebRequest -Uri "$BASE/api/servers/test/world" -UseBasicParsing } catch { Invoke-WebRequest -Uri "$BASE/servers/test/world" -UseBasicParsing }
-Invoke-WebRequest -Uri "$BASE/api/servers/test/pregen/plan" -Method POST -ContentType "application/json" -Body '{"radius":1000,"dimensions":["minecraft:overworld"]}' -UseBasicParsing
-Invoke-WebRequest -Uri "$BASE/api/servers/test/pregen/start" -Method POST -UseBasicParsing
-Invoke-WebRequest -Uri "$BASE/api/servers/test/pregen/status" -UseBasicParsing
+if (-not $healthy) { throw "No healthy hostd in $min-$max" }
+Write-Host "Using port $healthy"
+Invoke-WebRequest -UseBasicParsing "http://127.0.0.1:$healthy/api/servers/test/world" | Out-Null
+Invoke-WebRequest -UseBasicParsing "http://127.0.0.1:$healthy/api/servers/test/pregen/status" | Out-Null

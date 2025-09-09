@@ -18,6 +18,7 @@ pub mod api;
 pub mod database;
 pub mod minecraft;
 pub mod rcon;
+pub mod boot;
 pub mod version_manager;
 pub mod mod_classification;
 pub mod compatibility_engine;

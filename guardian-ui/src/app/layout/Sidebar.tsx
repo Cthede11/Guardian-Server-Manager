@@ -710,7 +710,9 @@ export const Sidebar: React.FC = () => {
             onClick={async () => {
               console.log('Testing API connection...');
               try {
-                const response = await fetch('http://localhost:8080/api/health');
+                const { getAPI_BASE } = await import('../../lib/api');
+                const base = await getAPI_BASE();
+                const response = await fetch(`${base}/api/health`);
                 const data = await response.json();
                 console.log('API Health Check:', data);
                 alert(`API Status: ${data.success ? 'OK' : 'Error'}\nData: ${JSON.stringify(data)}`);

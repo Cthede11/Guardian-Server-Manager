@@ -43,14 +43,12 @@ async function initializeApp() {
 // Test backend connection
 async function testBackendConnection() {
   try {
-    const response = await fetch(`${config.api.baseUrl}/api/health`);
-    if (response.ok) {
-      console.log('Backend connection successful');
-    } else {
-      console.warn('Backend not responding, will retry automatically');
-    }
+    // Import waitForBackend and getAPI_BASE from the updated api module
+    const { waitForBackend, getAPI_BASE } = await import('./lib/api');
+    const base = await waitForBackend(15000);
+    console.log('✅ Backend ready at:', base);
   } catch (error) {
-    console.warn('Backend not available yet, will retry automatically:', error);
+    console.error('❌ Backend not reachable:', error);
   }
 }
 

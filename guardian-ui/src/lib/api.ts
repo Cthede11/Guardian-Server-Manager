@@ -1,29 +1,52 @@
-const TRY_PORTS = Array.from({length: 13}, (_,i)=>8080+i);
+const COMMON = new Set([80,443,3000,5173,8000,8080,9000]);
+const DEF_MIN = 52100, DEF_MAX = 52150;
+
+function parseRange(): [number,number] {
+  const env = import.meta.env.VITE_HOSTD_PORT_RANGE as string | undefined;
+  if (env && /^\d{2,5}-\d{2,5}$/.test(env)) {
+    const [a,b]=env.split('-').map(n=>parseInt(n,10)); if(a<b) return [a,b];
+  }
+  return [DEF_MIN, DEF_MAX];
+}
+function* candidatePorts(): Generator<number> {
+  const [min,max]=parseRange();
+  for (let p=min; p<=max; p++) if(!COMMON.has(p)) yield p;
+}
 
 let cachedBase: string | null = null;
+
 async function ping(base: string) {
-  try { 
-    const r = await fetch(`${base}/healthz`, { cache: "no-store" }); 
-    return r.ok; 
-  } catch { 
-    return false; 
-  }
+  try { const r = await fetch(`${base}/healthz`, { cache: "no-store" }); return r.ok; } catch { return false; }
 }
 
 export async function getAPI_BASE(): Promise<string> {
   if (cachedBase) return cachedBase;
-  // env override
-  const env = import.meta.env.VITE_API_BASE?.replace(/\/+$/, "");
-  if (env && await ping(env)) { cachedBase = env; return env; }
+  const env = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/,"");
+  if (env && await ping(env)) return (cachedBase = env);
 
-  // discover localhost ports
-  for (const p of TRY_PORTS) {
+  for (const p of candidatePorts()) {
     const base = `http://127.0.0.1:${p}`;
-    if (await ping(base)) { cachedBase = base; return cachedBase; }
+    if (await ping(base)) return (cachedBase = base);
   }
-  // last fallback: read port file through Tauri (optional)
-  cachedBase = "http://127.0.0.1:8080";
-  return cachedBase;
+  // last fallback – try what backend wrote last time
+  try {
+    // If using Tauri, you can expose a readTextFile to get backend_port.txt; skip here if not available
+  } catch {}
+  // give up to default range start (frontend will still show banner if health fails)
+  return (cachedBase = `http://127.0.0.1:${DEF_MIN}`);
+}
+
+export async function waitForBackend(timeoutMs = 15000) {
+  const start = Date.now();
+  let base = await getAPI_BASE();
+  while (Date.now() - start < timeoutMs) {
+    if (await ping(base)) return base;
+    await new Promise(r=>setTimeout(r, 250));
+    // re-scan in case backend moved
+    cachedBase = null;
+    base = await getAPI_BASE();
+  }
+  throw new Error("Backend not reachable");
 }
 
 // For backward compatibility, we'll use a default that gets updated
@@ -36,17 +59,13 @@ getAPI_BASE().then(base => {
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const base = await getAPI_BASE();
-  const res = await fetch(`${base}${path}`, {
-    headers: { "Content-Type": "application/json", ...(init?.headers||{}) },
-    ...init,
-  });
+  const res = await fetch(`${base}${path}`, { headers: { "Content-Type":"application/json", ...(init?.headers||{}) }, ...init });
   if (!res.ok) {
     let err: any = { status: res.status, message: res.statusText };
     try { err = await res.json(); } catch {}
     throw err;
   }
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  return res.status === 204 ? (undefined as T) : await res.json() as T;
 }
 
 // Internal API function

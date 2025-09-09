@@ -85,7 +85,9 @@ export default function Console() {
   const testAPI = async () => {
     console.log('Testing API connection...');
     try {
-      const response = await fetch('http://localhost:8080/api/health');
+      const { getAPI_BASE } = await import('../../lib/api');
+      const base = await getAPI_BASE();
+      const response = await fetch(`${base}/healthz`);
       console.log('API Response Status:', response.status, response.statusText);
       
       if (!response.ok) {
@@ -97,10 +99,11 @@ export default function Console() {
       const data = await response.json();
       console.log('API Health Check Response:', data);
       
-      if (data.success) {
+      if (data.ok) {
         console.log('✅ API is working correctly');
+        console.log(`Backend running on port ${data.port} with PID ${data.pid}`);
       } else {
-        console.error('❌ API returned error:', data.error);
+        console.error('❌ API returned error:', data.error || 'Unknown error');
       }
     } catch (error) {
       console.error('❌ API connection failed:', error);

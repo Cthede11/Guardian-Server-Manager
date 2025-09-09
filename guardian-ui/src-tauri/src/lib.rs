@@ -290,6 +290,13 @@ async fn get_debug_info() -> Result<String, String> {
 fn start_hostd_service<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> Result<(), Box<dyn std::error::Error>> {
     log_debug("Starting hostd service...");
     
+    // First check if there's already a healthy hostd running
+    let runtime = tokio::runtime::Runtime::new()?;
+    if let Some(port) = runtime.block_on(discover_healthy_backend()) {
+        log_debug(&format!("Healthy hostd already running on port {}, skipping startup", port));
+        return Ok(());
+    }
+    
     // Use enhanced resource path resolution
     let hostd_path = match get_resource_path(handle, "hostd.exe") {
         Ok(path) => path,
@@ -410,29 +417,76 @@ fn start_hostd_process<R: tauri::Runtime>(handle: &tauri::AppHandle<R>, hostd_pa
 // Ensure backend is running, attempt to start if not
 #[tauri::command]
 async fn ensure_backend<R: tauri::Runtime>(handle: tauri::AppHandle<R>) -> Result<String, String> {
-    // Quick health check
-    let ok = reqwest::Client::new()
-        .get("http://127.0.0.1:8080/health")
-        .timeout(std::time::Duration::from_millis(800))
-        .send().await
-        .map(|r| r.status().is_success())
-        .unwrap_or(false);
-    if ok {
-        return Ok("backend_running".to_string());
+    // Use the new port discovery system to find existing healthy backend
+    if let Some(healthy_port) = discover_healthy_backend().await {
+        log_debug(&format!("Found healthy backend on port: {}", healthy_port));
+        return Ok(format!("backend_running_on_{}", healthy_port));
     }
+    
     // Try to start hostd
     if let Err(e) = start_hostd_service(&handle) {
         return Err(format!("failed_to_start_backend: {}", e));
     }
-    // Wait briefly and recheck
-    tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-    let ok2 = reqwest::Client::new()
-        .get("http://127.0.0.1:8080/health")
-        .timeout(std::time::Duration::from_millis(1000))
-        .send().await
-        .map(|r| r.status().is_success())
-        .unwrap_or(false);
-    if ok2 { Ok("backend_started".to_string()) } else { Err("backend_unreachable".to_string()) }
+    
+    // Wait briefly and recheck using port discovery
+    tokio::time::sleep(std::time::Duration::from_millis(3000)).await;
+    if let Some(healthy_port) = discover_healthy_backend().await {
+        log_debug(&format!("Backend started successfully on port: {}", healthy_port));
+        Ok(format!("backend_started_on_{}", healthy_port))
+    } else { 
+        Err("backend_unreachable".to_string()) 
+    }
+}
+
+// Discover healthy backend using the same port policy as the frontend
+async fn discover_healthy_backend() -> Option<u16> {
+    // Port range matching the frontend (52100-52150)
+    let min = std::env::var("HOSTD_PORT_RANGE")
+        .ok()
+        .and_then(|s| s.split('-').next().and_then(|p| p.parse::<u16>().ok()))
+        .unwrap_or(52100);
+    let max = std::env::var("HOSTD_PORT_RANGE")
+        .ok()
+        .and_then(|s| s.split('-').nth(1).and_then(|p| p.parse::<u16>().ok()))
+        .unwrap_or(52150);
+    
+    // Forbidden ports (same as frontend)
+    let forbidden = [80u16, 443, 3000, 5173, 8000, 8080, 9000];
+    
+    for port in min..=max {
+        if forbidden.contains(&port) { continue; }
+        
+        let url = format!("http://127.0.0.1:{}/healthz", port);
+        if let Ok(response) = reqwest::Client::new()
+            .get(&url)
+            .timeout(std::time::Duration::from_millis(500))
+            .send().await 
+        {
+            if response.status().is_success() {
+                log_debug(&format!("Found healthy backend at: {}", url));
+                return Some(port);
+            }
+        }
+    }
+    
+    // Also check if backend_port.txt exists and is healthy
+    if let Ok(port_text) = std::fs::read_to_string("hostd/backend_port.txt") {
+        if let Ok(port) = port_text.trim().parse::<u16>() {
+            let url = format!("http://127.0.0.1:{}/healthz", port);
+            if let Ok(response) = reqwest::Client::new()
+                .get(&url)
+                .timeout(std::time::Duration::from_millis(500))
+                .send().await 
+            {
+                if response.status().is_success() {
+                    log_debug(&format!("Found healthy backend from port file at: {}", url));
+                    return Some(port);
+                }
+            }
+        }
+    }
+    
+    None
 }
 
 // Helper function to start the GPU worker process
