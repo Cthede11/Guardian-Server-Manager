@@ -12,6 +12,7 @@ import { ShardingAssignment } from '@/components/Sharding/ShardingAssignment';
 import { ShardingWarnings } from '@/components/Sharding/ShardingWarnings';
 import { ErrorEmptyState } from '@/components/ui/EmptyState';
 import { apiClient as api } from '@/lib/api';
+import { safeTimeString } from '@/lib/formatters';
 
 interface ShardingStats {
   totalShards: number;
@@ -218,7 +219,7 @@ export const Sharding: React.FC = () => {
           <CardContent>
             <div className="text-2xl font-bold">{stats.averageLoad.toFixed(1)}%</div>
             <p className="text-xs text-muted-foreground">
-              Last updated: {new Date(stats.lastHealthCheck).toLocaleTimeString()}
+              Last updated: {safeTimeString(stats.lastHealthCheck)}
             </p>
           </CardContent>
         </Card>

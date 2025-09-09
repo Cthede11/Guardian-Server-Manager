@@ -8,6 +8,7 @@ use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::{collections::VecDeque, sync::Arc};
 use tokio::sync::broadcast;
+use tokio_stream::wrappers::BroadcastStream;
 
 #[derive(Serialize, Clone)]
 pub struct MetricsPoint {
@@ -49,7 +50,7 @@ pub async fn history(State(hub): State<MetricsHub>, _id: Path<String>, _q: Query
 // GET /servers/:id/metrics/stream
 pub async fn stream(State(hub): State<MetricsHub>, _id: Path<String>) -> impl IntoResponse {
     let rx = hub.tx.subscribe();
-    let stream = tokio_stream::wrappers::BroadcastStream::new(rx)
+    let stream = BroadcastStream::new(rx)
         .filter_map(|p| async move { p.ok() })
         .map(|p| Event::default().json_data(p));
     Sse::new(stream).keep_alive(KeepAlive::new())

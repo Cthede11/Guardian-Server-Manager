@@ -254,16 +254,17 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
   checkCompatibility: async (modpack) => {
     set({ loading: true, error: null });
     try {
-      const result = await modpackApi.checkModCompatibility(modpack.client_mods[0], modpack.server_mods[0]);
+      const result = await modpackApi.checkCompatibility(modpack);
       set({ loading: false });
       // Return a mock ModpackCompatibility object
       return {
+        modpack: modpack,
         minecraft_version: modpack.minecraft_version,
         loader: modpack.loader,
         client_mods: modpack.client_mods,
         server_mods: modpack.server_mods,
         report: {
-          is_compatible: result,
+          is_compatible: Boolean(result),
           issues: [],
           warnings: [],
           recommendations: []

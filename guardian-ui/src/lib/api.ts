@@ -1,49 +1,30 @@
-// Unify all network calls behind this tiny client.
-// Works in dev, Tauri dev, and packaged builds.
+const TRY_PORTS = Array.from({length: 13}, (_,i)=>8080+i);
 
-const VITE_API_BASE = import.meta.env.VITE_API_BASE?.replace(/\/+$/, "") ?? "";
-
-// Function to detect the backend port by trying different ports
-async function detectBackendPort(): Promise<number> {
-  const ports = [8080, 8081, 8082, 8083, 8084, 8085, 8086, 8087, 8088, 8089, 8090];
-  
-  for (const port of ports) {
-    try {
-      const response = await fetch(`http://127.0.0.1:${port}/servers/test/metrics`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(1000) // 1 second timeout
-      });
-      if (response.ok || response.status === 404) { // 404 is ok, means server is running
-        return port;
-      }
-    } catch {
-      // Continue to next port
-    }
+let cachedBase: string | null = null;
+async function ping(base: string) {
+  try { 
+    const r = await fetch(`${base}/healthz`, { cache: "no-store" }); 
+    return r.ok; 
+  } catch { 
+    return false; 
   }
-  
-  return 8080; // Fallback to default
 }
 
-// Cache the detected port
-let cachedPort: number | null = null;
+export async function getAPI_BASE(): Promise<string> {
+  if (cachedBase) return cachedBase;
+  // env override
+  const env = import.meta.env.VITE_API_BASE?.replace(/\/+$/, "");
+  if (env && await ping(env)) { cachedBase = env; return env; }
 
-// When packed with Tauri, point to the local hostd (adjust if you spawn hostd inside the app).
-const getTAURI_API_BASE = async () => {
-  if (cachedPort === null) {
-    cachedPort = await detectBackendPort();
+  // discover localhost ports
+  for (const p of TRY_PORTS) {
+    const base = `http://127.0.0.1:${p}`;
+    if (await ping(base)) { cachedBase = base; return cachedBase; }
   }
-  return `http://127.0.0.1:${cachedPort}`;
-};
-
-// Use VITE_API_BASE if set; otherwise default to localhost.
-// In Tauri packaged builds, keep pointing to the bundled hostd port.
-export const getAPI_BASE = async () => {
-  if (VITE_API_BASE) return VITE_API_BASE;
-  if (typeof (window as any).__TAURI_IPC__ !== "undefined") {
-    return await getTAURI_API_BASE();
-  }
-  return `http://127.0.0.1:${await detectBackendPort()}`;
-};
+  // last fallback: read port file through Tauri (optional)
+  cachedBase = "http://127.0.0.1:8080";
+  return cachedBase;
+}
 
 // For backward compatibility, we'll use a default that gets updated
 export let API_BASE = "http://127.0.0.1:8080";
@@ -53,29 +34,24 @@ getAPI_BASE().then(base => {
   API_BASE = base;
 });
 
-// Internal API function
-async function apiCall<T>(path: string, init?: RequestInit): Promise<T> {
+export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const base = await getAPI_BASE();
   const res = await fetch(`${base}${path}`, {
-    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+    headers: { "Content-Type": "application/json", ...(init?.headers||{}) },
     ...init,
   });
-  
   if (!res.ok) {
-    // Always return JSON-shaped error the UI can handle
     let err: any = { status: res.status, message: res.statusText };
     try { err = await res.json(); } catch {}
     throw err;
   }
-  
-  // Some endpoints are 204
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
 
-// Generic API function for direct use
-export async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  return apiCall<T>(path, init);
+// Internal API function
+async function apiCall<T>(path: string, init?: RequestInit): Promise<T> {
+  return api<T>(path, init);
 }
 
 // Extended API client with specific methods for backward compatibility

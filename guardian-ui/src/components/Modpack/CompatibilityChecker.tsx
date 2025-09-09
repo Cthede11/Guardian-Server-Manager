@@ -177,7 +177,7 @@ export const CompatibilityChecker: React.FC = () => {
                         </svg>
                       </div>
                       <div className="ml-3">
-                        <p className="text-sm text-gray-700">{recommendation}</p>
+                        <p className="text-sm text-gray-700">{String(recommendation)}</p>
                       </div>
                     </div>
                   ))}

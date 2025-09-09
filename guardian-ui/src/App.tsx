@@ -2,18 +2,18 @@ import { RouterProvider } from 'react-router-dom';
 import { router } from './app/routes';
 import { Toaster } from './components/ui/toaster';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
-import { RealtimeProvider } from './lib/realtime-provider';
+import { WorkspaceRealtimeProvider } from './components/RealtimeDataProvider';
 import './App.css';
 
 function App() {
   return (
     <ErrorBoundary>
-      <RealtimeProvider>
+      <WorkspaceRealtimeProvider>
         <div className="min-h-screen bg-background">
           <RouterProvider router={router} />
           <Toaster />
         </div>
-      </RealtimeProvider>
+      </WorkspaceRealtimeProvider>
     </ErrorBoundary>
   );
 }

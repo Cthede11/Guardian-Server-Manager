@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useServersStore } from '@/store/servers';
 import { apiClient as api } from '@/lib/api';
+import { safeDateShort, healthLabel, healthStatus } from '@/lib/formatters';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -113,12 +114,10 @@ export const Diagnostics: React.FC = () => {
   };
 
   const getHealthStatus = () => {
-    if (stats.systemHealth >= 90) return 'healthy';
-    if (stats.systemHealth >= 70) return 'warning';
-    return 'critical';
+    return healthStatus(stats.systemHealth);
   };
 
-  const healthStatus = getHealthStatus();
+  const currentHealthStatus = getHealthStatus();
 
   const getUptimeColor = (uptime: number) => {
     if (uptime >= 99) return 'text-green-500';
@@ -170,13 +169,13 @@ export const Diagnostics: React.FC = () => {
       </div>
 
       {/* Health Status Alert */}
-      {healthStatus !== 'healthy' && (
-        <Alert variant={healthStatus === 'critical' ? 'destructive' : 'default'}>
+      {currentHealthStatus !== 'healthy' && (
+        <Alert variant={currentHealthStatus === 'critical' ? 'destructive' : 'default'}>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            {healthStatus === 'critical' 
-              ? `System health is critical (${stats.systemHealth}%). Immediate attention required.`
-              : `System health is degraded (${stats.systemHealth}%). Monitor closely.`
+            {currentHealthStatus === 'critical' 
+              ? `System health is critical (${healthLabel(stats.systemHealth)}). Immediate attention required.`
+              : `System health is degraded (${healthLabel(stats.systemHealth)}). Monitor closely.`
             }
           </AlertDescription>
         </Alert>
@@ -217,7 +216,7 @@ export const Diagnostics: React.FC = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">System Health</CardTitle>
-            {healthStatus === 'healthy' ? (
+            {currentHealthStatus === 'healthy' ? (
               <CheckCircle className="h-4 w-4 text-green-500" />
             ) : (
               <AlertTriangle className="h-4 w-4 text-yellow-500" />
@@ -297,7 +296,7 @@ export const Diagnostics: React.FC = () => {
               <span className="text-sm">
                 {stats.lastCrash === 'Never' 
                   ? 'Never' 
-                  : new Date(stats.lastCrash).toLocaleDateString()
+                  : safeDateShort(stats.lastCrash)
                 }
               </span>
               <Badge variant="outline">

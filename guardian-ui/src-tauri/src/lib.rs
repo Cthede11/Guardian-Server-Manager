@@ -54,6 +54,8 @@ pub fn run() {
         })
         // register dialog plugin to enable native file dialogs from the frontend
         .plugin(tauri_plugin_dialog::init())
+        // register HTTP plugin to enable HTTP requests from the frontend
+        .plugin(tauri_plugin_http::init())
         .setup(|app: &mut tauri::App<tauri::Wry>| {
             log_debug("In setup function...");
             
@@ -368,15 +370,8 @@ fn start_hostd_process<R: tauri::Runtime>(handle: &tauri::AppHandle<R>, hostd_pa
     log_debug(&format!("Using database: {}", db_url));
     
     // Start the hostd process in the background with proper error handling
+    // The new consumer-ready hostd handles port selection and configuration internally
     let mut child = Command::new(hostd_path)
-        .arg("--port")
-        .arg("8080")
-        .arg("--database-url")
-        .arg(&db_url)
-        .arg("--config")
-        .arg(&config_path) // Use absolute path (or fallback above)
-        .arg("--log-level")
-        .arg("info")
         .current_dir(&app_data_dir) // Set working directory to user-writable directory
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

@@ -136,23 +136,32 @@ export const ServerCreationWizard: React.FC<ServerCreationWizardProps> = ({
         type: formData.type,
         version: formData.version,
         loader: formData.type,
+        memory: 4096, // Default 4GB
+        port: formData.serverPort,
+        world: formData.paths.world,
+        mods: [],
+        properties: {},
+        javaInstallations: [formData.javaPath],
         java: {
           path: formData.javaPath,
           args: formData.javaArgs,
           version: '21' // Default Java version
         },
         network: {
+          port: formData.serverPort,
           serverPort: formData.serverPort,
           rconPort: formData.rconPort,
           rconPassword: formData.rconPassword,
-          queryPort: formData.queryPort
+          queryPort: formData.queryPort,
+          maxPlayers: 20,
+          motd: "A Minecraft Server"
         },
         paths: {
-          world: formData.paths.world,
-          mods: formData.paths.mods,
-          config: formData.paths.config,
-          logs: formData.paths.logs,
-          backups: formData.paths.backups
+          serverDir: "./server",
+          worldDir: formData.paths.world,
+          logsDir: formData.paths.logs,
+          pluginsDir: "./plugins", 
+          modsDir: formData.paths.mods
         },
         settings: {
           autoStart: false,

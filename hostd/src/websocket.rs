@@ -1,10 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use axum::{
-    extract::{
-        Path, State, WebSocketUpgrade,
-        ws::{WebSocket, Message},
-    },
+    extract::{Path, State, WebSocketUpgrade},
+    extract::ws::{WebSocket, Message},
     response::{Response, IntoResponse},
     routing::get,
     Router,
