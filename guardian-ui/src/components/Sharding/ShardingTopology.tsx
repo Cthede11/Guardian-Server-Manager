@@ -16,7 +16,7 @@ import {
   Cpu,
   HardDrive
 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { apiClient as api } from '@/lib/api';
 
 interface ShardNode {
   id: string;

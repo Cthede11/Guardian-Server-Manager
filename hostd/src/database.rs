@@ -26,6 +26,23 @@ pub struct ServerConfig {
     pub server_args: String,
     pub auto_start: bool,
     pub auto_restart: bool,
+    pub max_players: u32,
+    pub mc_version: String,
+    pub pregeneration_policy: serde_json::Value,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Global settings stored in database
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Settings {
+    pub id: String,
+    pub cf_api_key: Option<String>,
+    pub modrinth_token: Option<String>,
+    pub java_path: String,
+    pub default_ram_mb: u32,
+    pub data_dir: String,
+    pub telemetry_opt_in: bool,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
@@ -39,6 +56,38 @@ pub struct UserSettings {
     pub notifications: bool,
     pub auto_refresh: bool,
     pub refresh_interval: u32,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Task information for tracking long-running operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Task {
+    pub id: String,
+    pub server_id: Option<String>,
+    pub kind: String, // download, install, backup, worldgen, lighting, import, compat_scan
+    pub status: String, // pending, running, done, failed
+    pub progress: f64,
+    pub log: Option<String>,
+    pub metadata: Option<serde_json::Value>,
+    pub started_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub finished_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Mod information with enhanced fields
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Mod {
+    pub id: String,
+    pub provider: String, // curseforge, modrinth
+    pub project_id: String,
+    pub version_id: String,
+    pub filename: String,
+    pub sha1: String,
+    pub server_id: Option<String>,
+    pub enabled: bool,
+    pub category: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
@@ -224,6 +273,28 @@ impl DatabaseManager {
                 server_args TEXT NOT NULL,
                 auto_start BOOLEAN NOT NULL DEFAULT 0,
                 auto_restart BOOLEAN NOT NULL DEFAULT 0,
+                max_players INTEGER NOT NULL DEFAULT 20,
+                mc_version TEXT NOT NULL DEFAULT '1.20.1',
+                pregeneration_policy TEXT NOT NULL DEFAULT '{}',
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create settings table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS settings (
+                id TEXT PRIMARY KEY,
+                cf_api_key TEXT,
+                modrinth_token TEXT,
+                java_path TEXT NOT NULL DEFAULT 'java',
+                default_ram_mb INTEGER NOT NULL DEFAULT 4096,
+                data_dir TEXT NOT NULL DEFAULT 'data',
+                telemetry_opt_in BOOLEAN NOT NULL DEFAULT 0,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
@@ -244,6 +315,50 @@ impl DatabaseManager {
                 refresh_interval INTEGER NOT NULL DEFAULT 5,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create tasks table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS tasks (
+                id TEXT PRIMARY KEY,
+                server_id TEXT,
+                kind TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                progress REAL NOT NULL DEFAULT 0.0,
+                log TEXT,
+                metadata TEXT,
+                started_at DATETIME,
+                finished_at DATETIME,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (server_id) REFERENCES servers (id) ON DELETE CASCADE
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create mods table (enhanced)
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS mods (
+                id TEXT PRIMARY KEY,
+                provider TEXT NOT NULL,
+                project_id TEXT NOT NULL,
+                version_id TEXT NOT NULL,
+                filename TEXT NOT NULL,
+                sha1 TEXT NOT NULL,
+                server_id TEXT,
+                enabled BOOLEAN NOT NULL DEFAULT 1,
+                category TEXT NOT NULL DEFAULT 'unknown',
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (server_id) REFERENCES servers (id) ON DELETE CASCADE
             )
             "#,
         )
@@ -312,7 +427,224 @@ impl DatabaseManager {
         .await?;
 
         // Create indexes
+        // Add missing columns if they don't exist (migration for existing databases)
+        info!("Adding missing columns to existing tables...");
+        
+        // Add max_players column to servers table
+        if let Err(e) = sqlx::query("ALTER TABLE servers ADD COLUMN max_players INTEGER DEFAULT 20")
+            .execute(&self.pool)
+            .await
+        {
+            if !e.to_string().contains("duplicate column name") {
+                warn!("Failed to add max_players column to servers table: {}", e);
+            }
+        }
+        
+        // Add mc_version column to servers table
+        if let Err(e) = sqlx::query("ALTER TABLE servers ADD COLUMN mc_version TEXT DEFAULT '1.20.1'")
+            .execute(&self.pool)
+            .await
+        {
+            if !e.to_string().contains("duplicate column name") {
+                warn!("Failed to add mc_version column to servers table: {}", e);
+            }
+        }
+        
+        // Add server_id column to tasks table
+        if let Err(e) = sqlx::query("ALTER TABLE tasks ADD COLUMN server_id TEXT")
+            .execute(&self.pool)
+            .await
+        {
+            if !e.to_string().contains("duplicate column name") {
+                warn!("Failed to add server_id column to tasks table: {}", e);
+            }
+        }
+        
+        // Add server_id column to mods table
+        if let Err(e) = sqlx::query("ALTER TABLE mods ADD COLUMN server_id TEXT")
+            .execute(&self.pool)
+            .await
+        {
+            if !e.to_string().contains("duplicate column name") {
+                warn!("Failed to add server_id column to mods table: {}", e);
+            }
+        }
+        
+        // Add category column to mods table
+        if let Err(e) = sqlx::query("ALTER TABLE mods ADD COLUMN category TEXT DEFAULT 'unknown'")
+            .execute(&self.pool)
+            .await
+        {
+            if !e.to_string().contains("duplicate column name") {
+                warn!("Failed to add category column to mods table: {}", e);
+            }
+        }
+        
+        // Add side column to mods table
+        if let Err(e) = sqlx::query("ALTER TABLE mods ADD COLUMN side TEXT DEFAULT 'both'")
+            .execute(&self.pool)
+            .await
+        {
+            if !e.to_string().contains("duplicate column name") {
+                warn!("Failed to add side column to mods table: {}", e);
+            }
+        }
+        
+        // Add source column to mods table
+        if let Err(e) = sqlx::query("ALTER TABLE mods ADD COLUMN source TEXT DEFAULT 'unknown'")
+            .execute(&self.pool)
+            .await
+        {
+            if !e.to_string().contains("duplicate column name") {
+                warn!("Failed to add source column to mods table: {}", e);
+            }
+        }
+        
+        // Add name column to mods table
+        if let Err(e) = sqlx::query("ALTER TABLE mods ADD COLUMN name TEXT DEFAULT 'Unknown'")
+            .execute(&self.pool)
+            .await
+        {
+            if !e.to_string().contains("duplicate column name") {
+                warn!("Failed to add name column to mods table: {}", e);
+            }
+        }
+        
+        // Add description column to mods table
+        if let Err(e) = sqlx::query("ALTER TABLE mods ADD COLUMN description TEXT")
+            .execute(&self.pool)
+            .await
+        {
+            if !e.to_string().contains("duplicate column name") {
+                warn!("Failed to add description column to mods table: {}", e);
+            }
+        }
+        
+        // Add server_id column to backup_configs table
+        if let Err(e) = sqlx::query("ALTER TABLE backup_configs ADD COLUMN server_id TEXT")
+            .execute(&self.pool)
+            .await
+        {
+            if !e.to_string().contains("duplicate column name") {
+                warn!("Failed to add server_id column to backup_configs table: {}", e);
+            }
+        }
+        
+        // Add server_id column to backup_records table
+        if let Err(e) = sqlx::query("ALTER TABLE backup_records ADD COLUMN server_id TEXT")
+            .execute(&self.pool)
+            .await
+        {
+            if !e.to_string().contains("duplicate column name") {
+                warn!("Failed to add server_id column to backup_records table: {}", e);
+            }
+        }
+        
+        // Add server_id column to event_logs table
+        if let Err(e) = sqlx::query("ALTER TABLE event_logs ADD COLUMN server_id TEXT")
+            .execute(&self.pool)
+            .await
+        {
+            if !e.to_string().contains("duplicate column name") {
+                warn!("Failed to add server_id column to event_logs table: {}", e);
+            }
+        }
+        
+        // Add pregeneration_policy column to servers table
+        if let Err(e) = sqlx::query("ALTER TABLE servers ADD COLUMN pregeneration_policy TEXT DEFAULT '{}'")
+            .execute(&self.pool)
+            .await
+        {
+            if !e.to_string().contains("duplicate column name") {
+                warn!("Failed to add pregeneration_policy column to servers table: {}", e);
+            }
+        }
+        
+        // Add provider column to mods table
+        if let Err(e) = sqlx::query("ALTER TABLE mods ADD COLUMN provider TEXT DEFAULT 'unknown'")
+            .execute(&self.pool)
+            .await
+        {
+            if !e.to_string().contains("duplicate column name") {
+                warn!("Failed to add provider column to mods table: {}", e);
+            }
+        }
+        
+        // Add project_id column to mods table
+        if let Err(e) = sqlx::query("ALTER TABLE mods ADD COLUMN project_id TEXT DEFAULT ''")
+            .execute(&self.pool)
+            .await
+        {
+            if !e.to_string().contains("duplicate column name") {
+                warn!("Failed to add project_id column to mods table: {}", e);
+            }
+        }
+        
+        // Add version_id column to mods table
+        if let Err(e) = sqlx::query("ALTER TABLE mods ADD COLUMN version_id TEXT DEFAULT ''")
+            .execute(&self.pool)
+            .await
+        {
+            if !e.to_string().contains("duplicate column name") {
+                warn!("Failed to add version_id column to mods table: {}", e);
+            }
+        }
+        
+        // Add filename column to mods table
+        if let Err(e) = sqlx::query("ALTER TABLE mods ADD COLUMN filename TEXT DEFAULT ''")
+            .execute(&self.pool)
+            .await
+        {
+            if !e.to_string().contains("duplicate column name") {
+                warn!("Failed to add filename column to mods table: {}", e);
+            }
+        }
+        
+        // Add sha1 column to mods table
+        if let Err(e) = sqlx::query("ALTER TABLE mods ADD COLUMN sha1 TEXT DEFAULT ''")
+            .execute(&self.pool)
+            .await
+        {
+            if !e.to_string().contains("duplicate column name") {
+                warn!("Failed to add sha1 column to mods table: {}", e);
+            }
+        }
+        
+        info!("Database migration completed");
+
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_servers_name ON servers (name)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_servers_max_players ON servers (max_players)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_tasks_server_id ON tasks (server_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_tasks_kind ON tasks (kind)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks (status)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks (created_at)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_mods_server_id ON mods (server_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_mods_provider ON mods (provider)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_mods_enabled ON mods (enabled)")
             .execute(&self.pool)
             .await?;
 
@@ -373,23 +705,7 @@ impl DatabaseManager {
         .execute(&self.pool)
         .await?;
 
-        // Create mods table
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS mods (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                description TEXT,
-                category TEXT NOT NULL,
-                side TEXT NOT NULL,
-                source TEXT NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-            "#,
-        )
-        .execute(&self.pool)
-        .await?;
+        // Note: mods table already created above with enhanced schema
 
         // Create mod_versions table
         sqlx::query(
@@ -599,8 +915,9 @@ impl DatabaseManager {
             INSERT INTO servers (
                 id, name, host, port, rcon_port, rcon_password,
                 java_path, server_jar, jvm_args, server_args,
-                auto_start, auto_restart, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                auto_start, auto_restart, max_players, mc_version, pregeneration_policy,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
         .bind(&config.id)
@@ -615,6 +932,9 @@ impl DatabaseManager {
         .bind(&config.server_args)
         .bind(config.auto_start)
         .bind(config.auto_restart)
+        .bind(config.max_players)
+        .bind(&config.mc_version)
+        .bind(&config.pregeneration_policy)
         .bind(config.created_at)
         .bind(config.updated_at)
         .execute(&self.pool)
@@ -629,7 +949,8 @@ impl DatabaseManager {
             r#"
             SELECT id, name, host, port, rcon_port, rcon_password,
                    java_path, server_jar, jvm_args, server_args,
-                   auto_start, auto_restart, created_at, updated_at
+                   auto_start, auto_restart, max_players, mc_version, pregeneration_policy,
+                   created_at, updated_at
             FROM servers WHERE id = ?
             "#,
         )
@@ -651,6 +972,9 @@ impl DatabaseManager {
                 server_args: row.get("server_args"),
                 auto_start: row.get("auto_start"),
                 auto_restart: row.get("auto_restart"),
+                max_players: row.get("max_players"),
+                mc_version: row.get("mc_version"),
+                pregeneration_policy: row.get("pregeneration_policy"),
                 created_at: row.get("created_at"),
                 updated_at: row.get("updated_at"),
             }))
@@ -664,7 +988,8 @@ impl DatabaseManager {
             r#"
             SELECT id, name, host, port, rcon_port, rcon_password,
                    java_path, server_jar, jvm_args, server_args,
-                   auto_start, auto_restart, created_at, updated_at
+                   auto_start, auto_restart, max_players, mc_version, pregeneration_policy,
+                   created_at, updated_at
             FROM servers ORDER BY name
             "#,
         )
@@ -686,6 +1011,9 @@ impl DatabaseManager {
                 server_args: row.get("server_args"),
                 auto_start: row.get("auto_start"),
                 auto_restart: row.get("auto_restart"),
+                max_players: row.get("max_players"),
+                mc_version: row.get("mc_version"),
+                pregeneration_policy: row.get("pregeneration_policy"),
                 created_at: row.get("created_at"),
                 updated_at: row.get("updated_at"),
             })
@@ -700,7 +1028,8 @@ impl DatabaseManager {
             UPDATE servers SET
                 name = ?, host = ?, port = ?, rcon_port = ?, rcon_password = ?,
                 java_path = ?, server_jar = ?, jvm_args = ?, server_args = ?,
-                auto_start = ?, auto_restart = ?, updated_at = ?
+                auto_start = ?, auto_restart = ?, max_players = ?, pregeneration_policy = ?,
+                updated_at = ?
             WHERE id = ?
             "#,
         )
@@ -715,6 +1044,8 @@ impl DatabaseManager {
         .bind(&config.server_args)
         .bind(config.auto_start)
         .bind(config.auto_restart)
+        .bind(config.max_players)
+        .bind(&config.pregeneration_policy)
         .bind(config.updated_at)
         .bind(&config.id)
         .execute(&self.pool)
@@ -731,6 +1062,60 @@ impl DatabaseManager {
             .await?;
 
         info!("Deleted server configuration: {}", id);
+        Ok(())
+    }
+
+    // Settings methods
+    pub async fn get_settings(&self) -> Result<Option<Settings>> {
+        let row = sqlx::query(
+            r#"
+            SELECT id, cf_api_key, modrinth_token, java_path, default_ram_mb,
+                   data_dir, telemetry_opt_in, created_at, updated_at
+            FROM settings LIMIT 1
+            "#,
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            Ok(Some(Settings {
+                id: row.get("id"),
+                cf_api_key: row.get("cf_api_key"),
+                modrinth_token: row.get("modrinth_token"),
+                java_path: row.get("java_path"),
+                default_ram_mb: row.get("default_ram_mb"),
+                data_dir: row.get("data_dir"),
+                telemetry_opt_in: row.get("telemetry_opt_in"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn update_settings(&self, settings: &Settings) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT OR REPLACE INTO settings (
+                id, cf_api_key, modrinth_token, java_path, default_ram_mb,
+                data_dir, telemetry_opt_in, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(&settings.id)
+        .bind(&settings.cf_api_key)
+        .bind(&settings.modrinth_token)
+        .bind(&settings.java_path)
+        .bind(settings.default_ram_mb)
+        .bind(&settings.data_dir)
+        .bind(settings.telemetry_opt_in)
+        .bind(settings.created_at)
+        .bind(settings.updated_at)
+        .execute(&self.pool)
+        .await?;
+
+        info!("Updated settings: {}", settings.id);
         Ok(())
     }
 
@@ -783,6 +1168,132 @@ impl DatabaseManager {
         .await?;
 
         info!("Updated user settings: {}", settings.id);
+        Ok(())
+    }
+
+    // Task methods
+    pub async fn create_task(&self, task: &Task) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO tasks (
+                id, server_id, kind, status, progress, log, metadata,
+                started_at, finished_at, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(&task.id)
+        .bind(&task.server_id)
+        .bind(&task.kind)
+        .bind(&task.status)
+        .bind(task.progress)
+        .bind(&task.log)
+        .bind(&task.metadata)
+        .bind(&task.started_at)
+        .bind(&task.finished_at)
+        .bind(task.created_at)
+        .bind(task.updated_at)
+        .execute(&self.pool)
+        .await?;
+
+        info!("Created task: {}", task.id);
+        Ok(())
+    }
+
+    pub async fn get_task(&self, id: &str) -> Result<Option<Task>> {
+        let row = sqlx::query(
+            r#"
+            SELECT id, server_id, kind, status, progress, log, metadata,
+                   started_at, finished_at, created_at, updated_at
+            FROM tasks WHERE id = ?
+            "#,
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            Ok(Some(Task {
+                id: row.get("id"),
+                server_id: row.get("server_id"),
+                kind: row.get("kind"),
+                status: row.get("status"),
+                progress: row.get("progress"),
+                log: row.get("log"),
+                metadata: row.get("metadata"),
+                started_at: row.get("started_at"),
+                finished_at: row.get("finished_at"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn get_tasks_by_server(&self, server_id: &str) -> Result<Vec<Task>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, server_id, kind, status, progress, log, metadata,
+                   started_at, finished_at, created_at, updated_at
+            FROM tasks WHERE server_id = ?
+            ORDER BY created_at DESC
+            "#,
+        )
+        .bind(server_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let tasks = rows
+            .into_iter()
+            .map(|row| Task {
+                id: row.get("id"),
+                server_id: row.get("server_id"),
+                kind: row.get("kind"),
+                status: row.get("status"),
+                progress: row.get("progress"),
+                log: row.get("log"),
+                metadata: row.get("metadata"),
+                started_at: row.get("started_at"),
+                finished_at: row.get("finished_at"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            })
+            .collect();
+
+        Ok(tasks)
+    }
+
+    pub async fn update_task(&self, task: &Task) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE tasks SET
+                status = ?, progress = ?, log = ?, metadata = ?,
+                started_at = ?, finished_at = ?, updated_at = ?
+            WHERE id = ?
+            "#,
+        )
+        .bind(&task.status)
+        .bind(task.progress)
+        .bind(&task.log)
+        .bind(&task.metadata)
+        .bind(&task.started_at)
+        .bind(&task.finished_at)
+        .bind(task.updated_at)
+        .bind(&task.id)
+        .execute(&self.pool)
+        .await?;
+
+        info!("Updated task: {}", task.id);
+        Ok(())
+    }
+
+    pub async fn delete_task(&self, id: &str) -> Result<()> {
+        sqlx::query("DELETE FROM tasks WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+
+        info!("Deleted task: {}", id);
         Ok(())
     }
 
@@ -1016,6 +1527,132 @@ impl DatabaseManager {
         Ok(())
     }
 
+    // Enhanced mod methods
+    pub async fn create_mod(&self, mod_info: &Mod) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO mods (
+                id, provider, project_id, version_id, filename, sha1,
+                server_id, enabled, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(&mod_info.id)
+        .bind(&mod_info.provider)
+        .bind(&mod_info.project_id)
+        .bind(&mod_info.version_id)
+        .bind(&mod_info.filename)
+        .bind(&mod_info.sha1)
+        .bind(&mod_info.server_id)
+        .bind(mod_info.enabled)
+        .bind(mod_info.created_at)
+        .bind(mod_info.updated_at)
+        .execute(&self.pool)
+        .await?;
+
+        info!("Created mod: {}", mod_info.id);
+        Ok(())
+    }
+
+    pub async fn get_mod(&self, id: &str) -> Result<Option<Mod>> {
+        let row = sqlx::query(
+            r#"
+            SELECT id, provider, project_id, version_id, filename, sha1,
+                   server_id, enabled, created_at, updated_at
+            FROM mods WHERE id = ?
+            "#,
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            Ok(Some(Mod {
+                id: row.get("id"),
+                provider: row.get("provider"),
+                project_id: row.get("project_id"),
+                version_id: row.get("version_id"),
+                filename: row.get("filename"),
+                sha1: row.get("sha1"),
+                server_id: row.get("server_id"),
+                enabled: row.get("enabled"),
+                category: row.get("category"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn get_mods_by_server(&self, server_id: &str) -> Result<Vec<Mod>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, provider, project_id, version_id, filename, sha1,
+                   server_id, enabled, created_at, updated_at
+            FROM mods WHERE server_id = ?
+            ORDER BY created_at DESC
+            "#,
+        )
+        .bind(server_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mods = rows
+            .into_iter()
+            .map(|row| Mod {
+                id: row.get("id"),
+                provider: row.get("provider"),
+                project_id: row.get("project_id"),
+                version_id: row.get("version_id"),
+                filename: row.get("filename"),
+                sha1: row.get("sha1"),
+                server_id: row.get("server_id"),
+                enabled: row.get("enabled"),
+                category: row.get("category"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            })
+            .collect();
+
+        Ok(mods)
+    }
+
+    pub async fn update_mod(&self, mod_info: &Mod) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE mods SET
+                provider = ?, project_id = ?, version_id = ?, filename = ?,
+                sha1 = ?, server_id = ?, enabled = ?, updated_at = ?
+            WHERE id = ?
+            "#,
+        )
+        .bind(&mod_info.provider)
+        .bind(&mod_info.project_id)
+        .bind(&mod_info.version_id)
+        .bind(&mod_info.filename)
+        .bind(&mod_info.sha1)
+        .bind(&mod_info.server_id)
+        .bind(mod_info.enabled)
+        .bind(mod_info.updated_at)
+        .bind(&mod_info.id)
+        .execute(&self.pool)
+        .await?;
+
+        info!("Updated mod: {}", mod_info.id);
+        Ok(())
+    }
+
+    pub async fn delete_mod(&self, id: &str) -> Result<()> {
+        sqlx::query("DELETE FROM mods WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+
+        info!("Deleted mod: {}", id);
+        Ok(())
+    }
+
     // Modpack database methods
     pub async fn get_minecraft_versions(&self) -> Result<Vec<MinecraftVersion>> {
         let rows = sqlx::query(
@@ -1086,10 +1723,10 @@ impl DatabaseManager {
         Ok(versions)
     }
 
-    pub async fn search_mods(&self, params: &crate::api::ModSearchQuery) -> Result<Vec<ModInfo>> {
+    pub async fn search_mods(&self, params: &crate::api::ModSearchQuery) -> Result<Vec<Mod>> {
         let mut query = sqlx::query(
             r#"
-            SELECT id, name, description, category, side, source, created_at, updated_at
+            SELECT id, provider, project_id, version_id, filename, sha1, server_id, enabled, created_at, updated_at
             FROM mods
             WHERE 1=1
             "#
@@ -1119,13 +1756,16 @@ impl DatabaseManager {
 
         let mods = rows
             .into_iter()
-            .map(|row| ModInfo {
+            .map(|row| Mod {
                 id: row.get("id"),
-                name: row.get("name"),
-                description: row.get("description"),
+                provider: row.get("provider"),
+                project_id: row.get("project_id"),
+                version_id: row.get("version_id"),
+                filename: row.get("filename"),
+                sha1: row.get("sha1"),
+                server_id: row.get("server_id"),
+                enabled: row.get("enabled"),
                 category: row.get("category"),
-                side: row.get("side"),
-                source: row.get("source"),
                 created_at: row.get("created_at"),
                 updated_at: row.get("updated_at"),
             })
@@ -1134,32 +1774,6 @@ impl DatabaseManager {
         Ok(mods)
     }
 
-    pub async fn get_mod(&self, id: &str) -> Result<Option<ModInfo>> {
-        let row = sqlx::query(
-            r#"
-            SELECT id, name, description, category, side, source, created_at, updated_at
-            FROM mods WHERE id = ?
-            "#
-        )
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await?;
-
-        if let Some(row) = row {
-            Ok(Some(ModInfo {
-                id: row.get("id"),
-                name: row.get("name"),
-                description: row.get("description"),
-                category: row.get("category"),
-                side: row.get("side"),
-                source: row.get("source"),
-                created_at: row.get("created_at"),
-                updated_at: row.get("updated_at"),
-            }))
-        } else {
-            Ok(None)
-        }
-    }
 
     pub async fn get_mod_versions(&self, mod_id: &str) -> Result<Vec<ModVersion>> {
         let rows = sqlx::query(

@@ -15,7 +15,7 @@ import {
   Eye,
   MoreHorizontal
 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { apiClient as api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';

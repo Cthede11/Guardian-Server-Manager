@@ -119,10 +119,18 @@ export default function Console() {
         name: 'Test Server from Console',
         loader: 'vanilla',
         version: '1.21.1',
+        mc_version: '1.21.1', // Backend expects both version and mc_version
         paths: {
           world: './world',
           mods: './mods',
           config: './config'
+        },
+        pregeneration_policy: {
+          enabled: false,
+          radius: 0,
+          dimensions: ["overworld"],
+          gpu_acceleration: true,
+          efficiency_package: false
         }
       };
 

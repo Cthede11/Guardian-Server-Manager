@@ -12,7 +12,7 @@ import { CheckCircle, XCircle, AlertTriangle, Clock, Users, Zap, HardDrive } fro
 import { useLoadingState } from '@/components/ui/LoadingStates';
 import { LoadingWrapper } from '@/components/LoadingWrapper';
 import { useStartupDelay } from '@/hooks/useStartupDelay';
-import { api } from '@/lib/api';
+import { apiClient as api } from '@/lib/api';
 
 export const Overview: React.FC = () => {
   const { id: serverId } = useParams<{ id: string }>();

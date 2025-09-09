@@ -22,7 +22,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useServersStore } from '@/store/servers';
 import { useConsoleStream, useConnectionStatus, liveStore } from '@/store/live';
 import type { ConsoleMessage } from '@/lib/types';
-import { api } from '@/lib/api';
+import { apiClient as api } from '@/lib/api';
 
 interface ConsoleStreamProps {
   className?: string;

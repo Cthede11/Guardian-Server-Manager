@@ -14,7 +14,7 @@ import {
   Target,
   Loader2
 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { apiClient as api } from '@/lib/api';
 
 interface PlayerAssignment {
   id: string;

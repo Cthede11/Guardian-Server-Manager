@@ -21,6 +21,11 @@ pub mod rcon;
 pub mod version_manager;
 pub mod mod_classification;
 pub mod compatibility_engine;
+pub mod compatibility;
+pub mod pregeneration;
+pub mod hot_import;
+pub mod lighting;
+pub mod mod_management;
 pub mod external_apis;
 pub mod mod_manager;
 

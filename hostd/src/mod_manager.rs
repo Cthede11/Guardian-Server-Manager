@@ -6,7 +6,7 @@ use tracing::{info, warn, error, debug};
 use sha1::{Sha1, Digest};
 
 use crate::external_apis::{ModrinthApiClient, CurseForgeApiClient};
-use crate::database::{DatabaseManager, ModInfo, ModVersion, ModDependency, ModConflict};
+use crate::database::{DatabaseManager, ModInfo, ModVersion, ModDependency, ModConflict, Mod};
 use crate::compatibility_engine::{CompatibilityIssue, CompatibilityReport};
 use crate::version_manager::ModLoader;
 
@@ -22,7 +22,7 @@ pub struct ModManager {
 /// Mod download result
 #[derive(Debug, Clone)]
 pub struct ModDownloadResult {
-    pub mod_info: ModInfo,
+    pub mod_info: Mod,
     pub file_path: String,
     pub file_size: u64,
     pub sha256: String,
@@ -45,6 +45,64 @@ impl ModManager {
             database,
             download_dir,
         }
+    }
+
+    /// Apply install operation
+    pub async fn apply_install_operation(
+        &self,
+        mod_id: &str,
+        version: &str,
+        provider: &str,
+        file_path: &str,
+        server_id: &str,
+    ) -> Result<()> {
+        // TODO: Implement install operation
+        Ok(())
+    }
+
+    /// Apply update operation
+    pub async fn apply_update_operation(
+        &self,
+        mod_id: &str,
+        from_version: &str,
+        to_version: &str,
+        provider: &str,
+        file_path: &str,
+        server_id: &str,
+    ) -> Result<()> {
+        // TODO: Implement update operation
+        Ok(())
+    }
+
+    /// Apply remove operation
+    pub async fn apply_remove_operation(
+        &self,
+        mod_id: &str,
+        file_path: &str,
+        server_id: &str,
+    ) -> Result<()> {
+        // TODO: Implement remove operation
+        Ok(())
+    }
+
+    /// Apply enable operation
+    pub async fn apply_enable_operation(
+        &self,
+        mod_id: &str,
+        server_id: &str,
+    ) -> Result<()> {
+        // TODO: Implement enable operation
+        Ok(())
+    }
+
+    /// Apply disable operation
+    pub async fn apply_disable_operation(
+        &self,
+        mod_id: &str,
+        server_id: &str,
+    ) -> Result<()> {
+        // TODO: Implement disable operation
+        Ok(())
     }
 
     /// Search for mods across all sources
@@ -226,11 +284,26 @@ impl ModManager {
             &primary_file.hashes,
         ).await?;
 
+        // Convert ModInfo to Mod
+        let mod_data = Mod {
+            id: mod_info.id.clone(),
+            provider: "modrinth".to_string(),
+            project_id: mod_info.id.clone(),
+            version_id: selected_version.id.clone(),
+            filename: primary_file.filename.clone(),
+            sha1: primary_file.hashes.get("sha1").unwrap_or(&"".to_string()).clone(),
+            server_id: None,
+            enabled: true,
+            category: mod_info.category.clone(),
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
         // Store mod info in database
         self.store_mod_info(&mod_info, selected_version, &file_path).await?;
 
         Ok(ModDownloadResult {
-            mod_info,
+            mod_info: mod_data,
             file_path,
             file_size: primary_file.size,
             sha256: primary_file.hashes.get("sha512").unwrap_or(&primary_file.hashes.get("sha1").unwrap_or(&"".to_string())).clone(),
@@ -281,11 +354,29 @@ impl ModManager {
             &selected_file.hashes.iter().map(|h| (h.algo.to_string(), h.value.clone())).collect(),
         ).await?;
 
+        // Convert ModInfo to Mod
+        let mod_data = Mod {
+            id: mod_info.id.clone(),
+            provider: "curseforge".to_string(),
+            project_id: project_id.to_string(),
+            version_id: selected_file.id.to_string(),
+            filename: selected_file.file_name.clone(),
+            sha1: selected_file.hashes.iter()
+                .find(|h| h.algo == 1) // SHA1 is typically algo 1 in CurseForge
+                .map(|h| h.value.clone())
+                .unwrap_or_default(),
+            server_id: None,
+            enabled: true,
+            category: mod_info.category.clone(),
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
         // Store mod info in database
         self.store_mod_info(&mod_info, selected_file, &file_path).await?;
 
         Ok(ModDownloadResult {
-            mod_info,
+            mod_info: mod_data,
             file_path,
             file_size: selected_file.file_length,
             sha256: selected_file.hashes.iter().find(|h| h.algo == 1).map(|h| h.value.clone()).unwrap_or_default(),
@@ -295,7 +386,7 @@ impl ModManager {
     /// Download an existing mod from database
     async fn download_existing_mod(
         &self,
-        mod_info: &ModInfo,
+        mod_info: &Mod,
         version: Option<&str>,
         minecraft_version: Option<&str>,
         loader: Option<&str>,
@@ -315,13 +406,28 @@ impl ModManager {
             &versions[0] // Use latest version
         };
 
+        // Convert ModInfo to Mod
+        let mod_data = Mod {
+            id: mod_info.id.clone(),
+            provider: "modrinth".to_string(),
+            project_id: mod_info.id.clone(),
+            version_id: selected_version.id.to_string(),
+            filename: selected_version.version.clone(),
+            sha1: selected_version.sha256.clone(),
+            server_id: None,
+            enabled: true,
+            category: mod_info.category.clone(),
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
         // Check if file already exists
         let file_path = format!("{}/{}_{}.jar", self.download_dir, mod_info.id, selected_version.version);
         
         if Path::new(&file_path).exists() {
             info!("Mod file already exists: {}", file_path);
             return Ok(ModDownloadResult {
-                mod_info: mod_info.clone(),
+                mod_info: mod_data.clone(),
                 file_path,
                 file_size: selected_version.file_size,
                 sha256: selected_version.sha256.clone(),
@@ -480,7 +586,7 @@ impl ModManager {
     /// Check Minecraft version compatibility
     async fn check_minecraft_version_compatibility(
         &self,
-        mod_info: &ModInfo,
+        mod_info: &Mod,
         minecraft_version: &str,
     ) -> Result<bool> {
         // This would check the mod's supported versions
@@ -491,7 +597,7 @@ impl ModManager {
     /// Check loader compatibility
     async fn check_loader_compatibility(
         &self,
-        mod_info: &ModInfo,
+        mod_info: &Mod,
         loader: &str,
     ) -> Result<bool> {
         // This would check the mod's supported loaders

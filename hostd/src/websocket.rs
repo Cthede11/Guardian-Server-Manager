@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use axum::{
     extract::{
+        Path, State, WebSocketUpgrade,
         ws::{WebSocket, Message},
-        Path, State,
     },
-    response::Response,
+    response::{Response, IntoResponse},
     routing::get,
     Router,
 };
@@ -15,12 +15,28 @@ use uuid::Uuid;
 use tracing::{info, error, debug, warn};
 use futures_util::{SinkExt, StreamExt};
 
+use crate::minecraft::ServerMetrics;
+use crate::database::Task;
+
 /// Console message for WebSocket streaming
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConsoleMessage {
     pub ts: String,
     pub level: String,
     pub msg: String,
+}
+
+/// Task update for WebSocket streaming
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskUpdate {
+    pub id: String,
+    pub kind: String,
+    pub status: String,
+    pub progress: f64,
+    pub log: Option<String>,
+    pub metadata: Option<serde_json::Value>,
+    pub started_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub finished_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// Client message types (incoming from frontend)
@@ -52,6 +68,21 @@ pub enum ServerMessage {
     Console {
         serverId: String,
         messages: Vec<ConsoleMessage>,
+    },
+    #[serde(rename = "metrics")]
+    Metrics {
+        serverId: String,
+        metrics: ServerMetrics,
+    },
+    #[serde(rename = "task_update")]
+    TaskUpdate {
+        serverId: Option<String>,
+        task: TaskUpdate,
+    },
+    #[serde(rename = "server_status")]
+    ServerStatus {
+        serverId: String,
+        status: String,
     },
     #[serde(rename = "connected")]
     Connected,
@@ -87,6 +118,14 @@ pub enum WebSocketMessage {
     Console {
         server_id: String,
         messages: Vec<ConsoleMessage>,
+    },
+    Metrics {
+        server_id: String,
+        metrics: ServerMetrics,
+    },
+    TaskUpdate {
+        server_id: Option<String>,
+        task: TaskUpdate,
     },
     Error {
         message: String,
@@ -166,6 +205,11 @@ impl WebSocketManager {
         let _ = self.sender.send(message);
     }
 
+    /// Broadcast message to all connections (alias for broadcast)
+    pub async fn broadcast_to_all(&self, message: WebSocketMessage) {
+        self.broadcast(message).await;
+    }
+
     /// Broadcast message to specific server connections
     pub async fn broadcast_to_server(&self, server_id: &str, message: WebSocketMessage) {
         let connections = self.connections.read().await;
@@ -195,9 +239,56 @@ impl WebSocketManager {
         };
         self.broadcast_to_server(server_id, message).await;
     }
+
+    /// Send metrics to server connections
+    pub async fn send_metrics(&self, server_id: &str, metrics: ServerMetrics) {
+        let message = WebSocketMessage::Metrics {
+            server_id: server_id.to_string(),
+            metrics,
+        };
+        self.broadcast_to_server(server_id, message).await;
+    }
+
+    /// Send task update to connections
+    pub async fn send_task_update(&self, server_id: Option<&str>, task: Task) {
+        let task_update = TaskUpdate {
+            id: task.id,
+            kind: task.kind,
+            status: task.status,
+            progress: task.progress,
+            log: task.log,
+            metadata: task.metadata,
+            started_at: task.started_at,
+            finished_at: task.finished_at,
+        };
+
+        let message = WebSocketMessage::TaskUpdate {
+            server_id: server_id.map(|s| s.to_string()),
+            task: task_update,
+        };
+
+        if let Some(server_id) = server_id {
+            self.broadcast_to_server(server_id, message).await;
+        } else {
+            self.broadcast_to_all(message).await;
+        }
+    }
+
+    /// Send server status update
+    pub async fn send_server_status(&self, server_id: &str, status: String) {
+        let message = WebSocketMessage::ServerStatus {
+            server_id: server_id.to_string(),
+            status,
+            timestamp: chrono::Utc::now(),
+        };
+        self.broadcast_to_server(server_id, message).await;
+    }
 }
 
 /// Create WebSocket router
+// NOTE: Temporarily commented out due to handler trait issues
+// This function is not currently used in the main application
+/*
 pub fn create_websocket_router() -> Router {
     let manager = Arc::new(WebSocketManager::new());
     
@@ -206,21 +297,24 @@ pub fn create_websocket_router() -> Router {
         .route("/ws/servers/:server_id", get(websocket_server_handler))
         .with_state(manager)
 }
+*/
 
 /// WebSocket handler for general connections
+#[axum::debug_handler]
 async fn websocket_handler(
-    ws: axum::extract::ws::WebSocketUpgrade,
+    ws: WebSocketUpgrade,
     State(manager): State<Arc<WebSocketManager>>,
-) -> Response {
+) -> axum::response::Response {
     ws.on_upgrade(|socket| websocket_connection(socket, manager, None))
 }
 
 /// WebSocket handler for server-specific connections
+#[axum::debug_handler]
 async fn websocket_server_handler(
-    ws: axum::extract::ws::WebSocketUpgrade,
+    ws: WebSocketUpgrade,
     Path(server_id): Path<String>,
     State(manager): State<Arc<WebSocketManager>>,
-) -> Response {
+) -> axum::response::Response {
     ws.on_upgrade(|socket| websocket_connection(socket, manager, Some(server_id)))
 }
 
