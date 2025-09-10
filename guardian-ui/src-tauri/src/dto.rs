@@ -257,7 +257,7 @@ pub struct GpuStatus {
     pub available: bool,
     pub worker_id: Option<String>,
     pub queue_size: usize,
-    pub last_activity: Option<chrono::DateTime<chrono::Utc>>,
+    pub last_activity: Option<String>,
 }
 
 impl<T> ApiResponse<T> {

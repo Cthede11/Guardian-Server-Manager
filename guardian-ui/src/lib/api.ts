@@ -283,6 +283,56 @@ export const apiClient = {
       body: JSON.stringify(data) 
     });
   },
+
+  // Additional methods
+  async getServerSummary(serverId: string): Promise<any> {
+    return apiCall(`/api/servers/${serverId}`);
+  },
+  async sendRcon(serverId: string, command: string): Promise<any> {
+    return apiCall(`/api/servers/${serverId}/command`, { 
+      method: 'POST', 
+      body: JSON.stringify({ command }) 
+    });
+  },
+  async promoteServer(serverId: string): Promise<any> {
+    return apiCall(`/api/servers/${serverId}/promote`, { method: 'POST' });
+  },
+};
+
+// Events for real-time communication
+export const events = {
+  // WebSocket events will be handled by the websocket module
+  // These are placeholder implementations for now
+  subscribeToConsole(serverId: string, callback: (data: any) => void): Promise<() => void> {
+    // Placeholder implementation
+    console.log(`Subscribing to console for server ${serverId}`);
+    return Promise.resolve(() => console.log(`Unsubscribing from console for server ${serverId}`));
+  },
+  subscribeToMetrics(serverId: string, callback: (data: any) => void): Promise<() => void> {
+    // Placeholder implementation
+    console.log(`Subscribing to metrics for server ${serverId}`);
+    return Promise.resolve(() => console.log(`Unsubscribing from metrics for server ${serverId}`));
+  },
+  subscribeToPlayers(serverId: string, callback: (data: any) => void): Promise<() => void> {
+    // Placeholder implementation
+    console.log(`Subscribing to players for server ${serverId}`);
+    return Promise.resolve(() => console.log(`Unsubscribing from players for server ${serverId}`));
+  },
+  subscribeToFreezes(serverId: string, callback: (data: any) => void): Promise<() => void> {
+    // Placeholder implementation
+    console.log(`Subscribing to freezes for server ${serverId}`);
+    return Promise.resolve(() => console.log(`Unsubscribing from freezes for server ${serverId}`));
+  },
+  subscribeToPregen(serverId: string, callback: (data: any) => void): Promise<() => void> {
+    // Placeholder implementation
+    console.log(`Subscribing to pregen for server ${serverId}`);
+    return Promise.resolve(() => console.log(`Unsubscribing from pregen for server ${serverId}`));
+  },
+  subscribeToHealth(serverId: string, callback: (data: any) => void): Promise<() => void> {
+    // Placeholder implementation
+    console.log(`Subscribing to health for server ${serverId}`);
+    return Promise.resolve(() => console.log(`Unsubscribing from health for server ${serverId}`));
+  },
 };
 
 // Export the apiClient as default export for backward compatibility

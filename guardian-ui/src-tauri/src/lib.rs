@@ -2,7 +2,7 @@ use tauri::Manager;
 use std::process::{Command, Child, Stdio};
 use std::fs;
 use std::io::Write;
-use std::sync::Mutex;
+use std::sync::{Mutex, Once};
 use std::path::PathBuf;
 use tokio::time::sleep;
 
@@ -17,6 +17,10 @@ struct AppState {
     hostd_process: Mutex<Option<Child>>,
     gpu_worker_process: Mutex<Option<Child>>,
 }
+
+// Global initialization flag to prevent multiple backend starts
+use std::sync::atomic::{AtomicBool, Ordering};
+static BACKEND_INITIALIZING: AtomicBool = AtomicBool::new(false);
 
 // Enhanced logging function
 fn log_debug(message: &str) {
@@ -42,6 +46,33 @@ fn log_debug(message: &str) {
 async fn start_backend() -> Result<String, String> {
     log_debug("Starting backend via Tauri command...");
     
+    // Check if already initializing to prevent race conditions
+    if BACKEND_INITIALIZING.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+        log_debug("Backend initialization already in progress, waiting...");
+        // Wait a bit and try to find existing backend
+        sleep(std::time::Duration::from_millis(500)).await;
+        for port in 52100..=52150 {
+            let url = format!("http://127.0.0.1:{}/healthz", port);
+            if let Ok(resp) = reqwest::get(&url).await {
+                if resp.status().is_success() { 
+                    return Ok(format!("http://127.0.0.1:{}", port)); 
+                }
+            }
+        }
+        return Err("Backend initialization in progress, please try again".to_string());
+    }
+    
+    // Do the initialization
+    let result = start_backend_internal().await;
+    
+    // Reset the flag
+    BACKEND_INITIALIZING.store(false, Ordering::SeqCst);
+    
+    result
+}
+
+// Internal backend startup function
+async fn start_backend_internal() -> Result<String, String> {
     // 1) Try existing healthy backend (probe 52100–52150 /healthz)
     let mut base = None;
     for port in 52100..=52150 {
@@ -58,10 +89,22 @@ async fn start_backend() -> Result<String, String> {
         return Ok(base_url);
     }
 
-    // 2) Spawn sidecar hostd
+    // 2) Spawn sidecar hostd with no console window
     log_debug("No existing backend found, spawning sidecar hostd...");
-    let child = Command::new("hostd")
-        .spawn()
+    let mut cmd = Command::new("hostd");
+    
+    // CRITICAL: Use this pattern for ALL process spawning
+    cmd.stdin(Stdio::null())
+       .stdout(Stdio::null())
+       .stderr(Stdio::null());
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+
+    let child = cmd.spawn()
         .map_err(|e| format!("failed to spawn hostd: {e}"))?;
 
     log_debug("Hostd sidecar spawned successfully");
@@ -138,9 +181,18 @@ fn start_hostd_service<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> Resul
         .arg("--config")
         .arg(get_resource_path(handle, "configs/hostd.yaml").unwrap_or_else(|_| "configs/hostd.yaml".into()))
         .arg("--database")
-        .arg(format!("sqlite:{}", data_dir.join("guardian.db").display()))
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        .arg(format!("sqlite:{}", data_dir.join("guardian.db").display()));
+    
+    // CRITICAL: Use this pattern for ALL process spawning
+    hostd_cmd.stdin(Stdio::null())
+              .stdout(Stdio::null())
+              .stderr(Stdio::null());
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        hostd_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
 
     let mut hostd_process = hostd_cmd.spawn()?;
     let hostd_pid = hostd_process.id();
@@ -178,9 +230,17 @@ fn start_gpu_worker_service<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> 
     log_debug(&format!("Starting GPU worker process from: {:?}", gpu_worker_path));
 
     let mut gpu_worker_cmd = Command::new(&gpu_worker_path);
-    gpu_worker_cmd
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+    
+    // CRITICAL: Use this pattern for ALL process spawning
+    gpu_worker_cmd.stdin(Stdio::null())
+                   .stdout(Stdio::null())
+                   .stderr(Stdio::null());
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        gpu_worker_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
 
     let mut gpu_worker_process = gpu_worker_cmd.spawn()?;
     let gpu_worker_pid = gpu_worker_process.id();
@@ -235,9 +295,21 @@ async fn open_server_folder(server_id: String) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
-        let result = Command::new("explorer")
-            .arg(&server_dir)
-            .spawn();
+        let mut cmd = Command::new("explorer");
+        cmd.arg(&server_dir);
+        
+        // CRITICAL: Use this pattern for ALL process spawning
+        cmd.stdin(Stdio::null())
+           .stdout(Stdio::null())
+           .stderr(Stdio::null());
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        }
+        
+        let result = cmd.spawn();
         
         match result {
             Ok(_) => {
@@ -293,6 +365,35 @@ async fn open_server_folder(server_id: String) -> Result<(), String> {
     }
 }
 
+// Process cleanup function
+fn cleanup_processes<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) {
+    log_debug("Cleaning up processes...");
+    
+    if let Some(state) = handle.try_state::<AppState>() {
+        // Cleanup hostd process
+        if let Ok(mut hostd_guard) = state.hostd_process.lock() {
+            if let Some(mut child) = hostd_guard.take() {
+                log_debug("Terminating hostd process...");
+                let _ = child.kill();
+                let _ = child.wait();
+                log_debug("Hostd process terminated");
+            }
+        }
+        
+        // Cleanup GPU worker process
+        if let Ok(mut gpu_worker_guard) = state.gpu_worker_process.lock() {
+            if let Some(mut child) = gpu_worker_guard.take() {
+                log_debug("Terminating GPU worker process...");
+                let _ = child.kill();
+                let _ = child.wait();
+                log_debug("GPU worker process terminated");
+            }
+        }
+    }
+    
+    log_debug("Process cleanup completed");
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     log_debug("=== GUARDIAN APP STARTING ===");
@@ -313,6 +414,11 @@ pub fn run() {
         .manage(AppState {
             hostd_process: Mutex::new(None),
             gpu_worker_process: Mutex::new(None),
+        })
+        .on_window_event(|_window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                cleanup_processes(_window.app_handle());
+            }
         })
         .invoke_handler(tauri::generate_handler![
             start_backend,

@@ -74,7 +74,7 @@ export const useServers = create<ServersState>((set, get) => ({
       const servers = await api.getServers();
       if (signal?.aborted) return;
       
-      const summaries = servers.reduce((acc, server) => {
+      const summaries = servers.reduce((acc: Record<string, ServerSummary>, server: ServerSummary) => {
         acc[server.id] = server;
         return acc;
       }, {} as Record<string, ServerSummary>);

@@ -362,7 +362,13 @@ pub async fn get_gpu_status() -> Result<GpuStatus, String> {
     match crate::gpu_integration::get_gpu_integration().await {
         Ok(gpu_integration) => {
             let gpu = gpu_integration.lock().await;
-            Ok(gpu.get_gpu_status().await)
+            let status = gpu.get_gpu_status().await;
+            Ok(dto::GpuStatus {
+                available: status.is_available,
+                worker_id: Some("gpu-worker".to_string()),
+                queue_size: 0,
+                last_activity: status.last_activity.map(|dt| dt.to_rfc3339()),
+            })
         }
         Err(e) => Err(format!("Failed to get GPU status: {}", e))
     }

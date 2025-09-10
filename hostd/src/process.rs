@@ -127,10 +127,16 @@ impl ProcessManager {
         // Set working directory
         cmd.current_dir(&self.config.paths.world_dir);
         
-        // Set up stdio
-        cmd.stdin(Stdio::piped());
-        cmd.stdout(Stdio::piped());
-        cmd.stderr(Stdio::piped());
+        // CRITICAL: Use this pattern for ALL process spawning
+        cmd.stdin(Stdio::null())
+           .stdout(Stdio::null())
+           .stderr(Stdio::null());
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        }
         
         // Start the process
         let child = cmd.spawn()?;
@@ -179,10 +185,16 @@ impl ProcessManager {
         cmd.env("RUST_LOG", "info");
         cmd.env("GPU_WORKER_IPC", &self.config.gpu.worker_ipc);
         
-        // Set up stdio
-        cmd.stdin(Stdio::piped());
-        cmd.stdout(Stdio::piped());
-        cmd.stderr(Stdio::piped());
+        // CRITICAL: Use this pattern for ALL process spawning
+        cmd.stdin(Stdio::null())
+           .stdout(Stdio::null())
+           .stderr(Stdio::null());
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        }
         
         // Start the process
         let child = cmd.spawn()?;

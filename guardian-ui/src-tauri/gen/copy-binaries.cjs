@@ -31,10 +31,14 @@ try {
   const hostdDestCompat = path.join(uiDir, 'hostd.exe');
   copyIfExists(hostdSrc, hostdDestCompat);
 
-  // gpu-worker.exe
+  // gpu-worker.exe - copy with target triple name for Tauri
   const gpuSrc = path.join(repoRoot, 'gpu-worker', 'target', 'release', 'gpu-worker.exe');
-  const gpuDest = path.join(uiDir, 'gpu-worker.exe');
+  const gpuDest = path.join(uiDir, 'gpu-worker-x86_64-pc-windows-msvc.exe');
   copyIfExists(gpuSrc, gpuDest);
+  
+  // Also copy as gpu-worker.exe for compatibility
+  const gpuDestCompat = path.join(uiDir, 'gpu-worker.exe');
+  copyIfExists(gpuSrc, gpuDestCompat);
 
   // configs
   const configsSrc = path.join(repoRoot, 'configs');

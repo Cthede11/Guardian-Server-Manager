@@ -34,7 +34,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis", "msi"],
-    "externalBin": ["hostd"],
+    "externalBin": ["hostd", "gpu-worker"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -50,7 +50,10 @@
     "resources": [
       "hostd.exe",
       "gpu-worker.exe",
-      "configs"
+      "configs/hostd.yaml",
+      "configs/server.yaml",
+      "configs/rules.yaml",
+      "configs/test.yaml"
     ],
     "windows": {
       "certificateThumbprint": null,

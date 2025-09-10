@@ -41,7 +41,20 @@ try {
 # Build the desktop app with Tauri
 Write-Host "[DESKTOP] Building desktop application..." -ForegroundColor Yellow
 try {
-    npm run tauri:build
+    # Copy executables to Tauri directory first
+    Write-Host "[DESKTOP] Copying executables to Tauri directory..." -ForegroundColor Yellow
+    Copy-Item "$ProjectRoot/hostd/target/release/hostd.exe" "src-tauri/" -Force -ErrorAction SilentlyContinue
+    Copy-Item "$ProjectRoot/gpu-worker/target/release/gpu-worker.exe" "src-tauri/" -Force -ErrorAction SilentlyContinue
+    
+    # Copy configs to Tauri directory
+    $TauriConfigDir = "src-tauri/configs"
+    if (-not (Test-Path $TauriConfigDir)) {
+        New-Item -ItemType Directory -Path $TauriConfigDir -Force | Out-Null
+    }
+    Copy-Item "$ProjectRoot/configs/*" $TauriConfigDir -Force -ErrorAction SilentlyContinue
+    
+    # Build Tauri app
+    npm run tauri build
     if ($LASTEXITCODE -ne 0) {
         throw "Desktop app build failed"
     }

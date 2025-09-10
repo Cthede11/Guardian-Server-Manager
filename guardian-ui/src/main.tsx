@@ -12,9 +12,21 @@ import { backupManager } from './lib/backup-manager';
 import config from './lib/config';
 import './index.css';
 
+// Global initialization flag to prevent multiple backend starts
+let isInitializing = false;
+let isInitialized = false;
+
 // Initialize all systems
 async function initializeApp() {
   try {
+    // Prevent multiple initialization attempts
+    if (isInitializing || isInitialized) {
+      console.log('App initialization already in progress or completed');
+      return;
+    }
+    
+    isInitializing = true;
+    
     // Initialize error handling first
     await errorHandler.initialize();
     
@@ -35,16 +47,29 @@ async function initializeApp() {
       await testBackendConnection();
     }, 1000);
     
+    isInitialized = true;
+    isInitializing = false;
     console.log('Guardian app initialized successfully');
   } catch (error) {
+    isInitializing = false;
     console.error('Failed to initialize Guardian app:', error);
     errorHandler.handleError(error as Error, 'App Initialization', {}, 'critical');
   }
 }
 
+// Global backend connection flag
+let isConnectingToBackend = false;
+
 // Test backend connection
 async function testBackendConnection() {
   try {
+    // Prevent multiple backend connection attempts
+    if (isConnectingToBackend) {
+      console.log('Backend connection already in progress, skipping...');
+      return;
+    }
+    
+    isConnectingToBackend = true;
     console.log('🔍 Testing backend connection...');
     console.log('🔍 Tauri context available:', typeof window !== 'undefined' && (window as any).__TAURI__);
     
@@ -63,8 +88,10 @@ async function testBackendConnection() {
       console.log('⚠️ Not in Tauri context, skipping backend connection test');
     }
     
+    isConnectingToBackend = false;
     return;
   } catch (error) {
+    isConnectingToBackend = false;
     console.error('❌ Backend not reachable:', error);
     console.error('Error details:', error);
   }

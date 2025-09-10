@@ -113,6 +113,6 @@ pub async fn get_gpu_integration() -> Result<Arc<Mutex<GpuIntegration>>, String>
             .as_ref()
             .ok_or("GPU integration not initialized")?
             .clone()
-            .into()
+            Ok(Arc::new(Mutex::new(gpu_integration)))
     }
 }

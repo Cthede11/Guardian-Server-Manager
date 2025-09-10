@@ -191,10 +191,16 @@ impl MinecraftServer {
         // Set working directory
         cmd.current_dir(&server_dir_path);
 
-        // Set up process
-        cmd.stdin(Stdio::piped());
-        cmd.stdout(Stdio::piped());
-        cmd.stderr(Stdio::piped());
+        // CRITICAL: Use this pattern for ALL process spawning
+        cmd.stdin(Stdio::null())
+           .stdout(Stdio::null())
+           .stderr(Stdio::null());
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        }
 
         // Start the process
         let mut child = cmd.spawn()?;

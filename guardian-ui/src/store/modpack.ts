@@ -254,7 +254,26 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
   checkCompatibility: async (modpack) => {
     set({ loading: true, error: null });
     try {
-      const result = await modpackApi.checkCompatibility(modpack);
+      // Create a mock ModInfo from Modpack for compatibility check
+      const modInfo: ModInfo = {
+        id: modpack.id,
+        name: modpack.name,
+        description: modpack.description || '',
+        version: '1.0.0', // Default version since Modpack doesn't have version
+        source: 'custom',
+        minecraft_versions: ['1.20.1'],
+        loader_versions: { 'fabric': ['0.15.0'] },
+        side: 'both',
+        category: 'miscellaneous',
+        dependencies: [],
+        conflicts: [],
+        download_url: '',
+        file_size: 0,
+        sha256: '',
+        last_updated: new Date().toISOString(),
+        tags: []
+      };
+      const result = await modpackApi.checkModCompatibility(modInfo, modInfo);
       set({ loading: false });
       // Return a mock ModpackCompatibility object
       return {
