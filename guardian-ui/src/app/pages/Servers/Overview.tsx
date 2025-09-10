@@ -1,7 +1,8 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
-import { useServersStore } from '@/store/servers';
-import { useMetrics, usePlayerData, liveStore } from '@/store/live';
+import { useServers } from '@/store/servers-new';
+import { useMetrics, usePlayerData, useServerHealth } from '@/store/live-new';
+import { useServerStreams } from '@/app/hooks/useServerStreams';
 import { StatCard } from '@/components/StatCard';
 import { StatusPill } from '@/components/StatusPill';
 import { StatsGridLoading } from '@/components/ui/LoadingStates';
@@ -12,38 +13,27 @@ import { CheckCircle, XCircle, AlertTriangle, Clock, Users, Zap, HardDrive } fro
 import { useLoadingState } from '@/components/ui/LoadingStates';
 import { LoadingWrapper } from '@/components/LoadingWrapper';
 import { useStartupDelay } from '@/hooks/useStartupDelay';
-import { apiClient as api } from '@/lib/api';
+import { api } from '@/lib/client';
 
 export const Overview: React.FC = () => {
   const { id: serverId } = useParams<{ id: string }>();
-  const { getServerById } = useServersStore();
+  const { getServerById, select } = useServers();
   const selectedServer = serverId ? getServerById(serverId) : null;
   const metrics = useMetrics(serverId || '');
   const players = usePlayerData(serverId || '');
+  const health = useServerHealth(serverId || '');
   const { isLoading, error, startLoading, stopLoading, setLoadingError } = useLoadingState();
   const isStartupReady = useStartupDelay(1000); // 1 second delay
-  
-  // Real server health data - show appropriate values based on server status
-  const [health, setHealth] = React.useState({
-    rcon: false,
-    query: false,
-    crashTickets: 0,
-    freezeTickets: 0,
-  });
 
-  // Update health based on server status
+  // Select the server when the component mounts
   React.useEffect(() => {
-    if (selectedServer) {
-      if (selectedServer.status === 'stopped') {
-        setHealth({
-          rcon: false,
-          query: false,
-          crashTickets: 0,
-          freezeTickets: 0,
-        });
-      }
+    if (serverId) {
+      select(serverId);
     }
-  }, [selectedServer?.status]);
+  }, [serverId, select]);
+
+  // Attach streams for the selected server
+  useServerStreams(serverId);
 
   // Fetch real server data
   React.useEffect(() => {
@@ -52,29 +42,14 @@ export const Overview: React.FC = () => {
     const fetchServerData = async () => {
       startLoading();
       try {
-        // Fetch server health
-        const healthResponse = await api.getServerHealth(serverId);
-        if (healthResponse.ok) {
-          setHealth(healthResponse.data as any);
-        } else {
-          console.warn('Failed to fetch server health:', healthResponse.error);
-        }
+        // Fetch server health - now handled by streams
+        // const healthResponse = await api.getServerHealth(serverId);
 
-        // Fetch players
-        const playersResponse = await api.getPlayers(serverId);
-        if (playersResponse.ok) {
-          liveStore.getState().updatePlayers(serverId, playersResponse.data as any);
-        } else {
-          console.warn('Failed to fetch players:', playersResponse.error);
-        }
+        // Fetch players - now handled by streams
+        // const playersResponse = await api.getPlayers(serverId);
 
-        // Fetch real-time metrics
-        const metricsResponse = await api.getRealtimeMetrics(serverId);
-        if (metricsResponse.ok) {
-          liveStore.getState().applyMetrics(serverId, metricsResponse.data as any);
-        } else {
-          console.warn('Failed to fetch metrics:', metricsResponse.error);
-        }
+        // Fetch real-time metrics - now handled by streams
+        // const metricsResponse = await api.getRealtimeMetrics(serverId);
 
         stopLoading();
       } catch (err) {
@@ -153,7 +128,7 @@ export const Overview: React.FC = () => {
           <h1 className="text-2xl font-bold">{selectedServer.name}</h1>
           <p className="text-muted-foreground">Server Overview</p>
         </div>
-        <StatusPill status={selectedServer.status} />
+        <StatusPill status={selectedServer.status as any} />
       </div>
 
       {/* Stats Grid */}
@@ -169,23 +144,23 @@ export const Overview: React.FC = () => {
         <StatCard
           title="Players"
           value={selectedServer.status === 'running' 
-            ? `${selectedServer.playersOnline || 0}` 
+            ? `${selectedServer.players_online || 0}` 
             : '0'}
-          subtitle={`${selectedServer.maxPlayers || 20} max`}
+          subtitle={`${selectedServer.max_players || 20} max`}
           icon={<Users className="h-4 w-4" />}
         />
         <StatCard
           title="Memory"
-          value={selectedServer.status === 'running' && selectedServer.heapMb
-            ? `${selectedServer.heapMb}MB`
+          value={selectedServer.status === 'running' && selectedServer.heap_mb
+            ? `${selectedServer.heap_mb}MB`
             : '0MB'}
           subtitle={`${selectedServer.memory || 4096}MB max`}
           icon={<HardDrive className="h-4 w-4" />}
         />
         <StatCard
           title="Tick Time"
-          value={selectedServer.status === 'running' && selectedServer.tickP95
-            ? `${selectedServer.tickP95.toFixed(1)}ms`
+          value={selectedServer.status === 'running' && selectedServer.tick_p95_ms
+            ? `${selectedServer.tick_p95_ms.toFixed(1)}ms`
             : '0ms'}
           subtitle="95th percentile"
           icon={<Clock className="h-4 w-4" />}
@@ -222,25 +197,25 @@ export const Overview: React.FC = () => {
               <span className="text-sm">Query</span>
             </div>
             <div className="flex items-center space-x-2">
-              {health?.crashTickets === 0 ? (
+              {(health?.crash_tickets || 0) === 0 ? (
                 <CheckCircle className="h-4 w-4 text-green-500" />
               ) : (
                 <AlertTriangle className="h-4 w-4 text-yellow-500" />
               )}
               <span className="text-sm">Crashes</span>
-              {health?.crashTickets > 0 && (
-                <Badge variant="secondary">{health.crashTickets}</Badge>
+              {(health?.crash_tickets || 0) > 0 && (
+                <Badge variant="secondary">{health?.crash_tickets || 0}</Badge>
               )}
             </div>
             <div className="flex items-center space-x-2">
-              {health?.freezeTickets === 0 ? (
+              {(health?.freeze_tickets || 0) === 0 ? (
                 <CheckCircle className="h-4 w-4 text-green-500" />
               ) : (
                 <AlertTriangle className="h-4 w-4 text-yellow-500" />
               )}
               <span className="text-sm">Freezes</span>
-              {health?.freezeTickets > 0 && (
-                <Badge variant="secondary">{health.freezeTickets}</Badge>
+              {(health?.freeze_tickets || 0) > 0 && (
+                <Badge variant="secondary">{health?.freeze_tickets || 0}</Badge>
               )}
             </div>
           </div>
@@ -248,7 +223,7 @@ export const Overview: React.FC = () => {
       </Card>
 
       {/* Blue/Green Deployment Status */}
-      {selectedServer.blueGreen && (
+      {selectedServer.blue_green && (
         <Card>
           <CardHeader>
             <CardTitle>Blue/Green Deployment</CardTitle>
@@ -261,27 +236,27 @@ export const Overview: React.FC = () => {
               <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-2">
                   <div className={`w-3 h-3 rounded-full ${
-                    selectedServer.blueGreen.active === 'blue' ? 'bg-blue-500' : 'bg-gray-300'
+                    selectedServer.blue_green.active === 'blue' ? 'bg-blue-500' : 'bg-gray-300'
                   }`} />
                   <span className="text-sm font-medium">Blue</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <div className={`w-3 h-3 rounded-full ${
-                    selectedServer.blueGreen.active === 'green' ? 'bg-green-500' : 'bg-gray-300'
+                    selectedServer.blue_green.active === 'green' ? 'bg-green-500' : 'bg-gray-300'
                   }`} />
                   <span className="text-sm font-medium">Green</span>
                 </div>
               </div>
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-muted-foreground">Active:</span>
-                <Badge variant={selectedServer.blueGreen.active === 'blue' ? 'default' : 'secondary'}>
-                  {selectedServer.blueGreen.active}
+                <Badge variant={selectedServer.blue_green.active === 'blue' ? 'default' : 'secondary'}>
+                  {selectedServer.blue_green.active}
                 </Badge>
               </div>
             </div>
             <div className="mt-4 flex items-center space-x-2">
               <span className="text-sm text-muted-foreground">Candidate Health:</span>
-              {selectedServer.blueGreen.candidateHealthy ? (
+              {selectedServer.blue_green.candidate_healthy ? (
                 <Badge variant="default" className="bg-green-500">
                   Healthy
                 </Badge>

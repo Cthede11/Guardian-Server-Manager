@@ -30,3 +30,7 @@ anyhow = "1.0"
 dirs = "5.0"
 tauri-plugin-dialog = "2.4.0"
 tauri-plugin-http = "2.4.0"
+specta = { version = "2.0.0-rc.22", features = ["export"] }
+tauri-specta = "2.0.0-rc.21"
+uuid = { version = "1.0", features = ["v4"] }
+libloading = "0.8"

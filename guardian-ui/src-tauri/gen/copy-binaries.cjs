@@ -22,10 +22,14 @@ try {
   const projectRoot = path.resolve(uiDir, '..'); // .../guardian-ui
   const repoRoot = path.resolve(projectRoot, '..'); // repo root
 
-  // hostd.exe
+  // hostd.exe - copy with target triple name for Tauri
   const hostdSrc = path.join(repoRoot, 'hostd', 'target', 'release', 'hostd.exe');
-  const hostdDest = path.join(uiDir, 'hostd.exe');
+  const hostdDest = path.join(uiDir, 'hostd-x86_64-pc-windows-msvc.exe');
   copyIfExists(hostdSrc, hostdDest);
+  
+  // Also copy as hostd.exe for compatibility
+  const hostdDestCompat = path.join(uiDir, 'hostd.exe');
+  copyIfExists(hostdSrc, hostdDestCompat);
 
   // gpu-worker.exe
   const gpuSrc = path.join(repoRoot, 'gpu-worker', 'target', 'release', 'gpu-worker.exe');

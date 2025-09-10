@@ -49,6 +49,7 @@
     "postcss": "^8.4.49",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-hook-form": "^7.62.0",
     "react-router-dom": "^7.1.2",
     "recharts": "^2.12.7",
     "socket.io-client": "^4.8.1",

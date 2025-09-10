@@ -1,13 +1,24 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
-import { useServersStore } from '@/store/servers';
+import { useServers } from '@/store/servers-new';
+import { useServerStreams } from '@/app/hooks/useServerStreams';
 import { PlayersTable } from '@/components/Tables/PlayersTable';
 import { ErrorEmptyState } from '@/components/ui/EmptyState';
 
 export const Players: React.FC = () => {
   const { id: serverId } = useParams<{ id: string }>();
-  const { getServerById } = useServersStore();
+  const { getServerById, select } = useServers();
   const server = serverId ? getServerById(serverId) : null;
+
+  // Select the server when the component mounts
+  React.useEffect(() => {
+    if (serverId) {
+      select(serverId);
+    }
+  }, [serverId, select]);
+
+  // Attach streams for the selected server
+  useServerStreams(serverId);
 
   if (!server) {
     return (

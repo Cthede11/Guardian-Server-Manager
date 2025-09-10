@@ -2,8 +2,8 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
 import { router } from './app/routes';
-import { liveStore } from './store/live';
-import { useServersStore } from './store/servers';
+import { useLive } from './store/live-new';
+import { useServers } from './store/servers-new';
 import { fileManager } from './lib/file-manager';
 import { settingsManager } from './lib/settings-manager';
 import { errorHandler } from './lib/error-handler';
@@ -30,8 +30,10 @@ async function initializeApp() {
     // Initialize stores with empty state for real backend connection
     initializeStores();
     
-    // Test backend connection
-    await testBackendConnection();
+    // Test backend connection with delay to ensure Tauri is ready
+    setTimeout(async () => {
+      await testBackendConnection();
+    }, 1000);
     
     console.log('Guardian app initialized successfully');
   } catch (error) {
@@ -43,34 +45,49 @@ async function initializeApp() {
 // Test backend connection
 async function testBackendConnection() {
   try {
-    // Import waitForBackend and getAPI_BASE from the updated api module
-    const { waitForBackend, getAPI_BASE } = await import('./lib/api');
-    const base = await waitForBackend(15000);
-    console.log('✅ Backend ready at:', base);
+    console.log('🔍 Testing backend connection...');
+    console.log('🔍 Tauri context available:', typeof window !== 'undefined' && (window as any).__TAURI__);
+    
+    // Check if we're in Tauri context
+    if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+      console.log('🔍 Attempting to call start_backend command...');
+      // Use Tauri start_backend command
+      const { invoke } = await import('@tauri-apps/api/core');
+      const baseFromTauri = await invoke('start_backend') as string;
+      console.log('✅ Backend started via Tauri sidecar:', baseFromTauri);
+      
+      // Initialize servers list
+      const { useServers } = await import('./store/servers-new');
+      useServers.getState().fetchServers();
+    } else {
+      console.log('⚠️ Not in Tauri context, skipping backend connection test');
+    }
+    
+    return;
   } catch (error) {
     console.error('❌ Backend not reachable:', error);
+    console.error('Error details:', error);
   }
 }
 
 // Initialize stores with empty state for real backend connection
 function initializeStores() {
   // Initialize live store with empty state
-  liveStore.setState({
+  useLive.setState({
     console: {},
     players: {},
     freezes: {},
     pregenJobs: {},
     metrics: {},
-    connected: false,
-    connectionType: 'disconnected'
+    health: {},
   });
   
   // Initialize servers store with empty state
-  useServersStore.setState({
-    servers: [],
-    selectedServerId: null,
-    serverHealth: {},
-    serverSettings: {},
+  useServers.setState({
+    selectedId: undefined,
+    summaries: {},
+    settings: {},
+    health: {},
     loading: false,
     error: null,
   });

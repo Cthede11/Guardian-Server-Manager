@@ -1,5 +1,6 @@
-use axum::{routing::{get, post}, Router};
+use axum::{routing::{get, post, patch, delete}, Router, Json, extract::Path, http::StatusCode};
 use tracing_subscriber::{fmt, EnvFilter};
+use serde::{Deserialize, Serialize};
 mod routes;
 mod boot;
 
@@ -33,6 +34,13 @@ async fn main() {
 
     // core routes
     let core = Router::new()
+        // Basic server endpoints (minimal implementation)
+        .route("/servers", get(get_servers_minimal))
+        .route("/servers", post(create_server_minimal))
+        .route("/servers/:id", get(get_server_minimal))
+        .route("/servers/:id", patch(update_server_minimal))
+        .route("/servers/:id", delete(delete_server_minimal))
+        // Existing specialized routes
         .route("/servers/:id/world", get(routes::world::get_world))
         .route("/servers/:id/dimensions", get(routes::world::list_dimensions))
         .route("/servers/:id/pregen/status", get(routes::pregen::status))
@@ -73,4 +81,137 @@ async fn main() {
 
     tracing::info!("hostd listening on http://127.0.0.1:{}", actual_port);
     axum::serve(listener, app).await.unwrap();
+}
+
+// Minimal server data structures
+#[derive(Serialize, Deserialize, Clone)]
+struct ServerInfo {
+    id: String,
+    name: String,
+    status: String,
+    tps: f32,
+    tick_p95: f32,
+    heap_mb: u32,
+    players_online: u32,
+    gpu_queue_ms: f32,
+    last_snapshot_at: Option<String>,
+    blue_green: BlueGreenInfo,
+    version: Option<String>,
+    max_players: Option<u32>,
+    uptime: Option<u64>,
+    memory_usage: Option<u32>,
+    cpu_usage: Option<f32>,
+    world_size: Option<u64>,
+    last_backup: Option<String>,
+    auto_start: Option<bool>,
+    config: Option<serde_json::Value>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct BlueGreenInfo {
+    active: String,
+    candidate_healthy: bool,
+}
+
+#[derive(Serialize, Deserialize)]
+struct ApiResponse<T> {
+    success: bool,
+    data: Option<T>,
+    error: Option<String>,
+}
+
+// Minimal server endpoints
+async fn get_servers_minimal() -> Json<ApiResponse<Vec<ServerInfo>>> {
+    // Return empty list for now - this is a minimal implementation
+    Json(ApiResponse {
+        success: true,
+        data: Some(vec![]),
+        error: None,
+    })
+}
+
+async fn create_server_minimal(Json(_server_data): Json<serde_json::Value>) -> Result<Json<ApiResponse<ServerInfo>>, StatusCode> {
+    // Create a dummy server for testing
+    let server = ServerInfo {
+        id: "test-server-1".to_string(),
+        name: "Test Server".to_string(),
+        status: "stopped".to_string(),
+        tps: 20.0,
+        tick_p95: 45.2,
+        heap_mb: 2048,
+        players_online: 0,
+        gpu_queue_ms: 0.0,
+        last_snapshot_at: None,
+        blue_green: BlueGreenInfo {
+            active: "blue".to_string(),
+            candidate_healthy: false,
+        },
+        version: Some("1.20.1".to_string()),
+        max_players: Some(20),
+        uptime: None,
+        memory_usage: Some(2048),
+        cpu_usage: None,
+        world_size: None,
+        last_backup: None,
+        auto_start: Some(false),
+        config: None,
+    };
+    
+    Ok(Json(ApiResponse {
+        success: true,
+        data: Some(server),
+        error: None,
+    }))
+}
+
+async fn get_server_minimal(Path(id): Path<String>) -> Result<Json<ApiResponse<ServerInfo>>, StatusCode> {
+    // Return a dummy server for testing
+    let server = ServerInfo {
+        id: id.clone(),
+        name: format!("Server {}", id),
+        status: "stopped".to_string(),
+        tps: 20.0,
+        tick_p95: 45.2,
+        heap_mb: 2048,
+        players_online: 0,
+        gpu_queue_ms: 0.0,
+        last_snapshot_at: None,
+        blue_green: BlueGreenInfo {
+            active: "blue".to_string(),
+            candidate_healthy: false,
+        },
+        version: Some("1.20.1".to_string()),
+        max_players: Some(20),
+        uptime: None,
+        memory_usage: Some(2048),
+        cpu_usage: None,
+        world_size: None,
+        last_backup: None,
+        auto_start: Some(false),
+        config: None,
+    };
+    
+    Ok(Json(ApiResponse {
+        success: true,
+        data: Some(server),
+        error: None,
+    }))
+}
+
+async fn update_server_minimal(Path(_id): Path<String>, Json(_server_data): Json<serde_json::Value>) -> Result<Json<ApiResponse<ServerInfo>>, StatusCode> {
+    // Return success for now
+    Ok(Json(ApiResponse {
+        success: true,
+        data: None,
+        error: None,
+    }))
+}
+
+async fn delete_server_minimal(Path(_id): Path<String>) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    // Return success for now
+    Ok(Json(ApiResponse {
+        success: true,
+        data: None,
+        error: None,
+    }))
 }
