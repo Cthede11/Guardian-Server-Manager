@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { useServersStore } from '@/store/servers';
+import { useServers } from '@/store/servers-new';
 import { useWorldData } from '@/store/live';
 
 interface HeatmapCell {
@@ -16,7 +16,7 @@ interface WorldHeatmapProps {
 
 export const WorldHeatmap: React.FC<WorldHeatmapProps> = ({ className = '' }) => {
   const { id: serverId } = useParams<{ id: string }>();
-  const { getServerById } = useServersStore();
+  const { getServerById } = useServers();
   const server = serverId ? getServerById(serverId) : null;
   const worldData = useWorldData(serverId || '');
   const freezes = (worldData as any)?.freezes || [];

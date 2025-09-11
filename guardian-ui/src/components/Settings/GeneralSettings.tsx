@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useServersStore } from '@/store/servers';
+import { useServers } from '@/store/servers-new';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -70,12 +70,10 @@ interface GeneralSettingsData {
 export const GeneralSettings: React.FC = () => {
   const { id: serverId } = useParams<{ id: string }>();
   const { 
-    fetchServerProperties, 
-    updateServerProperties, 
-    fetchServerJVMArgs, 
-    updateServerJVMArgs,
-    serverSettings 
-  } = useServersStore();
+    fetchSettings, 
+    updateSettings,
+    settings 
+  } = useServers();
   
   const [settings, setSettings] = useState<GeneralSettingsData>({
     serverName: 'My Minecraft Server',
@@ -127,14 +125,13 @@ export const GeneralSettings: React.FC = () => {
   });
   // Loading and changes tracking removed for now
 
-  const fetchSettings = async () => {
+  const loadSettings = async () => {
     if (!serverId) return;
     
     try {
       // Load server configuration files
       await Promise.all([
-        fetchServerProperties(serverId),
-        fetchServerJVMArgs(serverId)
+        fetchSettings(serverId)
       ]);
     } catch (error) {
       console.error('Failed to fetch general settings:', error);
@@ -142,13 +139,13 @@ export const GeneralSettings: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchSettings();
+    loadSettings();
   }, []);
 
   // Sync settings with server store data
   useEffect(() => {
-    if (serverId && serverSettings[serverId]) {
-      const serverData = serverSettings[serverId];
+    if (serverId && settings[serverId]) {
+      const serverData = settings[serverId];
       if (serverData.general) {
         setSettings(prev => ({
           ...prev,
@@ -294,7 +291,7 @@ export const GeneralSettings: React.FC = () => {
       
       // Update server.properties file
       if (Object.keys(serverProperties).length > 0) {
-        await updateServerProperties(serverId, serverProperties);
+        await updateSettings(serverId, { properties: serverProperties });
       }
     } catch (error) {
       console.error('Failed to update server properties:', error);

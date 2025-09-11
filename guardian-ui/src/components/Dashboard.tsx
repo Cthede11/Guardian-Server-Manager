@@ -18,7 +18,7 @@ import {
   XCircle,
   Loader2
 } from 'lucide-react';
-import { useServersStore } from '@/store/servers';
+import { useServers } from '@/store/servers-new';
 import { metricsCollector, type MetricData } from '@/lib/metrics-collector';
 import { realtimeConnection } from '@/lib/websocket';
 import { errorHandler } from '@/lib/error-handler';
@@ -28,7 +28,10 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ className }) => {
-  const { servers, selectedServerId, selectServer, startServer, stopServer, restartServer } = useServersStore();
+  const { summaries, selectedId, select, startServer, stopServer, restartServer } = useServers();
+  const servers = Object.values(summaries);
+  const selectedServerId = selectedId;
+  const selectServer = select;
   const [metrics, setMetrics] = useState<MetricData | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [alerts, setAlerts] = useState<any[]>([]);

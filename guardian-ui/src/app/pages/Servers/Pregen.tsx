@@ -11,7 +11,7 @@ type PregenStatus = {
   last_error: string|null;
 };
 import { Button } from '@/components/ui/button';
-import { useServersStore } from '@/store/servers';
+import { useServers } from '@/store/servers-new';
 
 interface PregenPageProps {
   className?: string;
@@ -19,7 +19,7 @@ interface PregenPageProps {
 
 export const Pregen: React.FC<PregenPageProps> = ({ className = '' }) => {
   const { id: serverId } = useParams<{ id: string }>();
-  const { getServerById } = useServersStore();
+  const { getServerById } = useServers();
   const server = serverId ? getServerById(serverId) : null;
   
   const [s, setS] = useState<PregenStatus | null>(null);

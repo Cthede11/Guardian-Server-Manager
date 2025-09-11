@@ -19,7 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useServersStore } from '@/store/servers';
+import { useServers } from '@/store/servers-new';
 import { useConsoleStream, useConnectionStatus, liveStore } from '@/store/live';
 import type { ConsoleMessage } from '@/lib/types';
 import { apiClient as api } from '@/lib/api';
@@ -30,7 +30,7 @@ interface ConsoleStreamProps {
 
 export const ConsoleStream: React.FC<ConsoleStreamProps> = ({ className = '' }) => {
   const { id: serverId } = useParams<{ id: string }>();
-  const { getServerById } = useServersStore();
+  const { getServerById } = useServers();
   const server = serverId ? getServerById(serverId) : null;
   
   // Use the live store for console messages

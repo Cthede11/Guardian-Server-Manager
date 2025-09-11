@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { useServersStore } from '@/store/servers';
+import { useServers } from '@/store/servers-new';
 import { ErrorEmptyState } from '@/components/ui/EmptyState';
 import WorldHeatmap from '@/components/World/WorldHeatmap';
 import { LoadingWrapper } from '@/components/LoadingWrapper';
@@ -17,7 +17,7 @@ type WorldInfo = {
 
 export const World: React.FC = () => {
   const { id: serverId } = useParams<{ id: string }>();
-  const { getServerById } = useServersStore();
+  const { getServerById } = useServers();
   const server = serverId ? getServerById(serverId) : null;
   const [data, setData] = useState<WorldInfo | null>(null);
   const [error, setError] = useState<string | null>(null);

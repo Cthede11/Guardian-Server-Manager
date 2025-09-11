@@ -1,6 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import { liveStore } from '../store/live';
-import { useServersStore } from '../store/servers';
+import { useServers } from '../store/servers-new';
 
 export type SocketEvent = {
   type: string;
@@ -38,7 +38,13 @@ class SocketManager {
     this.useSSE = import.meta.env.VITE_USE_SSE === 'true' || !window.WebSocket;
   }
 
-  connect(serverUrl: string = import.meta.env.VITE_API_URL || '') {
+  async connect(serverUrl: string = '') {
+    // Get the current API base URL dynamically if not provided
+    if (!serverUrl) {
+      const { getAPI_BASE } = await import('./api');
+      serverUrl = await getAPI_BASE();
+    }
+    
     if (this.useSSE) {
       this.connectSSE(serverUrl);
     } else {
@@ -72,12 +78,12 @@ class SocketManager {
     this.socket.on('error', (error) => {
       console.error('Socket.IO error:', error);
       // Fallback to SSE on error
-      this.fallbackToSSE(serverUrl);
+      this.fallbackToSSE(serverUrl).catch(console.error);
     });
 
     // Handle server-specific events with batching
     this.socket.on('metrics', (payload: { serverId: string; data: any }) => {
-      const selectedId = useServersStore.getState().selectedServerId;
+      const selectedId = useServers.getState().selectedServerId;
       if (payload.serverId === selectedId) {
         batchUpdate(() => {
           liveStore.getState().applyMetrics(payload.serverId, payload.data);
@@ -86,7 +92,7 @@ class SocketManager {
     });
 
     this.socket.on('console', (payload: { serverId: string; lines: any[] }) => {
-      const selectedId = useServersStore.getState().selectedServerId;
+      const selectedId = useServers.getState().selectedServerId;
       if (payload.serverId === selectedId) {
         batchUpdate(() => {
           liveStore.getState().appendConsole(payload.serverId, payload.lines);
@@ -95,7 +101,7 @@ class SocketManager {
     });
 
     this.socket.on('players', (payload: { serverId: string; players: any[] }) => {
-      const selectedId = useServersStore.getState().selectedServerId;
+      const selectedId = useServers.getState().selectedServerId;
       if (payload.serverId === selectedId) {
         batchUpdate(() => {
           liveStore.getState().updatePlayers(payload.serverId, payload.players);
@@ -104,7 +110,7 @@ class SocketManager {
     });
 
     this.socket.on('freezes', (payload: { serverId: string; freezes: any[] }) => {
-      const selectedId = useServersStore.getState().selectedServerId;
+      const selectedId = useServers.getState().selectedServerId;
       if (payload.serverId === selectedId) {
         batchUpdate(() => {
           liveStore.getState().updateFreezes(payload.serverId, payload.freezes);
@@ -113,7 +119,7 @@ class SocketManager {
     });
 
     this.socket.on('pregen', (payload: { serverId: string; jobs: any[] }) => {
-      const selectedId = useServersStore.getState().selectedServerId;
+      const selectedId = useServers.getState().selectedServerId;
       if (payload.serverId === selectedId) {
         batchUpdate(() => {
           liveStore.getState().updatePregenJobs(payload.serverId, payload.jobs);
@@ -127,7 +133,12 @@ class SocketManager {
     });
   }
 
-  private connectSSE(serverUrl: string) {
+  private async connectSSE(serverUrl: string) {
+    // Get the current API base URL dynamically if not provided
+    if (!serverUrl) {
+      const { getAPI_BASE } = await import('./api');
+      serverUrl = await getAPI_BASE();
+    }
     this.eventSource = new EventSource(`${serverUrl}/events`);
 
     this.eventSource.onopen = () => {
@@ -152,21 +163,21 @@ class SocketManager {
         
         // Handle server-specific events with batching
         if (data.type === 'metrics' && data.serverId) {
-          const selectedId = useServersStore.getState().selectedServerId;
+          const selectedId = useServers.getState().selectedServerId;
           if (data.serverId === selectedId) {
             batchUpdate(() => {
               liveStore.getState().applyMetrics(data.serverId, data.data);
             });
           }
         } else if (data.type === 'console' && data.serverId) {
-          const selectedId = useServersStore.getState().selectedServerId;
+          const selectedId = useServers.getState().selectedServerId;
           if (data.serverId === selectedId) {
             batchUpdate(() => {
               liveStore.getState().appendConsole(data.serverId, data.lines);
             });
           }
         } else if (data.type === 'players' && data.serverId) {
-          const selectedId = useServersStore.getState().selectedServerId;
+          const selectedId = useServers.getState().selectedServerId;
           if (data.serverId === selectedId) {
             batchUpdate(() => {
               liveStore.getState().updatePlayers(data.serverId, data.players);
@@ -182,11 +193,11 @@ class SocketManager {
     };
   }
 
-  private fallbackToSSE(serverUrl: string) {
+  private async fallbackToSSE(serverUrl: string) {
     console.log('Falling back to SSE');
     this.disconnect();
     this.useSSE = true;
-    this.connectSSE(serverUrl);
+    await this.connectSSE(serverUrl);
   }
 
   disconnect() {

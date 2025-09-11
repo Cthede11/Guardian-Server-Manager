@@ -81,6 +81,14 @@ async function testBackendConnection() {
       const baseFromTauri = await invoke('start_backend') as string;
       console.log('✅ Backend started via Tauri sidecar:', baseFromTauri);
       
+      // Update the API base URL with the correct backend URL
+      if (baseFromTauri) {
+        // Update the API client configuration
+        const { updateApiBase } = await import('./lib/api');
+        await updateApiBase(baseFromTauri);
+        console.log('✅ API base URL updated to:', baseFromTauri);
+      }
+      
       // Initialize servers list
       const { useServers } = await import('./store/servers-new');
       useServers.getState().fetchServers();

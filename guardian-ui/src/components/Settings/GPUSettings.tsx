@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useServersStore } from '@/store/servers';
+import { useServers } from '@/store/servers-new';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -82,10 +82,10 @@ interface GPUSettingsData {
 export const GPUSettings: React.FC = () => {
   const { id: serverId } = useParams<{ id: string }>();
   const { 
-    fetchServerConfig, 
-    updateServerConfig,
-    serverSettings 
-  } = useServersStore();
+    fetchSettings, 
+    updateSettings,
+    settings 
+  } = useServers();
   
   const [settings, setSettings] = useState<GPUSettingsData>({
     // GPU Worker Settings
@@ -151,25 +151,25 @@ export const GPUSettings: React.FC = () => {
   // Changes tracking removed for now
   // const [hasChanges, setHasChanges] = useState(false);
 
-  const fetchSettings = async () => {
+  const loadSettings = async () => {
     if (!serverId) return;
     
     try {
       // Load server configuration
-      await fetchServerConfig(serverId);
+      await fetchSettings(serverId);
     } catch (error) {
       console.error('Failed to fetch GPU settings:', error);
     }
   };
 
   useEffect(() => {
-    fetchSettings();
+    loadSettings();
   }, []);
 
   // Sync settings with server store data
   useEffect(() => {
-    if (serverId && serverSettings[serverId]) {
-      const serverData = serverSettings[serverId];
+    if (serverId && settings[serverId]) {
+      const serverData = settings[serverId];
       if (serverData.gpu) {
         setSettings(prev => ({
           ...prev,
@@ -186,7 +186,7 @@ export const GPUSettings: React.FC = () => {
     
     try {
       // Update server configuration
-      await updateServerConfig(serverId, {
+      await updateSettings(serverId, {
         gpu: {
           ...settings,
           [key]: value

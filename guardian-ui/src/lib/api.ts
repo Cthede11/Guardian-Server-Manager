@@ -19,6 +19,13 @@ async function ping(base: string) {
   try { const r = await fetch(`${base}/healthz`, { cache: "no-store" }); return r.ok; } catch { return false; }
 }
 
+// Function to update the API base URL (called from Tauri command)
+export async function updateApiBase(newBase: string) {
+  cachedBase = newBase;
+  API_BASE = newBase;
+  console.log('API base URL updated to:', newBase);
+}
+
 export async function getAPI_BASE(): Promise<string> {
   if (cachedBase) return cachedBase;
   const env = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/,"");

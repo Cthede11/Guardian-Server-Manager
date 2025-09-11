@@ -42,8 +42,8 @@ export const RealtimeConnectionStatus: React.FC<ConnectionStatusProps> = ({
         // Default reconnect logic
         const { socketManager } = await import('@/lib/socket');
         socketManager.disconnect();
-        setTimeout(() => {
-          socketManager.connect();
+        setTimeout(async () => {
+          await socketManager.connect();
         }, 1000);
       }
     } catch (error) {

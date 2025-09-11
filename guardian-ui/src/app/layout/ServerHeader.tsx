@@ -4,7 +4,7 @@ import { Play, Square, RotateCcw, ArrowUpDown, Circle, Loader2, AlertTriangle, C
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useServersStore, useServerHealth } from '@/store/servers';
+import { useServers } from '@/store/servers-new';
 import { StatusPill } from '@/components/StatusPill';
 
 const serverTabs = [
@@ -31,13 +31,12 @@ export const ServerHeader: React.FC = () => {
     stopServer, 
     restartServer, 
     promoteServer,
+    health,
     error,
     clearError
-  } = useServersStore();
-
-  // Always call hooks at the top level
+  } = useServers();
   const server = serverId ? getServerById(serverId) : null;
-  const serverHealth = useServerHealth(serverId || '');
+  const serverHealth = serverId ? health[serverId] : null;
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   
   // Determine current tab from pathname

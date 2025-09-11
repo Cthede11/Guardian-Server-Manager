@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useServersStore } from '@/store/servers';
+import { useServers } from '@/store/servers-new';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -81,10 +81,10 @@ interface JVMSettingsData {
 export const JVMSettings: React.FC = () => {
   const { id: serverId } = useParams<{ id: string }>();
   const { 
-    fetchServerJVMArgs, 
-    updateServerJVMArgs,
-    serverSettings 
-  } = useServersStore();
+    fetchSettings, 
+    updateSettings,
+    settings 
+  } = useServers();
   
   const [settings, setSettings] = useState<JVMSettingsData>({
     // Memory Settings
@@ -145,25 +145,25 @@ export const JVMSettings: React.FC = () => {
   });
   // Loading and changes tracking removed for now
 
-  const fetchSettings = async () => {
+  const loadSettings = async () => {
     if (!serverId) return;
     
     try {
       // Load server JVM configuration
-      await fetchServerJVMArgs(serverId);
+      await fetchSettings(serverId);
     } catch (error) {
       console.error('Failed to fetch JVM settings:', error);
     }
   };
 
   useEffect(() => {
-    fetchSettings();
+    loadSettings();
   }, []);
 
   // Sync settings with server store data
   useEffect(() => {
-    if (serverId && serverSettings[serverId]) {
-      const serverData = serverSettings[serverId];
+    if (serverId && settings[serverId]) {
+      const serverData = settings[serverId];
       if (serverData.jvm) {
         setSettings(prev => ({
           ...prev,
@@ -190,7 +190,7 @@ export const JVMSettings: React.FC = () => {
         
         const allArgs = [...currentArgs, ...additionalArgs, ...gcTuning, ...flightRecorder, ...customFlags].filter(Boolean);
         
-        await updateServerJVMArgs(serverId, allArgs);
+        await updateSettings(serverId, { jvmArgs: allArgs });
       }
     } catch (error) {
       console.error('Failed to update JVM settings:', error);

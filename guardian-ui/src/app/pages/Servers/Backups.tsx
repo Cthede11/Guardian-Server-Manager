@@ -37,7 +37,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu';
-import { useServersStore } from '@/store/servers';
+import { useServers } from '@/store/servers-new';
 import { SnapshotsTable } from '@/components/Tables/SnapshotsTable';
 import { RestoreWizard } from '@/components/Backups/RestoreWizard';
 import { ErrorEmptyState } from '@/components/ui/EmptyState';
@@ -48,7 +48,7 @@ interface BackupsPageProps {
 
 export const Backups: React.FC<BackupsPageProps> = ({ className = '' }) => {
   const { id: serverId } = useParams<{ id: string }>();
-  const { getServerById } = useServersStore();
+  const { getServerById } = useServers();
   const server = serverId ? getServerById(serverId) : null;
   
   const [snapshots, setSnapshots] = useState<any[]>([]);

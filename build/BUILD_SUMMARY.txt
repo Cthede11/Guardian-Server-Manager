@@ -1,0 +1,26 @@
+﻿Guardian Build Summary
+=====================
+Build Date: 2025-09-10 13:17:18
+Version: 1.0.0
+Git Commit: bd43ebc
+
+Built Components:
+- hostd.exe (Backend with process fixes)
+- gpu-worker.exe (GPU Worker with process fixes)
+- Guardian UI (Frontend with race condition fixes)
+- Tauri Application (Desktop App with cleanup handlers)
+
+Fixes Applied:
+- Console window elimination (CREATE_NO_WINDOW flag)
+- Backend connection race condition prevention
+- Process cleanup on app termination
+- Professional startup experience
+
+Installers:
+- msi - nsis - guardian-custom-installer.nsi - nsis-installer.nsi - wix-installer.wxs - msi\Guardian_1.0.0_x64_en-US.msi - msi\start-backend.bat - nsis\Guardian_1.0.0_x64-setup.exe - nsis\start-backend.bat
+
+Launchers:
+- start-guardian-with-backend.ps1 (PowerShell with process cleanup)
+- start-guardian-production.bat (Batch with process cleanup)
+
+Build completed successfully!

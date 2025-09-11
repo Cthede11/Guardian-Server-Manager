@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { useServersStore } from '@/store/servers';
+import { useServers } from '@/store/servers-new';
 import { useConnectionStatus } from '@/store/live';
 import { ErrorEmptyState } from '@/components/ui/EmptyState';
 import TpsChart from '@/components/Charts/TpsChart';
@@ -12,7 +12,7 @@ import { apiClient as api } from '@/lib/api';
 
 export const Performance: React.FC = () => {
   const { id: serverId } = useParams<{ id: string }>();
-  const { getServerById } = useServersStore();
+  const { getServerById } = useServers();
   const server = serverId ? getServerById(serverId) : null;
   const { connected } = useConnectionStatus();
   

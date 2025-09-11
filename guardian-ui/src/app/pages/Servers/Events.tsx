@@ -41,7 +41,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 //   DropdownMenuTrigger,
 //   DropdownMenuSeparator
 // } from '@/components/ui/dropdown-menu';
-import { useServersStore } from '@/store/servers';
+import { useServers } from '@/store/servers-new';
 import { EventsTable } from '@/components/Tables/EventsTable';
 import { CreateEventModal } from '@/components/Events/CreateEventModal';
 import { ErrorEmptyState } from '@/components/ui/EmptyState';
@@ -52,7 +52,7 @@ interface EventsPageProps {
 
 export const Events: React.FC<EventsPageProps> = ({ className = '' }) => {
   const { id: serverId } = useParams<{ id: string }>();
-  const { getServerById } = useServersStore();
+  const { getServerById } = useServers();
   const server = serverId ? getServerById(serverId) : null;
   
   const [events, setEvents] = useState<any[]>([]);

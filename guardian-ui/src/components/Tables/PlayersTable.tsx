@@ -27,7 +27,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useServersStore } from '@/store/servers';
+import { useServers } from '@/store/servers-new';
 import { usePlayerData, liveStore } from '@/store/live';
 import type { Player } from '@/lib/types';
 import { PlayersTableLoading } from '@/components/ui/LoadingStates';
@@ -43,7 +43,7 @@ interface PlayersTableProps {
 
 export const PlayersTable: React.FC<PlayersTableProps> = ({ className = '' }) => {
   const { id: serverId } = useParams<{ id: string }>();
-  const { getServerById } = useServersStore();
+  const { getServerById } = useServers();
   const server = serverId ? getServerById(serverId) : null;
   
   // Use live store for player data

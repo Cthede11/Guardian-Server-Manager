@@ -22,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useServersStore } from '@/store/servers';
+import { useServers } from '@/store/servers-new';
 import { ModsTable } from '@/components/Tables/ModsTable';
 import { RulesTable } from '@/components/Tables/RulesTable';
 import { ConflictsList } from '@/components/ModsRules/ConflictsList';
@@ -35,7 +35,7 @@ interface ModsRulesPageProps {
 
 export const ModsRules: React.FC<ModsRulesPageProps> = ({ className = '' }) => {
   const { id: serverId } = useParams<{ id: string }>();
-  const { getServerById } = useServersStore();
+  const { getServerById } = useServers();
   const server = serverId ? getServerById(serverId) : null;
   
   const [mods, setMods] = useState<any[]>([]);

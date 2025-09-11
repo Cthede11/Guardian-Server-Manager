@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { useServersStore } from '@/store/servers';
+import { useServers } from '@/store/servers-new';
 import { apiClient as api } from '@/lib/api';
 import { safeDateShort, healthLabel, healthStatus } from '@/lib/formatters';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -47,7 +47,7 @@ interface DiagnosticStats {
 
 export const Diagnostics: React.FC = () => {
   const { id: serverId } = useParams<{ id: string }>();
-  const { getServerById } = useServersStore();
+  const { getServerById } = useServers();
   const server = serverId ? getServerById(serverId) : null;
   const [activeTab, setActiveTab] = useState('crashes');
   const [stats, setStats] = useState<DiagnosticStats>({

@@ -109,10 +109,9 @@ pub fn init_gpu_integration() -> Result<(), String> {
 /// Get the global GPU integration instance
 pub async fn get_gpu_integration() -> Result<Arc<Mutex<GpuIntegration>>, String> {
     unsafe {
-        GPU_INTEGRATION
+        Ok(GPU_INTEGRATION
             .as_ref()
             .ok_or("GPU integration not initialized")?
-            .clone()
-            Ok(Arc::new(Mutex::new(gpu_integration)))
+            .clone())
     }
 }

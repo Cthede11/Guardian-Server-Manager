@@ -28,7 +28,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useServersStore } from '@/store/servers';
+import { useServers } from '@/store/servers-new';
 import { openDevTools, openServerFolder, ensureBackend } from '@/lib/tauri-api';
 import { StatusPill } from '@/components/StatusPill';
 import { getVersionsForModpack } from '@/lib/constants/minecraft-versions';
@@ -37,7 +37,7 @@ import { listen } from '@tauri-apps/api/event';
 
 // Add Server Wizard Component
 const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const { createServer } = useServersStore();
+  const { createServer } = useServers();
   const [formData, setFormData] = useState({
     // Step 1: Basic Info
     name: '',
@@ -262,7 +262,10 @@ const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 };
 
 export const Sidebar: React.FC = () => {
-  const { servers, selectedServerId, selectServer, loading, startServer, stopServer, promoteServer, deleteServer, fetchServers } = useServersStore();
+  const { summaries, selectedId, select, loading, startServer, stopServer, promoteServer, deleteServer, fetchServers } = useServers();
+  const servers = Object.values(summaries);
+  const selectedServerId = selectedId;
+  const selectServer = select;
   const { id: currentServerId } = useParams<{ id: string }>();
   const location = useLocation();
   const navigate = useNavigate();
@@ -290,7 +293,7 @@ export const Sidebar: React.FC = () => {
       } catch (e) {
         console.error('Failed to ensure backend:', e);
       }
-      const { fetchServers } = useServersStore.getState();
+      const { fetchServers } = useServers.getState();
       fetchServers();
     })();
   }, []);
