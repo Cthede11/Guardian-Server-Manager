@@ -10,15 +10,15 @@ interface ModGridProps {
 
 export const ModGrid: React.FC<ModGridProps> = ({ mods, loading, onModSelect }) => {
   const getSideInfo = (side: ModInfo['side']) => {
-    return MOD_SIDES.find(s => s.type === side) || MOD_SIDES[MOD_SIDES.length - 1];
+    return MOD_SIDES.find((s: any) => s.type === side) || MOD_SIDES[MOD_SIDES.length - 1];
   };
 
   const getCategoryInfo = (category: ModInfo['category']) => {
-    return MOD_CATEGORIES.find(c => c.type === category) || MOD_CATEGORIES[MOD_CATEGORIES.length - 1];
+    return MOD_CATEGORIES.find((c: any) => c.type === category) || MOD_CATEGORIES[MOD_CATEGORIES.length - 1];
   };
 
   const getSourceInfo = (source: ModInfo['source']) => {
-    return MOD_SOURCES.find(s => s.type === source) || MOD_SOURCES[MOD_SOURCES.length - 1];
+    return MOD_SOURCES.find((s: any) => s.type === source) || MOD_SOURCES[MOD_SOURCES.length - 1];
   };
 
   const formatFileSize = (bytes: number) => {
@@ -129,7 +129,7 @@ export const ModGrid: React.FC<ModGridProps> = ({ mods, loading, onModSelect }) 
             {/* Minecraft Versions */}
             <div className="mb-3">
               <div className="flex flex-wrap gap-1">
-                {mod.minecraft_versions.slice(0, 3).map((version) => (
+                {mod.minecraft_versions.slice(0, 3).map((version: any) => (
                   <span
                     key={version}
                     className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800"
@@ -169,7 +169,7 @@ export const ModGrid: React.FC<ModGridProps> = ({ mods, loading, onModSelect }) 
             {/* Tags */}
             {mod.tags.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-1">
-                {mod.tags.slice(0, 3).map((tag) => (
+                {mod.tags.slice(0, 3).map((tag: any) => (
                   <span
                     key={tag}
                     className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700"

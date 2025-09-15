@@ -165,7 +165,7 @@ export const ModFilterPanel: React.FC<ModFilterPanelProps> = ({
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         >
           <option value="all">All Categories</option>
-          {MOD_CATEGORIES.map((category) => (
+          {MOD_CATEGORIES.map((category: any) => (
             <option key={category.type} value={category.type}>
               {category.icon} {category.label}
             </option>
@@ -184,7 +184,7 @@ export const ModFilterPanel: React.FC<ModFilterPanelProps> = ({
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         >
           <option value="all">All Sides</option>
-          {MOD_SIDES.map((side) => (
+          {MOD_SIDES.map((side: any) => (
             <option key={side.type} value={side.type}>
               {side.icon} {side.label}
             </option>
@@ -226,7 +226,7 @@ export const ModFilterPanel: React.FC<ModFilterPanelProps> = ({
           Source
         </label>
         <div className="space-y-2">
-          {MOD_SOURCES.map((source) => (
+          {MOD_SOURCES.map((source: any) => (
             <div key={source.type} className="flex items-center">
               <input
                 type="radio"

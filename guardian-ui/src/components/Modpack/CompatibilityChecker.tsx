@@ -111,7 +111,7 @@ export const CompatibilityChecker: React.FC = () => {
               <div>
                 <h4 className="text-lg font-medium text-gray-900 mb-4">Issues</h4>
                 <div className="space-y-3">
-                  {compatibility.report.issues.map((issue, index) => (
+                  {compatibility.report.issues.map((issue: any, index: number) => (
                     <div
                       key={index}
                       className={`p-4 rounded-lg border ${getSeverityColor(issue.severity)}`}
@@ -140,7 +140,7 @@ export const CompatibilityChecker: React.FC = () => {
               <div>
                 <h4 className="text-lg font-medium text-gray-900 mb-4">Warnings</h4>
                 <div className="space-y-3">
-                  {compatibility.report.warnings.map((warning, index) => (
+                  {compatibility.report.warnings.map((warning: any, index: number) => (
                     <div
                       key={index}
                       className={`p-4 rounded-lg border ${getSeverityColor(warning.severity)}`}
@@ -169,7 +169,7 @@ export const CompatibilityChecker: React.FC = () => {
               <div>
                 <h4 className="text-lg font-medium text-gray-900 mb-4">Recommendations</h4>
                 <div className="space-y-2">
-                  {compatibility.report.recommendations.map((recommendation, index) => (
+                  {compatibility.report.recommendations.map((recommendation: any, index: number) => (
                     <div key={index} className="flex items-start">
                       <div className="flex-shrink-0">
                         <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
