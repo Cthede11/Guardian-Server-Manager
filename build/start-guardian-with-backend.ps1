@@ -22,10 +22,18 @@ Start-Sleep -Seconds 3
 
 # Check if backend is running
 Write-Host "Checking backend status..." -ForegroundColor Yellow
+
+# Read the port from the backend_port.txt file
+$BackendPort = 8080  # Default fallback
+if (Test-Path "backend_port.txt") {
+    $BackendPort = Get-Content "backend_port.txt" -Raw
+    Write-Host "Found backend port: $BackendPort" -ForegroundColor Cyan
+}
+
 try {
-    $Response = Invoke-WebRequest -Uri "http://localhost:8080/health" -Method GET -TimeoutSec 5
+    $Response = Invoke-WebRequest -Uri "http://localhost:$BackendPort/healthz" -Method GET -TimeoutSec 5
     if ($Response.StatusCode -eq 200) {
-        Write-Host "Backend is running successfully" -ForegroundColor Green
+        Write-Host "Backend is running successfully on port $BackendPort" -ForegroundColor Green
     } else {
         Write-Host "Warning: Backend responded with status $($Response.StatusCode)" -ForegroundColor Yellow
     }

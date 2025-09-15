@@ -134,7 +134,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ className }) => {
               <div>
                 <CardTitle className="text-xl">{selectedServer.name}</CardTitle>
                 <div className="flex items-center space-x-2 mt-1">
-                  <Badge variant="outline">{selectedServer.type}</Badge>
+                  <Badge variant="outline">{selectedServer.loader || 'Unknown'}</Badge>
                   <Badge variant="outline">{selectedServer.version}</Badge>
                   <div className={`flex items-center space-x-1 ${getStatusColor(selectedServer.status)}`}>
                     {getStatusIcon(selectedServer.status)}
@@ -307,7 +307,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ className }) => {
           <CardContent className="space-y-3">
             <div className="flex justify-between">
               <span className="text-sm text-gray-600">Type:</span>
-              <span className="text-sm font-medium">{selectedServer.type}</span>
+              <span className="text-sm font-medium">{selectedServer.loader || 'Unknown'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-gray-600">Version:</span>

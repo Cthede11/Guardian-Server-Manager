@@ -66,7 +66,7 @@ export const ComposerSettings: React.FC = () => {
   const { 
     fetchSettings, 
     updateSettings,
-    settings 
+    settings: serverSettings 
   } = useServers();
   
   const [settings, setSettings] = useState<ComposerSettingsData>({
@@ -130,12 +130,38 @@ export const ComposerSettings: React.FC = () => {
 
   // Sync settings with server store data
   useEffect(() => {
-    if (serverId && settings[serverId]) {
-      const serverData = settings[serverId];
+    if (serverId && serverSettings[serverId]) {
+      const serverData = serverSettings[serverId];
       if (serverData.composer) {
         setSettings(prev => ({
           ...prev,
-          ...serverData.composer,
+          enableComposer: serverData.composer.enabled ?? prev.enableComposer,
+          composerMode: serverData.composer.composerMode || prev.composerMode,
+          composerTimeout: serverData.composer.composerTimeout || prev.composerTimeout,
+          composerRetries: serverData.composer.composerRetries || prev.composerRetries,
+          packageManager: serverData.composer.packageManager || prev.packageManager,
+          packageRegistry: serverData.composer.packageRegistry || prev.packageRegistry,
+          packageCache: serverData.composer.packageCache ?? prev.packageCache,
+          packageOffline: serverData.composer.packageOffline ?? prev.packageOffline,
+          buildMode: serverData.composer.buildMode || prev.buildMode,
+          buildOptimization: serverData.composer.buildOptimization ?? prev.buildOptimization,
+          buildMinification: serverData.composer.buildMinification ?? prev.buildMinification,
+          buildSourcemaps: serverData.composer.buildSourcemaps ?? prev.buildSourcemaps,
+          dependencyResolution: serverData.composer.dependencyResolution || prev.dependencyResolution,
+          dependencyLocking: serverData.composer.dependencyLocking ?? prev.dependencyLocking,
+          dependencyUpdates: serverData.composer.dependencyUpdates ?? prev.dependencyUpdates,
+          dependencyAudit: serverData.composer.dependencyAudit ?? prev.dependencyAudit,
+          preBuildScript: serverData.composer.preBuildScript || prev.preBuildScript,
+          postBuildScript: serverData.composer.postBuildScript || prev.postBuildScript,
+          preStartScript: serverData.composer.preStartScript || prev.preStartScript,
+          postStartScript: serverData.composer.postStartScript || prev.postStartScript,
+          environment: serverData.composer.environment || prev.environment,
+          environmentVariables: serverData.composer.environmentVariables || prev.environmentVariables,
+          environmentFiles: serverData.composer.environmentFiles || prev.environmentFiles,
+          enableComposerProfiling: serverData.composer.enableComposerProfiling ?? prev.enableComposerProfiling,
+          composerProfilingInterval: serverData.composer.composerProfilingInterval || prev.composerProfilingInterval,
+          enableComposerDebug: serverData.composer.enableComposerDebug ?? prev.enableComposerDebug,
+          composerDebugLevel: serverData.composer.composerDebugLevel || prev.composerDebugLevel,
         }));
       }
     }
@@ -148,9 +174,14 @@ export const ComposerSettings: React.FC = () => {
     
     try {
       // Update server configuration
+      const currentServerSettings = serverSettings[serverId] || {};
       await updateSettings(serverId, {
+        ...currentServerSettings,
         composer: {
-          ...settings,
+          ...currentServerSettings.composer,
+          enabled: settings.enableComposer,
+          auto_update: true,
+          update_interval: 3600,
           [key]: value
         }
       });

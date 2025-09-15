@@ -81,7 +81,7 @@ export const TokensSettings: React.FC = () => {
   const { 
     fetchSettings, 
     updateSettings,
-    settings 
+    settings: serverSettings 
   } = useServers();
   
   const [settings, setSettings] = useState<TokensSettingsData>({
@@ -169,8 +169,8 @@ export const TokensSettings: React.FC = () => {
 
   // Sync settings with server store data
   useEffect(() => {
-    if (serverId && settings[serverId]) {
-      const serverData = settings[serverId];
+    if (serverId && serverSettings[serverId]) {
+      const serverData = serverSettings[serverId];
       if (serverData.tokens) {
         setSettings(prev => ({
           ...prev,
@@ -187,9 +187,14 @@ export const TokensSettings: React.FC = () => {
     
     try {
       // Update server configuration
+      const currentServerSettings = serverSettings[serverId] || {};
       await updateSettings(serverId, {
+        ...currentServerSettings,
         tokens: {
-          ...settings,
+          ...currentServerSettings.tokens,
+          enabled: settings.enableTokens,
+          secret_key: settings.tokenSalt || 'default-secret-key',
+          expiration_hours: settings.tokenExpiration || 24,
           [key]: value
         }
       });

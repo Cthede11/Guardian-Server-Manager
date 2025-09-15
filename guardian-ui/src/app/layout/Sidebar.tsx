@@ -441,9 +441,9 @@ export const Sidebar: React.FC = () => {
                                     {server.name}
                                   </h3>
                                   <div className="server-meta">
-                                    <StatusPill status={server.status} />
+                                    <StatusPill status={server.status as "stopped" | "starting" | "running" | "stopping"} />
                                     <span className="text-xs text-muted-foreground font-medium">
-                                      {server.playersOnline} players
+                                      {server.players_online} players
                                     </span>
                                   </div>
                                 </div>
@@ -451,9 +451,9 @@ export const Sidebar: React.FC = () => {
                             </Link>
                      
                      <div className="flex items-center gap-1">
-                       {server.blueGreen && (
+                       {server.blue_green && (
                          <div className={`w-2 h-2 rounded-full ${
-                           server.blueGreen.active === 'blue' ? 'bg-blue-500' : 'bg-green-500'
+                           server.blue_green.active === 'blue' ? 'bg-blue-500' : 'bg-green-500'
                          }`} />
                        )}
                        

@@ -113,7 +113,7 @@ export const PathsSettings: React.FC = () => {
   const { 
     fetchSettings, 
     updateSettings,
-    settings 
+    settings: serverSettings 
   } = useServers();
   
   const [settings, setSettings] = useState<PathsSettingsData>({
@@ -221,8 +221,8 @@ export const PathsSettings: React.FC = () => {
 
   // Sync settings with server store data
   useEffect(() => {
-    if (serverId && settings[serverId]) {
-      const serverData = settings[serverId];
+    if (serverId && serverSettings[serverId]) {
+      const serverData = serverSettings[serverId];
       if (serverData.paths) {
         setSettings(prev => ({
           ...prev,
@@ -239,9 +239,16 @@ export const PathsSettings: React.FC = () => {
     
     try {
       // Update server configuration
+      const currentServerSettings = serverSettings[serverId] || {};
       await updateSettings(serverId, {
+        ...currentServerSettings,
         paths: {
-          ...settings,
+          ...currentServerSettings.paths,
+          world: settings.worldPath,
+          mods: settings.modsPath,
+          config: settings.configPath,
+          logs: settings.logsPath,
+          backups: settings.backupsPath,
           [key]: value
         }
       });

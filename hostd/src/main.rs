@@ -6,24 +6,32 @@ mod boot;
 
 #[tokio::main]
 async fn main() {
+    println!("Starting hostd...");
     let _ = fmt().with_env_filter(EnvFilter::from_default_env()).try_init();
+    println!("Tracing initialized");
 
     // Try to reuse existing healthy hostd
+    println!("Checking for existing hostd...");
     if let Some(h) = boot::try_attach_existing().await {
         println!("hostd already running on port {}", h.port);
         return;
     }
+    println!("No existing hostd found, starting new instance");
 
     // Try new port discovery first, fallback to original range
+    println!("Choosing port...");
     let port = match boot::choose_port().await {
         0 => 8080, // fallback to original default if port discovery fails
         p => p,
     };
+    println!("Selected port: {}", port);
 
     // state: metrics hub etc.
+    println!("Creating metrics hub...");
     let hub = routes::metrics::MetricsHub::new();
     {
         let hub2 = hub.clone();
+        println!("Spawning metrics task...");
         tokio::spawn(async move {
             loop {
                 hub2.push(routes::metrics::MetricsPoint { timestamp: chrono::Utc::now().timestamp_millis(), tps: 20.0, tick_p95_ms: 45.0, heap_mb: None, gpu_latency_ms: None }).await;
@@ -31,8 +39,10 @@ async fn main() {
             }
         });
     }
+    println!("Metrics hub created");
 
     // core routes
+    println!("Setting up routes...");
     let core = Router::new()
         // Basic server endpoints (minimal implementation)
         .route("/servers", get(get_servers_minimal))
@@ -54,31 +64,42 @@ async fn main() {
         .route("/servers/:id/metrics", get(routes::metrics::history))
         .route("/servers/:id/metrics/stream", get(routes::metrics::stream))
         .with_state(hub.clone());
+    println!("Routes configured");
 
     let app = Router::new()
         .nest("/api", core.clone())
         .merge(core);
+    println!("App router created");
 
     // Bind with retry logic
+    println!("Binding to port {}...", port);
     let listener = match tokio::net::TcpListener::bind(("127.0.0.1", port)).await {
-        Ok(l) => l,
-        Err(_) => {
+        Ok(l) => {
+            println!("Successfully bound to port {}", port);
+            l
+        },
+        Err(e) => {
+            println!("Failed to bind to port {}: {:?}", port, e);
             // Port unavailable, try again
             let fallback_port = boot::choose_port().await;
             let final_port = if fallback_port == 0 { 8080 } else { fallback_port };
+            println!("Trying fallback port {}...", final_port);
             tokio::net::TcpListener::bind(("127.0.0.1", final_port)).await
                 .unwrap_or_else(|_| panic!("Failed to bind to any port"))
         }
     };
 
     let actual_port = listener.local_addr().unwrap().port();
+    println!("Writing port file for port {}...", actual_port);
     boot::write_port_file(actual_port).ok();
     boot::write_pid_lock(std::process::id(), actual_port).ok();
 
     // Add health endpoint with actual port
+    println!("Adding health endpoint...");
     let health_router = boot::health_router(actual_port, std::process::id()).await;
     let app = app.merge(health_router);
 
+    println!("hostd listening on http://127.0.0.1:{}", actual_port);
     tracing::info!("hostd listening on http://127.0.0.1:{}", actual_port);
     axum::serve(listener, app).await.unwrap();
 }

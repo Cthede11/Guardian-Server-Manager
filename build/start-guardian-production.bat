@@ -17,7 +17,7 @@ timeout /t 3 /nobreak >nul
 
 REM Check if backend is running
 echo Checking backend status...
-powershell -Command "try { $Response = Invoke-WebRequest -Uri 'http://localhost:8080/health' -Method GET -TimeoutSec 5; if ($Response.StatusCode -eq 200) { Write-Host 'Backend is running successfully' -ForegroundColor Green } else { Write-Host 'Warning: Backend responded with status' $Response.StatusCode -ForegroundColor Yellow } } catch { Write-Host 'Warning: Backend may not be running properly:' $_.Exception.Message -ForegroundColor Red }"
+powershell -Command "$BackendPort = 8080; if (Test-Path 'backend_port.txt') { $BackendPort = Get-Content 'backend_port.txt' -Raw; Write-Host 'Found backend port:' $BackendPort -ForegroundColor Cyan }; try { $Response = Invoke-WebRequest -Uri ('http://localhost:' + $BackendPort + '/healthz') -Method GET -TimeoutSec 5; if ($Response.StatusCode -eq 200) { Write-Host 'Backend is running successfully on port' $BackendPort -ForegroundColor Green } else { Write-Host 'Warning: Backend responded with status' $Response.StatusCode -ForegroundColor Yellow } } catch { Write-Host 'Warning: Backend may not be running properly:' $_.Exception.Message -ForegroundColor Red }"
 
 REM Start the Guardian UI
 echo Starting Guardian UI...

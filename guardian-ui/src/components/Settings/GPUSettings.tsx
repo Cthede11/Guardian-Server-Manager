@@ -84,7 +84,7 @@ export const GPUSettings: React.FC = () => {
   const { 
     fetchSettings, 
     updateSettings,
-    settings 
+    settings: serverSettings 
   } = useServers();
   
   const [settings, setSettings] = useState<GPUSettingsData>({
@@ -168,8 +168,8 @@ export const GPUSettings: React.FC = () => {
 
   // Sync settings with server store data
   useEffect(() => {
-    if (serverId && settings[serverId]) {
-      const serverData = settings[serverId];
+    if (serverId && serverSettings[serverId]) {
+      const serverData = serverSettings[serverId];
       if (serverData.gpu) {
         setSettings(prev => ({
           ...prev,
@@ -186,9 +186,13 @@ export const GPUSettings: React.FC = () => {
     
     try {
       // Update server configuration
+      const currentServerSettings = serverSettings[serverId] || {};
       await updateSettings(serverId, {
+        ...currentServerSettings,
         gpu: {
-          ...settings,
+          ...currentServerSettings.gpu,
+          enabled: settings.enableGpuWorker,
+          queue_size: settings.gpuQueueSize || 100,
           [key]: value
         }
       });

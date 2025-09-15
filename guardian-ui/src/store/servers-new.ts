@@ -5,6 +5,7 @@ import { api } from "@/lib/client";
 interface ServersState {
   // Server list and selection
   selectedId?: string;
+  selectedServerId?: string; // Alias for compatibility
   summaries: Record<string, ServerSummary>;
   
   // Server details
@@ -41,6 +42,7 @@ interface ServersState {
 export const useServers = create<ServersState>((set, get) => ({
   // Initial state
   selectedId: undefined,
+  selectedServerId: undefined,
   summaries: {},
   settings: {},
   health: {},
@@ -49,7 +51,7 @@ export const useServers = create<ServersState>((set, get) => ({
 
   // Actions
   select: (id: string) => {
-    set({ selectedId: id });
+    set({ selectedId: id, selectedServerId: id });
   },
 
   fetchSummary: async (id: string, signal?: AbortSignal) => {
@@ -122,6 +124,7 @@ export const useServers = create<ServersState>((set, get) => ({
         return {
           summaries: remaining,
           selectedId: state.selectedId === id ? undefined : state.selectedId,
+          selectedServerId: state.selectedServerId === id ? undefined : state.selectedServerId,
           loading: false
         };
       });

@@ -83,7 +83,7 @@ export const JVMSettings: React.FC = () => {
   const { 
     fetchSettings, 
     updateSettings,
-    settings 
+    settings: serverSettings 
   } = useServers();
   
   const [settings, setSettings] = useState<JVMSettingsData>({
@@ -162,12 +162,14 @@ export const JVMSettings: React.FC = () => {
 
   // Sync settings with server store data
   useEffect(() => {
-    if (serverId && settings[serverId]) {
-      const serverData = settings[serverId];
+    if (serverId && serverSettings[serverId]) {
+      const serverData = serverSettings[serverId];
       if (serverData.jvm) {
+        // Map from server JVM settings to local state
         setSettings(prev => ({
           ...prev,
-          ...serverData.jvm,
+          maxHeapSize: `${serverData.jvm.memory}M`,
+          customJvmArgs: serverData.jvm.flags.join(' '),
         }));
       }
     }
@@ -179,18 +181,29 @@ export const JVMSettings: React.FC = () => {
     if (!serverId) return;
     
     try {
-      // Update JVM arguments
-      if (key === 'customJvmArgs' || key === 'additionalArgs' || key === 'gcTuning' || key === 'flightRecorderOptions' || key === 'customFlags') {
-        // These are JVM arguments that need to be updated
-        const currentArgs = settings.customJvmArgs ? settings.customJvmArgs.split(' ') : [];
-        const additionalArgs = settings.additionalArgs ? settings.additionalArgs.split(' ') : [];
-        const gcTuning = settings.gcTuning ? settings.gcTuning.split(' ') : [];
-        const flightRecorder = settings.flightRecorderOptions ? settings.flightRecorderOptions.split(' ') : [];
-        const customFlags = settings.customFlags ? settings.customFlags.split(' ') : [];
-        
-        const allArgs = [...currentArgs, ...additionalArgs, ...gcTuning, ...flightRecorder, ...customFlags].filter(Boolean);
-        
-        await updateSettings(serverId, { jvmArgs: allArgs });
+      // Update server settings based on the changed field
+      const currentServerSettings = serverSettings[serverId] || {};
+      
+      if (key === 'maxHeapSize') {
+        // Extract numeric value from string like "4G" -> 4096
+        const memoryValue = parseInt(value.replace(/[^\d]/g, '')) * (value.includes('G') ? 1024 : 1);
+        await updateSettings(serverId, {
+          ...currentServerSettings,
+          jvm: {
+            ...currentServerSettings.jvm,
+            memory: memoryValue
+          }
+        });
+      } else if (key === 'customJvmArgs') {
+        // Update JVM flags
+        const flags = value ? value.split(' ').filter(Boolean) : [];
+        await updateSettings(serverId, {
+          ...currentServerSettings,
+          jvm: {
+            ...currentServerSettings.jvm,
+            flags: flags
+          }
+        });
       }
     } catch (error) {
       console.error('Failed to update JVM settings:', error);

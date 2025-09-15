@@ -93,7 +93,7 @@ export const HASettings: React.FC = () => {
   const { 
     fetchSettings, 
     updateSettings,
-    settings 
+    settings: serverSettings 
   } = useServers();
   
   const [settings, setSettings] = useState<HASettingsData>({
@@ -186,8 +186,8 @@ export const HASettings: React.FC = () => {
 
   // Sync settings with server store data
   useEffect(() => {
-    if (serverId && settings[serverId]) {
-      const serverData = settings[serverId];
+    if (serverId && serverSettings[serverId]) {
+      const serverData = serverSettings[serverId];
       if (serverData.ha) {
         setSettings(prev => ({
           ...prev,
@@ -204,9 +204,15 @@ export const HASettings: React.FC = () => {
     
     try {
       // Update server configuration
+      const currentServerSettings = serverSettings[serverId] || {};
       await updateSettings(serverId, {
+        ...currentServerSettings,
         ha: {
-          ...settings,
+          ...currentServerSettings.ha,
+          enabled: settings.enableHA,
+          restart_delay_seconds: 30,
+          max_restarts: 5,
+          health_check_interval: settings.healthCheckInterval || 5000,
           [key]: value
         }
       });

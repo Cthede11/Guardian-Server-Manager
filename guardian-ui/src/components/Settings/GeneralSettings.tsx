@@ -72,7 +72,7 @@ export const GeneralSettings: React.FC = () => {
   const { 
     fetchSettings, 
     updateSettings,
-    settings 
+    settings: serverSettings 
   } = useServers();
   
   const [settings, setSettings] = useState<GeneralSettingsData>({
@@ -144,14 +144,23 @@ export const GeneralSettings: React.FC = () => {
 
   // Sync settings with server store data
   useEffect(() => {
-    if (serverId && settings[serverId]) {
-      const serverData = settings[serverId];
+    if (serverId && serverSettings[serverId]) {
+      const serverData = serverSettings[serverId];
       if (serverData.general) {
         setSettings(prev => ({
           ...prev,
-          ...serverData.general,
           serverName: serverData.general.name || prev.serverName,
           serverDescription: serverData.general.description || prev.serverDescription,
+          maxPlayers: serverData.general.max_players || prev.maxPlayers,
+          motd: serverData.general.motd || prev.motd,
+          difficulty: (serverData.general.difficulty as "normal" | "peaceful" | "easy" | "hard") || prev.difficulty,
+          gamemode: (serverData.general.gamemode as "survival" | "creative" | "adventure" | "spectator") || prev.gamemode,
+          pvp: serverData.general.pvp ?? prev.pvp,
+          onlineMode: serverData.general.online_mode ?? prev.onlineMode,
+          whitelist: serverData.general.whitelist ?? prev.whitelist,
+          enableCommandBlock: serverData.general.enable_command_block ?? prev.enableCommandBlock,
+          viewDistance: serverData.general.view_distance || prev.viewDistance,
+          simulationDistance: serverData.general.simulation_distance || prev.simulationDistance,
         }));
       }
     }
@@ -289,10 +298,28 @@ export const GeneralSettings: React.FC = () => {
           break;
       }
       
-      // Update server.properties file
-      if (Object.keys(serverProperties).length > 0) {
-        await updateSettings(serverId, { properties: serverProperties });
-      }
+      // Update server settings
+      const currentServerSettings = serverSettings[serverId] || {};
+      await updateSettings(serverId, {
+        ...currentServerSettings,
+        general: {
+          ...currentServerSettings.general,
+          name: settings.serverName,
+          description: settings.serverDescription,
+          version: currentServerSettings.general?.version || '1.20.1',
+          loader: currentServerSettings.general?.loader || 'vanilla',
+          max_players: settings.maxPlayers,
+          motd: settings.motd,
+          difficulty: settings.difficulty,
+          gamemode: settings.gamemode,
+          pvp: settings.pvp,
+          online_mode: settings.onlineMode,
+          whitelist: settings.whitelist,
+          enable_command_block: settings.enableCommandBlock,
+          view_distance: settings.viewDistance,
+          simulation_distance: settings.simulationDistance
+        }
+      });
     } catch (error) {
       console.error('Failed to update server properties:', error);
     }
