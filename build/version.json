@@ -1,6 +1,6 @@
 ﻿{
-    "build_date":  "2025-10-03 13:52:58",
-    "git_commit":  "747712d",
+    "build_date":  "2025-10-03 14:44:11",
+    "git_commit":  "b74f942",
     "fixes_applied":  [
                           "Console window elimination",
                           "Backend connection race condition fixes",
