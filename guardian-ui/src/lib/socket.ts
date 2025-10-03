@@ -83,7 +83,7 @@ class SocketManager {
 
     // Handle server-specific events with batching
     this.socket.on('metrics', (payload: { serverId: string; data: any }) => {
-      const selectedId = useServers.getState().selectedServerId;
+      const selectedId = useServers.getState().selectedId;
       if (payload.serverId === selectedId) {
         batchUpdate(() => {
           liveStore.getState().applyMetrics(payload.serverId, payload.data);
@@ -92,7 +92,7 @@ class SocketManager {
     });
 
     this.socket.on('console', (payload: { serverId: string; lines: any[] }) => {
-      const selectedId = useServers.getState().selectedServerId;
+      const selectedId = useServers.getState().selectedId;
       if (payload.serverId === selectedId) {
         batchUpdate(() => {
           liveStore.getState().appendConsole(payload.serverId, payload.lines);
@@ -101,7 +101,7 @@ class SocketManager {
     });
 
     this.socket.on('players', (payload: { serverId: string; players: any[] }) => {
-      const selectedId = useServers.getState().selectedServerId;
+      const selectedId = useServers.getState().selectedId;
       if (payload.serverId === selectedId) {
         batchUpdate(() => {
           liveStore.getState().updatePlayers(payload.serverId, payload.players);
@@ -110,7 +110,7 @@ class SocketManager {
     });
 
     this.socket.on('freezes', (payload: { serverId: string; freezes: any[] }) => {
-      const selectedId = useServers.getState().selectedServerId;
+      const selectedId = useServers.getState().selectedId;
       if (payload.serverId === selectedId) {
         batchUpdate(() => {
           liveStore.getState().updateFreezes(payload.serverId, payload.freezes);
@@ -119,7 +119,7 @@ class SocketManager {
     });
 
     this.socket.on('pregen', (payload: { serverId: string; jobs: any[] }) => {
-      const selectedId = useServers.getState().selectedServerId;
+      const selectedId = useServers.getState().selectedId;
       if (payload.serverId === selectedId) {
         batchUpdate(() => {
           liveStore.getState().updatePregenJobs(payload.serverId, payload.jobs);
@@ -163,21 +163,21 @@ class SocketManager {
         
         // Handle server-specific events with batching
         if (data.type === 'metrics' && data.serverId) {
-          const selectedId = useServers.getState().selectedServerId;
+          const selectedId = useServers.getState().selectedId;
           if (data.serverId === selectedId) {
             batchUpdate(() => {
               liveStore.getState().applyMetrics(data.serverId, data.data);
             });
           }
         } else if (data.type === 'console' && data.serverId) {
-          const selectedId = useServers.getState().selectedServerId;
+          const selectedId = useServers.getState().selectedId;
           if (data.serverId === selectedId) {
             batchUpdate(() => {
               liveStore.getState().appendConsole(data.serverId, data.lines);
             });
           }
         } else if (data.type === 'players' && data.serverId) {
-          const selectedId = useServers.getState().selectedServerId;
+          const selectedId = useServers.getState().selectedId;
           if (data.serverId === selectedId) {
             batchUpdate(() => {
               liveStore.getState().updatePlayers(data.serverId, data.players);

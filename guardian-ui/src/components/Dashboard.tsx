@@ -44,7 +44,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ className }) => {
       // Connect to real-time updates
       realtimeConnection.connect(selectedServerId).then(() => {
         setIsConnected(true);
-      }).catch(error => {
+      }).catch((error: any) => {
         errorHandler.handleError(error, 'WebSocket Connection');
       });
 
