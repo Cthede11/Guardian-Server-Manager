@@ -1,7 +1,55 @@
 use crate::dto::*;
 use tauri::AppHandle;
 use std::collections::HashMap;
+use reqwest;
 use log;
+
+// HTTP request command for frontend
+#[tauri::command]
+pub async fn make_http_request(url: String, method: String, body: Option<String>) -> Result<String, String> {
+    log::info!("Tauri HTTP command called: {} {}", method, url);
+    
+    let client = reqwest::Client::new();
+    
+    let mut request = match method.to_uppercase().as_str() {
+        "GET" => client.get(&url),
+        "POST" => client.post(&url),
+        "PUT" => client.put(&url),
+        "DELETE" => client.delete(&url),
+        "PATCH" => client.patch(&url),
+        _ => return Err("Unsupported HTTP method".to_string()),
+    };
+    
+    if let Some(body_data) = body {
+        request = request.header("Content-Type", "application/json").body(body_data);
+    }
+    
+    log::info!("Sending HTTP request to: {}", url);
+    
+    let response = request.send().await
+        .map_err(|e| {
+            log::error!("HTTP request failed: {}", e);
+            format!("HTTP request failed: {}", e)
+        })?;
+    
+    let status = response.status();
+    log::info!("HTTP response status: {}", status);
+    
+    let response_text = response.text().await
+        .map_err(|e| {
+            log::error!("Failed to read response: {}", e);
+            format!("Failed to read response: {}", e)
+        })?;
+    
+    log::info!("HTTP response body: {}", response_text);
+    
+    if !status.is_success() {
+        log::error!("HTTP error {}: {}", status, response_text);
+        return Err(format!("HTTP {}: {}", status, response_text));
+    }
+    
+    Ok(response_text)
+}
 
 // Server management commands
 #[tauri::command]
@@ -398,4 +446,27 @@ pub struct CreateEventRequest {
     pub description: String,
     pub scheduled_at: String,
     pub actions: Vec<String>,
+}
+
+// Backend connection command
+#[tauri::command]
+pub async fn get_backend_url() -> Result<String, String> {
+    log::info!("get_backend_url command called");
+    // Try to find existing healthy backend first
+    for port in 52100..=52150 {
+        let url = format!("http://127.0.0.1:{}/healthz", port);
+        log::info!("Trying port: {}", port);
+        if let Ok(resp) = reqwest::get(&url).await {
+            log::info!("Response status: {}", resp.status());
+            if resp.status().is_success() {
+                let result = format!("http://127.0.0.1:{}", port);
+                log::info!("Found healthy backend at: {}", result);
+                return Ok(result);
+            }
+        } else {
+            log::info!("Failed to connect to port: {}", port);
+        }
+    }
+    log::error!("No healthy backend found in port range 52100-52150");
+    Err("No healthy backend found".to_string())
 }

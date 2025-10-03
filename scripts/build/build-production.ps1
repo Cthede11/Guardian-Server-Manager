@@ -8,7 +8,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$ProjectRoot = Split-Path -Parent $PSScriptRoot
+$ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 
 Write-Host "=== GUARDIAN PRODUCTION BUILD ===" -ForegroundColor Green
 Write-Host "Project Root: $ProjectRoot" -ForegroundColor Cyan

@@ -1,11 +1,14 @@
 ﻿{
-    "build_date":  "2025-09-11 09:18:15",
-    "git_commit":  "c4377c1",
+    "build_date":  "2025-10-03 13:52:58",
+    "git_commit":  "747712d",
     "fixes_applied":  [
                           "Console window elimination",
                           "Backend connection race condition fixes",
                           "Process cleanup on app termination",
-                          "Professional startup experience"
+                          "Professional startup experience",
+                          "Tauri webview security fixes",
+                          "HTTP request command implementation",
+                          "Enhanced debugging and logging"
                       ],
     "version":  "1.0.0",
     "build_environment":  "production"

@@ -15,7 +15,7 @@ Write-Host "Building Guardian Minecraft Server Manager with all fixes applied" -
 $ErrorActionPreference = "Stop"
 
 # Get the project root directory
-$ProjectRoot = Split-Path -Parent $PSScriptRoot
+$ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 Write-Host "Project root: $ProjectRoot" -ForegroundColor Blue
 
 # Function to log with timestamp
@@ -58,11 +58,11 @@ Write-Log "All prerequisites found" "SUCCESS"
 if (-not $SkipCleanup) {
     Write-Log "Running cleanup..." "BUILD"
     try {
-        & "$PSScriptRoot/cleanup.ps1"
+        & "$ProjectRoot\scripts\cleanup.ps1"
         Write-Log "Cleanup completed successfully" "SUCCESS"
     } catch {
         Write-Log "Cleanup failed: $($_.Exception.Message)" "ERROR"
-        exit 1
+        Write-Log "Continuing without cleanup..." "WARN"
     }
 }
 
@@ -71,7 +71,7 @@ Write-Log "Building all components..." "BUILD"
 
 # 1. Build hostd backend
 Write-Log "Building hostd backend..." "BUILD"
-Set-Location "$ProjectRoot/hostd"
+Set-Location "$ProjectRoot\hostd"
 try {
     $CargoArgs = @("build", "--release")
     if ($Verbose) { $CargoArgs += "--verbose" }
@@ -91,7 +91,7 @@ try {
 
 # 2. Build GPU worker
 Write-Log "Building GPU worker..." "BUILD"
-Set-Location "$ProjectRoot/gpu-worker"
+Set-Location "$ProjectRoot\gpu-worker"
 try {
     $CargoArgs = @("build", "--release")
     if ($Verbose) { $CargoArgs += "--verbose" }
@@ -111,7 +111,7 @@ try {
 
 # 3. Build Guardian UI frontend
 Write-Log "Building Guardian UI frontend..." "BUILD"
-Set-Location "$ProjectRoot/guardian-ui"
+Set-Location "$ProjectRoot\guardian-ui"
 try {
     # Install dependencies
     Write-Log "Installing frontend dependencies..." "BUILD"
@@ -145,8 +145,8 @@ $ConfigFiles = @(
 )
 
 foreach ($config in $ConfigFiles) {
-    $SourcePath = "$ProjectRoot/$config"
-    $DestPath = "$ProjectRoot/build/executables/$config"
+    $SourcePath = "$ProjectRoot\$config"
+    $DestPath = "$ProjectRoot\build/executables/$config"
     
     if (Test-Path $SourcePath) {
         $DestDir = Split-Path $DestPath -Parent
@@ -162,18 +162,35 @@ foreach ($config in $ConfigFiles) {
 
 # 5. Build Tauri application
 Write-Log "Building Tauri application..." "BUILD"
-Set-Location "$ProjectRoot/guardian-ui"
+Set-Location "$ProjectRoot\guardian-ui"
 try {
     # Copy executables to Tauri directory
-    Copy-Item "$ProjectRoot/hostd/target/release/hostd.exe" "src-tauri/" -Force
-    Copy-Item "$ProjectRoot/gpu-worker/target/release/gpu-worker.exe" "src-tauri/" -Force
+    if (Test-Path "$ProjectRoot\hostd/target/release/hostd.exe") {
+        Copy-Item "$ProjectRoot\hostd/target/release/hostd.exe" "src-tauri/" -Force
+        Write-Log "Copied hostd.exe to Tauri directory" "BUILD"
+    } else {
+        Write-Log "Warning: hostd.exe not found for Tauri build" "WARN"
+    }
+    
+    if (Test-Path "$ProjectRoot\gpu-worker/target/release/gpu-worker.exe") {
+        Copy-Item "$ProjectRoot\gpu-worker/target/release/gpu-worker.exe" "src-tauri/" -Force
+        Write-Log "Copied gpu-worker.exe to Tauri directory" "BUILD"
+    } else {
+        Write-Log "Warning: gpu-worker.exe not found for Tauri build" "WARN"
+    }
     
     # Copy configs to Tauri directory
     $TauriConfigDir = "src-tauri/configs"
     if (-not (Test-Path $TauriConfigDir)) {
         New-Item -ItemType Directory -Path $TauriConfigDir -Force | Out-Null
     }
-    Copy-Item "$ProjectRoot/configs/*" $TauriConfigDir -Force
+    
+    if (Test-Path "$ProjectRoot\configs") {
+        Copy-Item "$ProjectRoot\configs/*" $TauriConfigDir -Force
+        Write-Log "Copied config files to Tauri directory" "BUILD"
+    } else {
+        Write-Log "Warning: configs directory not found" "WARN"
+    }
     
     # Build Tauri app
     Write-Log "Building Tauri application..." "BUILD"
@@ -207,25 +224,25 @@ foreach ($Dir in $BuildDirs) {
 }
 
 # Copy backend executables
-$BackendBinary = "$ProjectRoot/hostd/target/release/hostd.exe"
-$GpuWorkerBinary = "$ProjectRoot/gpu-worker/target/release/gpu-worker.exe"
+$BackendBinary = "$ProjectRoot\hostd/target/release/hostd.exe"
+$GpuWorkerBinary = "$ProjectRoot\gpu-worker/target/release/gpu-worker.exe"
 
 if (Test-Path $BackendBinary) {
-    Copy-Item $BackendBinary "$ProjectRoot/build/executables/hostd.exe" -Force
+    Copy-Item $BackendBinary "$ProjectRoot\build/executables/hostd.exe" -Force
     Write-Log "Copied hostd.exe to build/executables/" "SUCCESS"
 } else {
     Write-Log "Warning: hostd.exe not found" "WARN"
 }
 
 if (Test-Path $GpuWorkerBinary) {
-    Copy-Item $GpuWorkerBinary "$ProjectRoot/build/executables/gpu-worker.exe" -Force
+    Copy-Item $GpuWorkerBinary "$ProjectRoot\build/executables/gpu-worker.exe" -Force
     Write-Log "Copied gpu-worker.exe to build/executables/" "SUCCESS"
 } else {
     Write-Log "Warning: gpu-worker.exe not found" "WARN"
 }
 
 # Copy Tauri installers
-$TauriDistDir = "$ProjectRoot/guardian-ui/src-tauri/target/release/bundle"
+$TauriDistDir = "$ProjectRoot\guardian-ui/src-tauri/target/release/bundle"
 if (Test-Path $TauriDistDir) {
     $BundleDirs = Get-ChildItem -Path $TauriDistDir -Directory
     foreach ($BundleDir in $BundleDirs) {
@@ -234,7 +251,7 @@ if (Test-Path $TauriDistDir) {
         
         # Copy all files from the bundle to installers directory
         $BundleName = $BundleDir.Name
-        $TargetDir = "$ProjectRoot/build/installers/$BundleName"
+        $TargetDir = "$ProjectRoot\build/installers/$BundleName"
         New-Item -ItemType Directory -Path $TargetDir -Force | Out-Null
         Copy-Item "$BundlePath/*" $TargetDir -Recurse -Force
         
@@ -252,8 +269,8 @@ $LauncherFiles = @(
 )
 
 foreach ($launcher in $LauncherFiles) {
-    if (Test-Path "$ProjectRoot/$launcher") {
-        Copy-Item "$ProjectRoot/$launcher" "$ProjectRoot/build/" -Force
+    if (Test-Path "$ProjectRoot\$launcher") {
+        Copy-Item "$ProjectRoot\$launcher" "$ProjectRoot\build/" -Force
         Write-Log "Copied $launcher" "SUCCESS"
     }
 }
@@ -271,11 +288,14 @@ $VersionInfo = @{
         "Console window elimination",
         "Backend connection race condition fixes", 
         "Process cleanup on app termination",
-        "Professional startup experience"
+        "Professional startup experience",
+        "Tauri webview security fixes",
+        "HTTP request command implementation",
+        "Enhanced debugging and logging"
     )
 }
 
-$VersionInfo | ConvertTo-Json | Out-File "$ProjectRoot/build/version.json" -Encoding UTF8
+$VersionInfo | ConvertTo-Json | Out-File "$ProjectRoot\build/version.json" -Encoding UTF8
 Write-Log "Version information created" "SUCCESS"
 
 # 9. Create build summary
@@ -288,19 +308,22 @@ Version: $($VersionInfo.version)
 Git Commit: $($VersionInfo.git_commit)
 
 Built Components:
-- hostd.exe (Backend with process fixes)
+- hostd.exe (Backend with CORS and process fixes)
 - gpu-worker.exe (GPU Worker with process fixes)
-- Guardian UI (Frontend with race condition fixes)
-- Tauri Application (Desktop App with cleanup handlers)
+- Guardian UI (Frontend with Tauri HTTP command integration)
+- Tauri Application (Desktop App with HTTP command and cleanup handlers)
 
 Fixes Applied:
 - Console window elimination (CREATE_NO_WINDOW flag)
 - Backend connection race condition prevention
 - Process cleanup on app termination
 - Professional startup experience
+- Tauri webview security restrictions bypass
+- HTTP request command implementation
+- Enhanced debugging and error logging
 
 Installers:
-$(Get-ChildItem "$ProjectRoot/build/installers" -Recurse -Name | ForEach-Object { "- $_" })
+$(Get-ChildItem "$ProjectRoot\build/installers" -Recurse -Name | ForEach-Object { "- $_" })
 
 Launchers:
 - start-guardian-with-backend.ps1 (PowerShell with process cleanup)
@@ -309,14 +332,14 @@ Launchers:
 Build completed successfully!
 "@
 
-$BuildSummary | Out-File "$ProjectRoot/build/BUILD_SUMMARY.txt" -Encoding UTF8
+$BuildSummary | Out-File "$ProjectRoot\build/BUILD_SUMMARY.txt" -Encoding UTF8
 Write-Log "Build summary created" "SUCCESS"
 
 # Final success message
 Write-Log "=== BUILD COMPLETED SUCCESSFULLY ===" "SUCCESS"
-Write-Log "Build artifacts are in: $ProjectRoot/build" "BUILD"
-Write-Log "Installers are in: $ProjectRoot/build/installers" "BUILD"
-Write-Log "Executables are in: $ProjectRoot/build/executables" "BUILD"
+Write-Log "Build artifacts are in: $ProjectRoot\build" "BUILD"
+Write-Log "Installers are in: $ProjectRoot\build/installers" "BUILD"
+Write-Log "Executables are in: $ProjectRoot\build/executables" "BUILD"
 
 # Show build summary
 Write-Host ""

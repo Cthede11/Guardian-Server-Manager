@@ -39,7 +39,7 @@ Build and runtime logs:
 
 ## Usage
 
-- **Development**: Run `scripts/build-desktop.ps1` to build and organize artifacts
+- **Development**: Run `scripts/build/build-desktop.ps1` to build and organize artifacts
 - **Cleanup**: Run `scripts/cleanup.ps1` to clean up temporary files and organize artifacts
 - **Installation**: Use the installers in the `installers/` directory
 

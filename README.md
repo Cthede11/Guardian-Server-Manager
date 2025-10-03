@@ -203,7 +203,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Documentation**: See the [docs/](docs/) directory
 - **Issues**: Report bugs via GitHub Issues
 - **Discussions**: Use GitHub Discussions for questions
-- **API Setup**: See [API_SETUP.md](API_SETUP.md) for detailed API configuration
+- **API Setup**: See [API_SETUP.md](docs/API_SETUP.md) for detailed API configuration
 
 ## Roadmap
 

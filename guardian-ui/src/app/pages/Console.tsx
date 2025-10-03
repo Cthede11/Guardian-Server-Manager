@@ -85,18 +85,9 @@ export default function Console() {
   const testAPI = async () => {
     console.log('Testing API connection...');
     try {
-      const { getAPI_BASE } = await import('../../lib/api');
-      const base = await getAPI_BASE();
-      const response = await fetch(`${base}/healthz`);
-      console.log('API Response Status:', response.status, response.statusText);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ API returned error status:', response.status, errorText);
-        return;
-      }
-      
-      const data = await response.json();
+      // Use the API client instead of direct fetch
+      const { api } = await import('../../lib/api');
+      const data = await api('/healthz') as { ok: boolean; port?: number; pid?: number; error?: string };
       console.log('API Health Check Response:', data);
       
       if (data.ok) {
@@ -106,12 +97,25 @@ export default function Console() {
         console.error('❌ API returned error:', data.error || 'Unknown error');
       }
     } catch (error) {
-      console.error('❌ API connection failed:', error);
-      console.error('Error details:', {
-        name: error instanceof Error ? error.name : 'Unknown',
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      });
+      console.error('❌ API Test Failed:', error);
+      
+      // Enhanced error logging
+      if (error instanceof Error) {
+        console.error('Error Type:', error.name);
+        console.error('Error Message:', error.message);
+        if (error.stack) {
+          console.error('Error Stack:', error.stack);
+        }
+      } else {
+        console.error('Unknown Error Type:', typeof error);
+        console.error('Error Value:', error);
+      }
+      
+      // Check if it's a network error
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        console.error('🔍 Network Error Detected - Backend may not be running or accessible');
+        console.error('💡 Troubleshooting: Check if hostd.exe is running on port 52100');
+      }
     }
   };
 

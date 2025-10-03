@@ -713,12 +713,10 @@ export const Sidebar: React.FC = () => {
             onClick={async () => {
               console.log('Testing API connection...');
               try {
-                const { getAPI_BASE } = await import('../../lib/api');
-                const base = await getAPI_BASE();
-                const response = await fetch(`${base}/api/health`);
-                const data = await response.json();
+                const { api } = await import('../../lib/api');
+                const data = await api('/healthz') as { ok?: boolean; [key: string]: any };
                 console.log('API Health Check:', data);
-                alert(`API Status: ${data.success ? 'OK' : 'Error'}\nData: ${JSON.stringify(data)}`);
+                alert(`API Status: ${data.ok ? 'OK' : 'Error'}\nData: ${JSON.stringify(data)}`);
               } catch (error) {
                 console.error('API Test Failed:', error);
                 alert(`API Test Failed: ${error}`);

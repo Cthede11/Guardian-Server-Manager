@@ -114,7 +114,7 @@ $ProcessStartInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
 - Proper bundle configuration for production deployment
 
 ### 4.2 Comprehensive Build Script
-**File:** `scripts/build-production.ps1`
+**File:** `scripts/build/build-production.ps1`
 
 **Features:**
 - Builds all components with proper error handling
@@ -124,7 +124,7 @@ $ProcessStartInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
 - Comprehensive error handling and logging
 
 ### 4.3 Production Testing Script
-**File:** `scripts/test-production.ps1`
+**File:** `scripts/test/test-production.ps1`
 
 **Features:**
 - Tests for console window elimination
@@ -176,8 +176,8 @@ $ProcessStartInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
 ### Important Files (Phase 2-4)
 - `guardian-ui/src-tauri/tauri.conf.json` - Tauri configuration
 - `launchers/start-guardian-production.bat` - Production batch launcher
-- `scripts/build-production.ps1` - Comprehensive build script
-- `scripts/test-production.ps1` - Production testing script
+- `scripts/build/build-production.ps1` - Comprehensive build script
+- `scripts/test/test-production.ps1` - Production testing script
 
 ## Testing Instructions
 

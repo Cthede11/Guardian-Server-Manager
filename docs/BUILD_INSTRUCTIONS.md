@@ -2,7 +2,7 @@
 
 ## Enhanced Build Script
 
-The `scripts/build-all.ps1` script has been enhanced to build the full Guardian Minecraft Server Manager application with all the critical fixes applied.
+The `scripts/build/build-all.ps1` script has been enhanced to build the full Guardian Minecraft Server Manager application with all the critical fixes applied.
 
 ## Features
 

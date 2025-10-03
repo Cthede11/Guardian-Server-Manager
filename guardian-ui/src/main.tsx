@@ -89,9 +89,14 @@ async function testBackendConnection() {
         console.log('✅ API base URL updated to:', baseFromTauri);
       }
       
-      // Initialize servers list
+      // Initialize servers list using Tauri commands instead of HTTP
       const { useServers } = await import('./store/servers-new');
-      useServers.getState().fetchServers();
+      try {
+        await useServers.getState().fetchServers();
+        console.log('✅ Servers list initialized successfully');
+      } catch (error) {
+        console.log('⚠️ Servers list initialization failed, but continuing:', error);
+      }
     } else {
       console.log('⚠️ Not in Tauri context, skipping backend connection test');
     }

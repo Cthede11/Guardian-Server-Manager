@@ -31,15 +31,25 @@ export async function getAPI_BASE(): Promise<string> {
   const env = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/,"");
   if (env && await ping(env)) return (cachedBase = env);
 
+  // For Tauri applications, use the known backend port
+  if ((window as any).__TAURI__) {
+    console.log('Tauri detected, using known backend port 52100');
+    const backendUrl = 'http://127.0.0.1:52100';
+    if (await ping(backendUrl)) {
+      console.log('Backend found at:', backendUrl);
+      return (cachedBase = backendUrl);
+    } else {
+      console.log('Backend not responding on port 52100');
+    }
+  }
+
+  // Fallback to port scanning for non-Tauri environments
   for (const p of candidatePorts()) {
     const base = `http://127.0.0.1:${p}`;
     if (await ping(base)) return (cachedBase = base);
   }
-  // last fallback – try what backend wrote last time
-  try {
-    // If using Tauri, you can expose a readTextFile to get backend_port.txt; skip here if not available
-  } catch {}
-  // give up to default range start (frontend will still show banner if health fails)
+  
+  // Last fallback
   return (cachedBase = `http://127.0.0.1:${DEF_MIN}`);
 }
 
@@ -65,14 +75,40 @@ getAPI_BASE().then(base => {
 });
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  // Get the backend URL and make HTTP requests via Tauri command
   const base = await getAPI_BASE();
-  const res = await fetch(`${base}${path}`, { headers: { "Content-Type":"application/json", ...(init?.headers||{}) }, ...init });
-  if (!res.ok) {
-    let err: any = { status: res.status, message: res.statusText };
-    try { err = await res.json(); } catch {}
-    throw err;
+  console.log('Making API request to:', `${base}${path}`);
+  
+  try {
+    // Use Tauri command for HTTP requests to bypass webview security restrictions
+    const { invoke } = await import('@tauri-apps/api/core');
+    
+    const method = init?.method || 'GET';
+    const body = init?.body ? JSON.stringify(init.body) : undefined;
+    
+    console.log('Calling Tauri command with:', { url: `${base}${path}`, method, body });
+    
+    const response = await invoke<string>('make_http_request', {
+      url: `${base}${path}`,
+      method: method,
+      body: body
+    });
+    
+    console.log('Tauri command response:', response);
+    
+    return response ? JSON.parse(response) as T : (undefined as T);
+  } catch (error) {
+    // Enhanced error logging for debugging
+    console.error('API request failed:', {
+      url: `${base}${path}`,
+      error: error instanceof Error ? {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      } : error
+    });
+    throw error;
   }
-  return res.status === 204 ? (undefined as T) : await res.json() as T;
 }
 
 // Internal API function

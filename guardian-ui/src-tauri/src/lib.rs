@@ -91,7 +91,17 @@ async fn start_backend_internal() -> Result<String, String> {
 
     // 2) Spawn sidecar hostd with no console window
     log_debug("No existing backend found, spawning sidecar hostd...");
-    let mut cmd = Command::new("hostd");
+    
+    // Get the hostd executable path
+    let hostd_path = match get_resource_path_for_backend() {
+        Ok(path) => path,
+        Err(e) => {
+            log_debug(&format!("Failed to find hostd.exe: {}", e));
+            return Err(format!("Failed to find hostd.exe: {}", e));
+        }
+    };
+    
+    let mut cmd = Command::new(&hostd_path);
     
     // CRITICAL: Use this pattern for ALL process spawning
     cmd.stdin(Stdio::null())
@@ -177,16 +187,18 @@ fn start_hostd_service<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> Resul
 
     // Start hostd process
     let mut hostd_cmd = Command::new(&hostd_path);
-    hostd_cmd
-        .arg("--config")
-        .arg(get_resource_path(handle, "configs/hostd.yaml").unwrap_or_else(|_| "configs/hostd.yaml".into()))
-        .arg("--database")
-        .arg(format!("sqlite:{}", data_dir.join("guardian.db").display()));
+    // hostd doesn't use command line arguments - it has its own configuration logic
+    
+    // Create log file for backend output
+    let log_file = std::fs::File::create(data_dir.join("hostd.log"))
+        .map_err(|e| format!("Failed to create hostd.log: {}", e))?;
+    let log_file_clone = log_file.try_clone()
+        .map_err(|e| format!("Failed to clone log file: {}", e))?;
     
     // CRITICAL: Use this pattern for ALL process spawning
     hostd_cmd.stdin(Stdio::null())
-              .stdout(Stdio::null())
-              .stderr(Stdio::null());
+              .stdout(Stdio::from(log_file))
+              .stderr(Stdio::from(log_file_clone));
 
     #[cfg(target_os = "windows")]
     {
@@ -229,12 +241,22 @@ fn start_gpu_worker_service<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> 
 
     log_debug(&format!("Starting GPU worker process from: {:?}", gpu_worker_path));
 
+    // Create data directories for GPU worker
+    let data_dir = dirs::data_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join("Guardian").join("data");
+    fs::create_dir_all(&data_dir).map_err(|e| format!("Failed to create data directory: {}", e))?;
+
     let mut gpu_worker_cmd = Command::new(&gpu_worker_path);
+    
+    // Create log file for GPU worker output
+    let gpu_log_file = std::fs::File::create(data_dir.join("gpu-worker.log"))
+        .map_err(|e| format!("Failed to create gpu-worker.log: {}", e))?;
+    let gpu_log_file_clone = gpu_log_file.try_clone()
+        .map_err(|e| format!("Failed to clone GPU worker log file: {}", e))?;
     
     // CRITICAL: Use this pattern for ALL process spawning
     gpu_worker_cmd.stdin(Stdio::null())
-                   .stdout(Stdio::null())
-                   .stderr(Stdio::null());
+                   .stdout(Stdio::from(gpu_log_file))
+                   .stderr(Stdio::from(gpu_log_file_clone));
 
     #[cfg(target_os = "windows")]
     {
@@ -275,6 +297,30 @@ fn get_resource_path<R: tauri::Runtime>(handle: &tauri::AppHandle<R>, resource: 
     }
     
     Err(format!("Resource not found: {}", resource).into())
+}
+
+// Resource path resolution for backend startup (without Tauri handle)
+fn get_resource_path_for_backend() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    // Try to find hostd.exe in common locations
+    let possible_paths = vec![
+        // In the same directory as the executable
+        std::env::current_exe()?.parent().unwrap().join("hostd.exe"),
+        // In a resources subdirectory
+        std::env::current_exe()?.parent().unwrap().join("resources").join("hostd.exe"),
+        // In the current working directory
+        std::env::current_dir()?.join("hostd.exe"),
+        // In a build directory
+        std::env::current_dir()?.join("build").join("executables").join("hostd.exe"),
+    ];
+    
+    for path in possible_paths {
+        if path.exists() {
+            log_debug(&format!("Found hostd.exe at: {:?}", path));
+            return Ok(path);
+        }
+    }
+    
+    Err("hostd.exe not found in any expected location".into())
 }
 
 // Open server folder command
@@ -423,6 +469,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             start_backend,
             ensure_backend,
+            commands::get_backend_url,
+            commands::make_http_request,
             open_server_folder,
             // Server management
             commands::get_server_summary,

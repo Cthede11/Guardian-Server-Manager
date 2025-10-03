@@ -1,6 +1,7 @@
 use axum::{routing::{get, post, patch, delete}, Router, Json, extract::Path, http::StatusCode};
 use tracing_subscriber::{fmt, EnvFilter};
 use serde::{Deserialize, Serialize};
+use tower_http::cors::{CorsLayer, Any};
 mod routes;
 mod boot;
 
@@ -68,8 +69,14 @@ async fn main() {
 
     let app = Router::new()
         .nest("/api", core.clone())
-        .merge(core);
-    println!("App router created");
+        .merge(core)
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any)
+        );
+    println!("App router created with CORS support");
 
     // Bind with retry logic
     println!("Binding to port {}...", port);
