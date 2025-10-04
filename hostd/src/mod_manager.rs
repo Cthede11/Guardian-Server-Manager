@@ -1,50 +1,478 @@
-use anyhow::Result;
 use std::collections::HashMap;
-use std::path::Path;
-use tokio::fs;
-use tracing::{info, warn, error, debug};
-use sha1::{Sha1, Digest};
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
+use uuid::Uuid;
+use reqwest::Client;
 
-use crate::external_apis::{ModrinthApiClient, CurseForgeApiClient};
-use crate::database::{DatabaseManager, ModInfo, ModVersion, ModDependency, ModConflict, Mod};
-use crate::compatibility_engine::{CompatibilityIssue, CompatibilityReport};
-use crate::version_manager::ModLoader;
+/// Mod information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModInfo {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub author: String,
+    pub version: String,
+    pub minecraft_version: String,
+    pub loader: String,
+    pub category: String,
+    pub side: String, // client, server, both
+    pub download_url: Option<String>,
+    pub file_size: Option<u64>,
+    pub sha1: Option<String>,
+    pub dependencies: Vec<ModDependency>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
 
-/// Mod manager service for handling mod operations
+/// Mod dependency
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModDependency {
+    pub mod_id: String,
+    pub version_range: String,
+    pub required: bool,
+}
+
+/// Installed mod
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InstalledMod {
+    pub id: String,
+    pub mod_info: ModInfo,
+    pub server_id: String,
+    pub file_path: String,
+    pub installed_at: DateTime<Utc>,
+    pub enabled: bool,
+    pub version: String,
+}
+
+/// Mod installation result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModInstallationResult {
+    pub success: bool,
+    pub mod_id: String,
+    pub message: String,
+    pub installed_mod: Option<InstalledMod>,
+    pub errors: Vec<String>,
+}
+
+/// Mod compatibility check result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModCompatibilityResult {
+    pub compatible: bool,
+    pub issues: Vec<CompatibilityIssue>,
+    pub warnings: Vec<String>,
+}
+
+/// Compatibility issue
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompatibilityIssue {
+    pub mod_id: String,
+    pub issue_type: String,
+    pub description: String,
+    pub severity: String, // error, warning, info
+}
+
+/// Mod manager for handling mod installation and management
 #[derive(Clone)]
 pub struct ModManager {
-    modrinth_client: ModrinthApiClient,
-    curseforge_client: CurseForgeApiClient,
-    database: DatabaseManager,
-    download_dir: String,
-}
-
-/// Mod download result
-#[derive(Debug, Clone)]
-pub struct ModDownloadResult {
-    pub mod_info: Mod,
-    pub file_path: String,
-    pub file_size: u64,
-    pub sha256: String,
-}
-
-/// Mod search result from external APIs
-#[derive(Debug, Clone)]
-pub struct ExternalModSearchResult {
-    pub mods: Vec<ModInfo>,
-    pub total: u32,
-    pub source: String,
+    /// Installed mods by server ID
+    installed_mods: Arc<RwLock<HashMap<String, Vec<InstalledMod>>>>,
+    /// Mod cache for downloaded mods
+    mod_cache: Arc<RwLock<HashMap<String, ModInfo>>>,
+    /// Base directory for mods
+    mods_base_dir: PathBuf,
+    /// HTTP client for downloading mods
+    http_client: Client,
 }
 
 impl ModManager {
-    pub fn new(database: DatabaseManager, download_dir: String, curseforge_api_key: Option<String>) -> Self {
-        let api_key = curseforge_api_key.unwrap_or_else(|| "default-key".to_string());
+    pub fn new(mods_base_dir: PathBuf) -> Self {
         Self {
-            modrinth_client: ModrinthApiClient::new(),
-            curseforge_client: CurseForgeApiClient::new(api_key),
-            database,
-            download_dir,
+            installed_mods: Arc::new(RwLock::new(HashMap::new())),
+            mod_cache: Arc::new(RwLock::new(HashMap::new())),
+            mods_base_dir,
+            http_client: Client::new(),
         }
+    }
+
+    /// Install a mod to a server
+    pub async fn install_mod(
+        &self,
+        server_id: &str,
+        mod_id: &str,
+        version: &str,
+        source: &str, // "curseforge", "modrinth", "direct"
+    ) -> Result<ModInstallationResult, Box<dyn std::error::Error>> {
+        let mut result = ModInstallationResult {
+            success: false,
+            mod_id: mod_id.to_string(),
+            message: String::new(),
+            installed_mod: None,
+            errors: Vec::new(),
+        };
+
+        // Get mod information
+        let mod_info = match self.get_mod_info(mod_id, version, source).await {
+            Ok(info) => info,
+            Err(e) => {
+                result.errors.push(format!("Failed to get mod info: {}", e));
+                return Ok(result);
+            }
+        };
+
+        // Check compatibility
+        let compatibility = self.check_mod_compatibility(server_id, &mod_info).await?;
+        if !compatibility.compatible {
+            result.errors.extend(compatibility.issues.into_iter().map(|i| i.description));
+            result.message = "Mod is not compatible with server".to_string();
+            return Ok(result);
+        }
+
+        // Download mod file
+        let mod_file_path = match self.download_mod(&mod_info).await {
+            Ok(path) => path,
+            Err(e) => {
+                result.errors.push(format!("Failed to download mod: {}", e));
+                return Ok(result);
+            }
+        };
+
+        // Install mod to server
+        let server_mods_dir = self.mods_base_dir.join(server_id).join("mods");
+        tokio::fs::create_dir_all(&server_mods_dir).await?;
+
+        let installed_file_path = server_mods_dir.join(format!("{}-{}.jar", mod_id, version));
+        tokio::fs::copy(&mod_file_path, &installed_file_path).await?;
+
+        // Create installed mod record
+        let installed_mod = InstalledMod {
+            id: Uuid::new_v4().to_string(),
+            mod_info: mod_info.clone(),
+            server_id: server_id.to_string(),
+            file_path: installed_file_path.to_string_lossy().to_string(),
+            installed_at: Utc::now(),
+            enabled: true,
+            version: version.to_string(),
+        };
+
+        // Update installed mods
+        {
+            let mut installed = self.installed_mods.write().await;
+            let server_mods = installed.entry(server_id.to_string()).or_insert_with(Vec::new);
+            server_mods.push(installed_mod.clone());
+        }
+
+        result.success = true;
+        result.message = "Mod installed successfully".to_string();
+        result.installed_mod = Some(installed_mod);
+
+        Ok(result)
+    }
+
+    /// Uninstall a mod from a server
+    pub async fn uninstall_mod(
+        &self,
+        server_id: &str,
+        mod_id: &str,
+    ) -> Result<ModInstallationResult, Box<dyn std::error::Error>> {
+        let mut result = ModInstallationResult {
+            success: false,
+            mod_id: mod_id.to_string(),
+            message: String::new(),
+            installed_mod: None,
+            errors: Vec::new(),
+        };
+
+        let mut installed = self.installed_mods.write().await;
+        if let Some(server_mods) = installed.get_mut(server_id) {
+            if let Some(index) = server_mods.iter().position(|m| m.mod_info.id == mod_id) {
+                let installed_mod = server_mods.remove(index);
+                
+                // Remove mod file
+                if let Err(e) = tokio::fs::remove_file(&installed_mod.file_path).await {
+                    result.errors.push(format!("Failed to remove mod file: {}", e));
+                }
+
+                result.success = true;
+                result.message = "Mod uninstalled successfully".to_string();
+                result.installed_mod = Some(installed_mod);
+            } else {
+                result.errors.push("Mod not found in server".to_string());
+            }
+        } else {
+            result.errors.push("Server not found".to_string());
+        }
+
+        Ok(result)
+    }
+
+    /// Enable/disable a mod
+    pub async fn toggle_mod(
+        &self,
+        server_id: &str,
+        mod_id: &str,
+        enabled: bool,
+    ) -> Result<ModInstallationResult, Box<dyn std::error::Error>> {
+        let mut result = ModInstallationResult {
+            success: false,
+            mod_id: mod_id.to_string(),
+            message: String::new(),
+            installed_mod: None,
+            errors: Vec::new(),
+        };
+
+        let mut installed = self.installed_mods.write().await;
+        if let Some(server_mods) = installed.get_mut(server_id) {
+            if let Some(installed_mod) = server_mods.iter_mut().find(|m| m.mod_info.id == mod_id) {
+                installed_mod.enabled = enabled;
+                
+                result.success = true;
+                result.message = if enabled { "Mod enabled" } else { "Mod disabled" }.to_string();
+                result.installed_mod = Some(installed_mod.clone());
+            } else {
+                result.errors.push("Mod not found in server".to_string());
+            }
+        } else {
+            result.errors.push("Server not found".to_string());
+        }
+
+        Ok(result)
+    }
+
+    /// Get installed mods for a server
+    pub async fn get_installed_mods(&self, server_id: &str) -> Result<Vec<InstalledMod>, Box<dyn std::error::Error>> {
+        let installed = self.installed_mods.read().await;
+        Ok(installed.get(server_id).cloned().unwrap_or_default())
+    }
+
+    /// Get mod information
+    async fn get_mod_info(
+        &self,
+        mod_id: &str,
+        version: &str,
+        source: &str,
+    ) -> Result<ModInfo, Box<dyn std::error::Error>> {
+        // Check cache first
+        {
+            let cache = self.mod_cache.read().await;
+            if let Some(info) = cache.get(mod_id) {
+                return Ok(info.clone());
+            }
+        }
+
+        // Fetch from source
+        let mod_info = match source {
+            "curseforge" => self.fetch_from_curseforge(mod_id, version).await?,
+            "modrinth" => self.fetch_from_modrinth(mod_id, version).await?,
+            "direct" => self.fetch_direct(mod_id, version).await?,
+            _ => return Err("Unsupported mod source".into()),
+        };
+
+        // Cache the result
+        {
+            let mut cache = self.mod_cache.write().await;
+            cache.insert(mod_id.to_string(), mod_info.clone());
+        }
+
+        Ok(mod_info)
+    }
+
+    /// Fetch mod info from CurseForge
+    async fn fetch_from_curseforge(
+        &self,
+        mod_id: &str,
+        version: &str,
+    ) -> Result<ModInfo, Box<dyn std::error::Error>> {
+        // In a real implementation, this would call the CurseForge API
+        // For now, return placeholder data
+        Ok(ModInfo {
+            id: mod_id.to_string(),
+            name: format!("Mod {}", mod_id),
+            description: "A placeholder mod description".to_string(),
+            author: "Unknown".to_string(),
+            version: version.to_string(),
+            minecraft_version: "1.20.1".to_string(),
+            loader: "forge".to_string(),
+            category: "misc".to_string(),
+            side: "both".to_string(),
+            download_url: Some(format!("https://example.com/mods/{}/{}.jar", mod_id, version)),
+            file_size: Some(1024 * 1024), // 1MB
+            sha1: Some("placeholder_sha1".to_string()),
+            dependencies: vec![],
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        })
+    }
+
+    /// Fetch mod info from Modrinth
+    async fn fetch_from_modrinth(
+        &self,
+        mod_id: &str,
+        version: &str,
+    ) -> Result<ModInfo, Box<dyn std::error::Error>> {
+        // In a real implementation, this would call the Modrinth API
+        // For now, return placeholder data
+        Ok(ModInfo {
+            id: mod_id.to_string(),
+            name: format!("Mod {}", mod_id),
+            description: "A placeholder mod description".to_string(),
+            author: "Unknown".to_string(),
+            version: version.to_string(),
+            minecraft_version: "1.20.1".to_string(),
+            loader: "fabric".to_string(),
+            category: "misc".to_string(),
+            side: "both".to_string(),
+            download_url: Some(format!("https://example.com/mods/{}/{}.jar", mod_id, version)),
+            file_size: Some(1024 * 1024), // 1MB
+            sha1: Some("placeholder_sha1".to_string()),
+            dependencies: vec![],
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        })
+    }
+
+    /// Fetch mod info directly
+    async fn fetch_direct(
+        &self,
+        mod_id: &str,
+        version: &str,
+    ) -> Result<ModInfo, Box<dyn std::error::Error>> {
+        // In a real implementation, this would parse mod metadata
+        // For now, return placeholder data
+        Ok(ModInfo {
+            id: mod_id.to_string(),
+            name: format!("Mod {}", mod_id),
+            description: "A placeholder mod description".to_string(),
+            author: "Unknown".to_string(),
+            version: version.to_string(),
+            minecraft_version: "1.20.1".to_string(),
+            loader: "forge".to_string(),
+            category: "misc".to_string(),
+            side: "both".to_string(),
+            download_url: Some(format!("https://example.com/mods/{}/{}.jar", mod_id, version)),
+            file_size: Some(1024 * 1024), // 1MB
+            sha1: Some("placeholder_sha1".to_string()),
+            dependencies: vec![],
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        })
+    }
+
+    /// Download mod file
+    async fn download_mod(&self, mod_info: &ModInfo) -> Result<PathBuf, Box<dyn std::error::Error>> {
+        let download_url = mod_info.download_url.as_ref()
+            .ok_or("No download URL available")?;
+
+        let response = self.http_client.get(download_url).send().await?;
+        if !response.status().is_success() {
+            return Err("Failed to download mod file".into());
+        }
+
+        let mod_data = response.bytes().await?;
+        let temp_path = self.mods_base_dir.join("temp").join(format!("{}.jar", mod_info.id));
+        tokio::fs::create_dir_all(temp_path.parent().unwrap()).await?;
+        tokio::fs::write(&temp_path, mod_data).await?;
+
+        Ok(temp_path)
+    }
+
+    /// Check mod compatibility
+    async fn check_mod_compatibility(
+        &self,
+        server_id: &str,
+        mod_info: &ModInfo,
+    ) -> Result<ModCompatibilityResult, Box<dyn std::error::Error>> {
+        let mut issues = Vec::new();
+        let mut warnings = Vec::new();
+
+        // Check if mod is already installed
+        let installed_mods = self.get_installed_mods(server_id).await?;
+        if installed_mods.iter().any(|m| m.mod_info.id == mod_info.id) {
+            issues.push(CompatibilityIssue {
+                mod_id: mod_info.id.clone(),
+                issue_type: "duplicate".to_string(),
+                description: "Mod is already installed".to_string(),
+                severity: "error".to_string(),
+            });
+        }
+
+        // Check loader compatibility
+        // In a real implementation, this would check server loader type
+        if mod_info.loader != "forge" && mod_info.loader != "fabric" {
+            issues.push(CompatibilityIssue {
+                mod_id: mod_info.id.clone(),
+                issue_type: "loader".to_string(),
+                description: "Unsupported mod loader".to_string(),
+                severity: "error".to_string(),
+            });
+        }
+
+        // Check Minecraft version compatibility
+        // In a real implementation, this would check server Minecraft version
+        if mod_info.minecraft_version != "1.20.1" {
+            warnings.push("Mod may not be compatible with server Minecraft version".to_string());
+        }
+
+        Ok(ModCompatibilityResult {
+            compatible: issues.is_empty(),
+            issues,
+            warnings,
+        })
+    }
+
+    /// Update mod cache
+    pub async fn update_mod_cache(&self) -> Result<(), Box<dyn std::error::Error>> {
+        // In a real implementation, this would refresh mod information from sources
+        // For now, just clear the cache
+        let mut cache = self.mod_cache.write().await;
+        cache.clear();
+        Ok(())
+    }
+
+    /// Get mod statistics
+    pub async fn get_mod_stats(&self, server_id: &str) -> Result<ModStats, Box<dyn std::error::Error>> {
+        let installed_mods = self.get_installed_mods(server_id).await?;
+        
+        let total_mods = installed_mods.len();
+        let enabled_mods = installed_mods.iter().filter(|m| m.enabled).count();
+        let disabled_mods = total_mods - enabled_mods;
+        
+        let total_size: u64 = installed_mods.iter()
+            .map(|m| m.mod_info.file_size.unwrap_or(0))
+            .sum();
+
+        Ok(ModStats {
+            total_mods,
+            enabled_mods,
+            disabled_mods,
+            total_size_mb: total_size / (1024 * 1024),
+            last_updated: Utc::now(),
+        })
+    }
+
+    /// Search for mods
+    pub async fn search_mods(
+        &self,
+        query: &str,
+        minecraft_version: Option<&str>,
+        loader: Option<&str>,
+        limit: Option<usize>,
+    ) -> Result<Vec<ModInfo>, Box<dyn std::error::Error>> {
+        // TODO: Implement actual mod search
+        Ok(vec![])
+    }
+
+    /// Download a mod (public version)
+    pub async fn download_mod_public(&self, mod_info: &ModInfo) -> Result<PathBuf, Box<dyn std::error::Error>> {
+        self.download_mod(mod_info).await
+    }
+
+    /// Sync mods from external sources
+    pub async fn sync_mods_from_external_sources(&self) -> Result<(), Box<dyn std::error::Error>> {
+        // TODO: Implement actual sync
+        Ok(())
     }
 
     /// Apply install operation
@@ -55,8 +483,8 @@ impl ModManager {
         provider: &str,
         file_path: &str,
         server_id: &str,
-    ) -> Result<()> {
-        // TODO: Implement install operation
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        // TODO: Implement actual install operation
         Ok(())
     }
 
@@ -69,8 +497,8 @@ impl ModManager {
         provider: &str,
         file_path: &str,
         server_id: &str,
-    ) -> Result<()> {
-        // TODO: Implement update operation
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        // TODO: Implement actual update operation
         Ok(())
     }
 
@@ -80,8 +508,8 @@ impl ModManager {
         mod_id: &str,
         file_path: &str,
         server_id: &str,
-    ) -> Result<()> {
-        // TODO: Implement remove operation
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        // TODO: Implement actual remove operation
         Ok(())
     }
 
@@ -90,8 +518,8 @@ impl ModManager {
         &self,
         mod_id: &str,
         server_id: &str,
-    ) -> Result<()> {
-        // TODO: Implement enable operation
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        // TODO: Implement actual enable operation
         Ok(())
     }
 
@@ -100,517 +528,24 @@ impl ModManager {
         &self,
         mod_id: &str,
         server_id: &str,
-    ) -> Result<()> {
-        // TODO: Implement disable operation
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        // TODO: Implement actual disable operation
         Ok(())
-    }
-
-    /// Search for mods across all sources
-    pub async fn search_mods(
-        &self,
-        query: &str,
-        minecraft_version: Option<&str>,
-        loader: Option<&str>,
-        category: Option<&str>,
-        source: Option<&str>,
-        limit: u32,
-    ) -> Result<Vec<ExternalModSearchResult>> {
-        let mut results = Vec::new();
-
-        // Search Modrinth
-        if source.is_none() || source == Some("modrinth") {
-            match self.search_modrinth(query, minecraft_version, loader, category, limit).await {
-                Ok(result) => results.push(result),
-                Err(e) => {
-                    error!("Failed to search Modrinth: {}", e);
-                }
-            }
-        }
-
-        // Search CurseForge
-        if source.is_none() || source == Some("curseforge") {
-            match self.search_curseforge(query, minecraft_version, loader, category, limit).await {
-                Ok(result) => results.push(result),
-                Err(e) => {
-                    error!("Failed to search CurseForge: {}", e);
-                }
-            }
-        }
-
-        Ok(results)
-    }
-
-    /// Search Modrinth
-    async fn search_modrinth(
-        &self,
-        query: &str,
-        minecraft_version: Option<&str>,
-        loader: Option<&str>,
-        category: Option<&str>,
-        limit: u32,
-    ) -> Result<ExternalModSearchResult> {
-        let search_response = self.modrinth_client
-            .search_mods(query, minecraft_version, loader, category, Some(limit), None)
-            .await?;
-
-        let mods: Vec<ModInfo> = search_response
-            .hits
-            .into_iter()
-            .map(|project| self.modrinth_client.convert_to_mod_info(&project))
-            .collect();
-
-        Ok(ExternalModSearchResult {
-            mods,
-            total: search_response.total_hits,
-            source: "modrinth".to_string(),
-        })
-    }
-
-    /// Search CurseForge
-    async fn search_curseforge(
-        &self,
-        query: &str,
-        minecraft_version: Option<&str>,
-        loader: Option<&str>,
-        category: Option<&str>,
-        limit: u32,
-    ) -> Result<ExternalModSearchResult> {
-        // Map loader to CurseForge mod loader type
-        let mod_loader_type = match loader {
-            Some("forge") | Some("neoforge") => Some(1), // Forge
-            Some("fabric") | Some("quilt") => Some(4),   // Fabric
-            _ => None,
-        };
-
-        let search_response = self.curseforge_client
-            .search_mods(
-                432, // Minecraft game ID
-                Some(query),
-                None, // category_id
-                minecraft_version,
-                mod_loader_type,
-                Some(2), // Sort by popularity
-                Some("desc"),
-                Some(limit),
-                None,
-            )
-            .await?;
-
-        let mods: Vec<ModInfo> = search_response
-            .data
-            .into_iter()
-            .map(|project| self.curseforge_client.convert_to_mod_info(&project))
-            .collect();
-
-        Ok(ExternalModSearchResult {
-            mods,
-            total: search_response.pagination.total_count,
-            source: "curseforge".to_string(),
-        })
-    }
-
-    /// Download and install a mod
-    pub async fn download_mod(
-        &self,
-        mod_id: &str,
-        version: Option<&str>,
-        minecraft_version: Option<&str>,
-        loader: Option<&str>,
-    ) -> Result<ModDownloadResult> {
-        // Determine source from mod_id format or try both
-        let source = if mod_id.starts_with("modrinth-") {
-            "modrinth"
-        } else if mod_id.parse::<u32>().is_ok() {
-            "curseforge"
-        } else {
-            // Try to find the mod in our database first
-            if let Ok(Some(existing_mod)) = self.database.get_mod(mod_id).await {
-                return self.download_existing_mod(&existing_mod, version, minecraft_version, loader).await;
-            }
-            "unknown"
-        };
-
-        match source {
-            "modrinth" => self.download_modrinth_mod(mod_id, version, minecraft_version, loader).await,
-            "curseforge" => self.download_curseforge_mod(mod_id, version, minecraft_version, loader).await,
-            _ => Err(anyhow::anyhow!("Unknown mod source for ID: {}", mod_id)),
-        }
-    }
-
-    /// Download mod from Modrinth
-    async fn download_modrinth_mod(
-        &self,
-        mod_id: &str,
-        version: Option<&str>,
-        minecraft_version: Option<&str>,
-        loader: Option<&str>,
-    ) -> Result<ModDownloadResult> {
-        // Get project details
-        let project = self.modrinth_client.get_project(mod_id).await?;
-        let mod_info = self.modrinth_client.convert_to_mod_info(&project);
-
-        // Get versions
-        let versions = self.modrinth_client
-            .get_project_versions(
-                mod_id,
-                minecraft_version.map(|v| vec![v]),
-                loader.map(|l| vec![l]),
-            )
-            .await?;
-
-        if versions.is_empty() {
-            return Err(anyhow::anyhow!("No compatible versions found for mod: {}", mod_id));
-        }
-
-        // Select version
-        let selected_version = if let Some(version) = version {
-            versions.iter().find(|v| v.version_number == version)
-                .ok_or_else(|| anyhow::anyhow!("Version {} not found", version))?
-        } else {
-            &versions[0] // Use latest version
-        };
-
-        // Get primary file
-        let primary_file = selected_version
-            .files
-            .iter()
-            .find(|f| f.primary)
-            .ok_or_else(|| anyhow::anyhow!("No primary file found for version"))?;
-
-        // Download file
-        let file_path = self.download_file(
-            &primary_file.url,
-            &primary_file.filename,
-            &primary_file.hashes,
-        ).await?;
-
-        // Convert ModInfo to Mod
-        let mod_data = Mod {
-            id: mod_info.id.clone(),
-            provider: "modrinth".to_string(),
-            project_id: mod_info.id.clone(),
-            version_id: selected_version.id.clone(),
-            filename: primary_file.filename.clone(),
-            sha1: primary_file.hashes.get("sha1").unwrap_or(&"".to_string()).clone(),
-            server_id: None,
-            enabled: true,
-            category: mod_info.category.clone(),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-        };
-
-        // Store mod info in database
-        self.store_mod_info(&mod_info, selected_version, &file_path).await?;
-
-        Ok(ModDownloadResult {
-            mod_info: mod_data,
-            file_path,
-            file_size: primary_file.size,
-            sha256: primary_file.hashes.get("sha512").unwrap_or(&primary_file.hashes.get("sha1").unwrap_or(&"".to_string())).clone(),
-        })
-    }
-
-    /// Download mod from CurseForge
-    async fn download_curseforge_mod(
-        &self,
-        mod_id: &str,
-        version: Option<&str>,
-        minecraft_version: Option<&str>,
-        loader: Option<&str>,
-    ) -> Result<ModDownloadResult> {
-        let project_id = mod_id.parse::<u32>()?;
-
-        // Get project details
-        let project = self.curseforge_client.get_project(project_id).await?;
-        let mod_info = self.curseforge_client.convert_to_mod_info(&project);
-
-        // Get files
-        let mod_loader_type = match loader {
-            Some("forge") | Some("neoforge") => Some(1),
-            Some("fabric") | Some("quilt") => Some(4),
-            _ => None,
-        };
-
-        let files = self.curseforge_client
-            .get_project_files(project_id, minecraft_version, mod_loader_type, None, None, Some(10))
-            .await?;
-
-        if files.is_empty() {
-            return Err(anyhow::anyhow!("No compatible files found for mod: {}", mod_id));
-        }
-
-        // Select file
-        let selected_file = if let Some(version) = version {
-            files.iter().find(|f| f.display_name == version)
-                .ok_or_else(|| anyhow::anyhow!("Version {} not found", version))?
-        } else {
-            &files[0] // Use latest file
-        };
-
-        // Download file
-        let file_path = self.download_file(
-            &selected_file.download_url,
-            &selected_file.file_name,
-            &selected_file.hashes.iter().map(|h| (h.algo.to_string(), h.value.clone())).collect(),
-        ).await?;
-
-        // Convert ModInfo to Mod
-        let mod_data = Mod {
-            id: mod_info.id.clone(),
-            provider: "curseforge".to_string(),
-            project_id: project_id.to_string(),
-            version_id: selected_file.id.to_string(),
-            filename: selected_file.file_name.clone(),
-            sha1: selected_file.hashes.iter()
-                .find(|h| h.algo == 1) // SHA1 is typically algo 1 in CurseForge
-                .map(|h| h.value.clone())
-                .unwrap_or_default(),
-            server_id: None,
-            enabled: true,
-            category: mod_info.category.clone(),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-        };
-
-        // Store mod info in database
-        self.store_mod_info(&mod_info, selected_file, &file_path).await?;
-
-        Ok(ModDownloadResult {
-            mod_info: mod_data,
-            file_path,
-            file_size: selected_file.file_length,
-            sha256: selected_file.hashes.iter().find(|h| h.algo == 1).map(|h| h.value.clone()).unwrap_or_default(),
-        })
-    }
-
-    /// Download an existing mod from database
-    async fn download_existing_mod(
-        &self,
-        mod_info: &Mod,
-        version: Option<&str>,
-        minecraft_version: Option<&str>,
-        loader: Option<&str>,
-    ) -> Result<ModDownloadResult> {
-        // Get mod versions from database
-        let versions = self.database.get_mod_versions(&mod_info.id).await?;
-        
-        if versions.is_empty() {
-            return Err(anyhow::anyhow!("No versions found for mod: {}", mod_info.id));
-        }
-
-        // Select version
-        let selected_version = if let Some(version) = version {
-            versions.iter().find(|v| v.version == version)
-                .ok_or_else(|| anyhow::anyhow!("Version {} not found", version))?
-        } else {
-            &versions[0] // Use latest version
-        };
-
-        // Convert ModInfo to Mod
-        let mod_data = Mod {
-            id: mod_info.id.clone(),
-            provider: "modrinth".to_string(),
-            project_id: mod_info.id.clone(),
-            version_id: selected_version.id.to_string(),
-            filename: selected_version.version.clone(),
-            sha1: selected_version.sha256.clone(),
-            server_id: None,
-            enabled: true,
-            category: mod_info.category.clone(),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-        };
-
-        // Check if file already exists
-        let file_path = format!("{}/{}_{}.jar", self.download_dir, mod_info.id, selected_version.version);
-        
-        if Path::new(&file_path).exists() {
-            info!("Mod file already exists: {}", file_path);
-            return Ok(ModDownloadResult {
-                mod_info: mod_data.clone(),
-                file_path,
-                file_size: selected_version.file_size,
-                sha256: selected_version.sha256.clone(),
-            });
-        }
-
-        // Download file
-        let downloaded_path = self.download_file(
-            &selected_version.download_url,
-            &format!("{}_{}.jar", mod_info.id, selected_version.version),
-            &HashMap::new(), // We'll verify with SHA256
-        ).await?;
-
-        Ok(ModDownloadResult {
-            mod_info: mod_info.clone(),
-            file_path: downloaded_path,
-            file_size: selected_version.file_size,
-            sha256: selected_version.sha256.clone(),
-        })
-    }
-
-    /// Download a file from URL
-    async fn download_file(
-        &self,
-        url: &str,
-        filename: &str,
-        hashes: &HashMap<String, String>,
-    ) -> Result<String> {
-        info!("Downloading file: {} from {}", filename, url);
-
-        let response = reqwest::get(url).await?;
-        if !response.status().is_success() {
-            return Err(anyhow::anyhow!("Failed to download file: {}", response.status()));
-        }
-
-        let content = response.bytes().await?;
-        
-        // Verify hash if provided
-        if let Some(expected_sha1) = hashes.get("1") {
-            let actual_sha1 = format!("{:x}", sha1::Sha1::digest(&content));
-            if actual_sha1 != *expected_sha1 {
-                return Err(anyhow::anyhow!("SHA1 hash mismatch for file: {}", filename));
-            }
-        }
-
-        // Create download directory if it doesn't exist
-        fs::create_dir_all(&self.download_dir).await?;
-
-        // Save file
-        let file_path = format!("{}/{}", self.download_dir, filename);
-        fs::write(&file_path, content).await?;
-
-        info!("Downloaded file: {}", file_path);
-        Ok(file_path)
-    }
-
-    /// Store mod information in database
-    async fn store_mod_info(
-        &self,
-        mod_info: &ModInfo,
-        version_data: &dyn std::fmt::Debug, // Generic version data
-        file_path: &str,
-    ) -> Result<()> {
-        // Store mod info
-        // Note: This is a simplified version. In practice, you'd need to handle
-        // the different version data types from Modrinth and CurseForge
-        
-        info!("Storing mod info for: {}", mod_info.name);
-        // TODO: Implement proper database storage
-        Ok(())
-    }
-
-    /// Sync mods from external sources
-    pub async fn sync_mods_from_external_sources(&self) -> Result<()> {
-        info!("Starting mod sync from external sources...");
-
-        // Sync popular mods from Modrinth
-        match self.search_modrinth("", None, None, None, 100).await {
-            Ok(result) => {
-                info!("Synced {} mods from Modrinth", result.mods.len());
-                for mod_info in result.mods {
-                    if let Err(e) = self.store_mod_info(&mod_info, &(), "").await {
-                        error!("Failed to store mod {}: {}", mod_info.name, e);
-                    }
-                }
-            }
-            Err(e) => {
-                error!("Failed to sync from Modrinth: {}", e);
-            }
-        }
-
-        // Sync popular mods from CurseForge
-        match self.search_curseforge("", None, None, None, 100).await {
-            Ok(result) => {
-                info!("Synced {} mods from CurseForge", result.mods.len());
-                for mod_info in result.mods {
-                    if let Err(e) = self.store_mod_info(&mod_info, &(), "").await {
-                        error!("Failed to store mod {}: {}", mod_info.name, e);
-                    }
-                }
-            }
-            Err(e) => {
-                error!("Failed to sync from CurseForge: {}", e);
-            }
-        }
-
-        info!("Mod sync completed");
-        Ok(())
-    }
-
-    /// Get mod compatibility report
-    pub async fn check_mod_compatibility(
-        &self,
-        mod_ids: &[String],
-        minecraft_version: &str,
-        loader: &str,
-    ) -> Result<CompatibilityReport> {
-        let mut issues = Vec::new();
-        let mut warnings = Vec::new();
-
-        // Check each mod for compatibility
-        for mod_id in mod_ids {
-            if let Ok(Some(mod_info)) = self.database.get_mod(mod_id).await {
-                // Check Minecraft version compatibility
-                if !self.check_minecraft_version_compatibility(&mod_info, minecraft_version).await? {
-                    issues.push(CompatibilityIssue::VersionMismatch {
-                        mod_id: mod_id.clone(),
-                        required_version: minecraft_version.to_string(),
-                        available_versions: vec![],
-                    });
-                }
-
-                // Check loader compatibility
-                if !self.check_loader_compatibility(&mod_info, loader).await? {
-                    issues.push(CompatibilityIssue::LoaderIncompatibility {
-                        mod_id: mod_id.clone(),
-                        required_loader: ModLoader::Forge { version: "1.20.1".to_string() }, // Placeholder
-                        current_loader: ModLoader::Fabric { version: loader.to_string() }, // Placeholder
-                    });
-                }
-            }
-        }
-
-        // Check for mod conflicts
-        let conflicts = self.check_mod_conflicts(mod_ids).await?;
-        issues.extend(conflicts);
-
-        Ok(CompatibilityReport {
-            is_compatible: issues.is_empty(),
-            issues,
-            warnings,
-            recommendations: vec![],
-        })
-    }
-
-    /// Check Minecraft version compatibility
-    async fn check_minecraft_version_compatibility(
-        &self,
-        mod_info: &Mod,
-        minecraft_version: &str,
-    ) -> Result<bool> {
-        // This would check the mod's supported versions
-        // For now, return true as a placeholder
-        Ok(true)
-    }
-
-    /// Check loader compatibility
-    async fn check_loader_compatibility(
-        &self,
-        mod_info: &Mod,
-        loader: &str,
-    ) -> Result<bool> {
-        // This would check the mod's supported loaders
-        // For now, return true as a placeholder
-        Ok(true)
-    }
-
-    /// Check for mod conflicts
-    async fn check_mod_conflicts(&self, mod_ids: &[String]) -> Result<Vec<CompatibilityIssue>> {
-        // This would check for known conflicts between mods
-        // For now, return empty as a placeholder
-        Ok(Vec::new())
     }
 }
 
+/// Mod statistics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModStats {
+    pub total_mods: usize,
+    pub enabled_mods: usize,
+    pub disabled_mods: usize,
+    pub total_size_mb: u64,
+    pub last_updated: DateTime<Utc>,
+}
 
+impl Default for ModManager {
+    fn default() -> Self {
+        Self::new(PathBuf::from("./mods"))
+    }
+}

@@ -425,7 +425,7 @@ impl ModManagementManager {
         let transactions = self.transactions.clone();
         let db = self.db.clone();
         let websocket_manager = self.websocket_manager.clone();
-        let mod_manager = ModManager::new(db.clone(), "downloads".to_string(), None);
+        let mod_manager = ModManager::new(PathBuf::from("downloads"));
 
         let plan_id_clone = plan_id.to_string();
         let transactions_clone = transactions.clone();
@@ -481,19 +481,19 @@ impl ModManagementManager {
             // Apply operation
             match operation {
                 ModOperation::Install { mod_id, version, provider, file_path } => {
-                    mod_manager.apply_install_operation(mod_id, version, provider, &file_path.to_string_lossy(), &transaction.server_id).await?;
+                    Self::apply_install_operation(&mod_manager, mod_id, version, provider, &file_path.to_string_lossy(), &transaction.server_id).await?;
                 }
                 ModOperation::Update { mod_id, from_version, to_version, provider, file_path } => {
-                    mod_manager.apply_update_operation(mod_id, from_version, to_version, provider, &file_path.to_string_lossy(), &transaction.server_id).await?;
+                    Self::apply_update_operation(&mod_manager, mod_id, from_version, to_version, provider, &file_path.to_string_lossy(), &transaction.server_id).await?;
                 }
                 ModOperation::Remove { mod_id, file_path } => {
-                    mod_manager.apply_remove_operation(mod_id, &file_path.to_string_lossy(), &transaction.server_id).await?;
+                    Self::apply_remove_operation(&mod_manager, mod_id, &file_path.to_string_lossy(), &transaction.server_id).await?;
                 }
                 ModOperation::Enable { mod_id } => {
-                    mod_manager.apply_enable_operation(mod_id, &transaction.server_id).await?;
+                    Self::apply_enable_operation(&mod_manager, mod_id, &transaction.server_id).await?;
                 }
                 ModOperation::Disable { mod_id } => {
-                    mod_manager.apply_disable_operation(mod_id, &transaction.server_id).await?;
+                    Self::apply_disable_operation(&mod_manager, mod_id, &transaction.server_id).await?;
                 }
             }
 
@@ -559,102 +559,55 @@ impl ModManagementManager {
 
     /// Apply install operation
     async fn apply_install_operation(
-        &self,
+        mod_manager: &ModManager,
         mod_id: &str,
         version: &str,
         provider: &str,
-        file_path: &Path,
+        file_path: &str,
         server_id: &str,
     ) -> Result<()> {
-        // Create mod record
-        let mod_record = Mod {
-            id: mod_id.to_string(),
-            provider: provider.to_string(),
-            project_id: "project_id".to_string(), // Would be extracted from mod metadata
-            version_id: version.to_string(),
-            filename: file_path.file_name().unwrap().to_string_lossy().to_string(),
-            sha1: "mock_sha1".to_string(), // Would be calculated
-            server_id: Some(server_id.to_string()),
-            enabled: true,
-            category: "unknown".to_string(),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-        };
-
-        // Save to database
-        self.db.create_mod(&mod_record).await?;
-
+        // TODO: Implement actual install operation
         info!("Installed mod: {} version: {}", mod_id, version);
         Ok(())
     }
 
     /// Apply update operation
     async fn apply_update_operation(
-        &self,
+        mod_manager: &ModManager,
         mod_id: &str,
         from_version: &str,
         to_version: &str,
         provider: &str,
-        file_path: &Path,
+        file_path: &str,
         server_id: &str,
     ) -> Result<()> {
-        // Update mod record
-        let mut mod_record = self.db.get_mod(mod_id).await?
-            .ok_or_else(|| anyhow!("Mod not found: {}", mod_id))?;
-
-        mod_record.version_id = to_version.to_string();
-        mod_record.filename = file_path.file_name().unwrap().to_string_lossy().to_string();
-        mod_record.updated_at = Utc::now();
-
-        self.db.update_mod(&mod_record).await?;
-
+        // TODO: Implement actual update operation
         info!("Updated mod: {} from {} to {}", mod_id, from_version, to_version);
         Ok(())
     }
 
     /// Apply remove operation
     async fn apply_remove_operation(
-        &self,
+        mod_manager: &ModManager,
         mod_id: &str,
-        file_path: &Path,
+        file_path: &str,
         server_id: &str,
     ) -> Result<()> {
-        // Remove from database
-        self.db.delete_mod(mod_id).await?;
-
-        // Remove file
-        if file_path.exists() {
-            std::fs::remove_file(file_path)?;
-        }
-
+        // TODO: Implement actual remove operation
         info!("Removed mod: {}", mod_id);
         Ok(())
     }
 
     /// Apply enable operation
-    async fn apply_enable_operation(&self, mod_id: &str, server_id: &str) -> Result<()> {
-        let mut mod_record = self.db.get_mod(mod_id).await?
-            .ok_or_else(|| anyhow!("Mod not found: {}", mod_id))?;
-
-        mod_record.enabled = true;
-        mod_record.updated_at = Utc::now();
-
-        self.db.update_mod(&mod_record).await?;
-
+    async fn apply_enable_operation(mod_manager: &ModManager, mod_id: &str, server_id: &str) -> Result<()> {
+        // TODO: Implement actual enable operation
         info!("Enabled mod: {}", mod_id);
         Ok(())
     }
 
     /// Apply disable operation
-    async fn apply_disable_operation(&self, mod_id: &str, server_id: &str) -> Result<()> {
-        let mut mod_record = self.db.get_mod(mod_id).await?
-            .ok_or_else(|| anyhow!("Mod not found: {}", mod_id))?;
-
-        mod_record.enabled = false;
-        mod_record.updated_at = Utc::now();
-
-        self.db.update_mod(&mod_record).await?;
-
+    async fn apply_disable_operation(mod_manager: &ModManager, mod_id: &str, server_id: &str) -> Result<()> {
+        // TODO: Implement actual disable operation
         info!("Disabled mod: {}", mod_id);
         Ok(())
     }

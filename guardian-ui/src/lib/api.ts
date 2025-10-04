@@ -131,7 +131,16 @@ export const apiClient = {
     return apiCall(`/api/servers/${serverId}`);
   },
   async createServer(data: any): Promise<any> {
-    return apiCall('/api/servers', { method: 'POST', body: JSON.stringify(data) });
+    const response = await apiCall<{ success: boolean; data: any; error?: string }>('/api/servers', { 
+      method: 'POST', 
+      body: JSON.stringify(data) 
+    });
+    
+    if (!response.success) {
+      throw new Error(response.error || 'Failed to create server');
+    }
+    
+    return response.data;
   },
   async deleteServer(serverId: string): Promise<any> {
     return apiCall(`/api/servers/${serverId}`, { method: 'DELETE' });
@@ -344,37 +353,24 @@ export const apiClient = {
 
 // Events for real-time communication
 export const events = {
-  // WebSocket events will be handled by the websocket module
-  // These are placeholder implementations for now
+  // WebSocket events are now handled by the websocket module
   subscribeToConsole(serverId: string, callback: (data: any) => void): Promise<() => void> {
-    // Placeholder implementation
-    console.log(`Subscribing to console for server ${serverId}`);
-    return Promise.resolve(() => console.log(`Unsubscribing from console for server ${serverId}`));
+    return import('./api/websocket').then(ws => ws.subscribeToConsole(serverId, callback).then(sub => sub.unsubscribe));
   },
   subscribeToMetrics(serverId: string, callback: (data: any) => void): Promise<() => void> {
-    // Placeholder implementation
-    console.log(`Subscribing to metrics for server ${serverId}`);
-    return Promise.resolve(() => console.log(`Unsubscribing from metrics for server ${serverId}`));
+    return import('./api/websocket').then(ws => ws.subscribeToMetrics(serverId, callback).then(sub => sub.unsubscribe));
   },
   subscribeToPlayers(serverId: string, callback: (data: any) => void): Promise<() => void> {
-    // Placeholder implementation
-    console.log(`Subscribing to players for server ${serverId}`);
-    return Promise.resolve(() => console.log(`Unsubscribing from players for server ${serverId}`));
+    return import('./api/websocket').then(ws => ws.subscribeToPlayers(serverId, callback).then(sub => sub.unsubscribe));
   },
   subscribeToFreezes(serverId: string, callback: (data: any) => void): Promise<() => void> {
-    // Placeholder implementation
-    console.log(`Subscribing to freezes for server ${serverId}`);
-    return Promise.resolve(() => console.log(`Unsubscribing from freezes for server ${serverId}`));
+    return import('./api/websocket').then(ws => ws.subscribeToFreezes(serverId, callback).then(sub => sub.unsubscribe));
   },
   subscribeToPregen(serverId: string, callback: (data: any) => void): Promise<() => void> {
-    // Placeholder implementation
-    console.log(`Subscribing to pregen for server ${serverId}`);
-    return Promise.resolve(() => console.log(`Unsubscribing from pregen for server ${serverId}`));
+    return import('./api/websocket').then(ws => ws.subscribeToPregen(serverId, callback).then(sub => sub.unsubscribe));
   },
   subscribeToHealth(serverId: string, callback: (data: any) => void): Promise<() => void> {
-    // Placeholder implementation
-    console.log(`Subscribing to health for server ${serverId}`);
-    return Promise.resolve(() => console.log(`Unsubscribing from health for server ${serverId}`));
+    return import('./api/websocket').then(ws => ws.subscribeToHealth(serverId, callback).then(sub => sub.unsubscribe));
   },
 };
 

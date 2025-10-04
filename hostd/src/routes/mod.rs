@@ -3,3 +3,4 @@ pub mod world;
 pub mod pregen;
 pub mod metrics;
 pub mod import;
+pub mod modpack;
