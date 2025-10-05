@@ -25,7 +25,7 @@ interface HASettingsData {
   haMode: 'active-passive' | 'active-active' | 'load-balanced';
   haNodes: number;
   haReplicationFactor: number;
-  blueGreen: boolean;
+  blue_green: boolean;
   healthCheckInterval: number;
   
   // Node Configuration
@@ -103,7 +103,7 @@ export const HASettings: React.FC = () => {
     haMode: 'active-passive',
     haNodes: 2,
     haReplicationFactor: 2,
-    blueGreen: false,
+    blue_green: false,
     healthCheckInterval: 5000,
     
     // Node Configuration
@@ -212,7 +212,7 @@ export const HASettings: React.FC = () => {
         ha: {
           ...currentServerSettings.ha,
           enabled: settings.enableHA,
-          blueGreen: settings.blueGreen,
+          blue_green: settings.blue_green,
           healthCheckInterval: settings.healthCheckInterval || 5000,
           [key]: value
         }

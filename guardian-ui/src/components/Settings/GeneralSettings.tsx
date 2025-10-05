@@ -21,7 +21,7 @@ import {
 interface GeneralSettingsData {
   serverName: string;
   serverDescription: string;
-  maxPlayers: number;
+  max_players: number;
   motd: string;
   serverIcon: string;
   difficulty: 'peaceful' | 'easy' | 'normal' | 'hard';
@@ -31,18 +31,18 @@ interface GeneralSettingsData {
   allowFlight: boolean;
   allowNether: boolean;
   allowEnd: boolean;
-  onlineMode: boolean;
+  online_mode: boolean;
   whitelist: boolean;
   enforceWhitelist: boolean;
-  enableCommandBlock: boolean;
+  enable_command_block: boolean;
   enableQuery: boolean;
   enableRcon: boolean;
   rconPort: number;
   rconPassword: string;
   queryPort: number;
   serverPort: number;
-  viewDistance: number;
-  simulationDistance: number;
+  view_distance: number;
+  simulation_distance: number;
   chunkLoading: 'eager' | 'lazy';
   maxWorldSize: number;
   maxBuildHeight: number;
@@ -78,7 +78,7 @@ export const GeneralSettings: React.FC = () => {
   const [settings, setSettings] = useState<GeneralSettingsData>({
     serverName: 'My Minecraft Server',
     serverDescription: 'A fun Minecraft server for everyone!',
-    maxPlayers: 20,
+    max_players: 20,
     motd: 'Welcome to our server!',
     serverIcon: '',
     difficulty: 'normal',
@@ -88,18 +88,18 @@ export const GeneralSettings: React.FC = () => {
     allowFlight: false,
     allowNether: true,
     allowEnd: true,
-    onlineMode: true,
+    online_mode: true,
     whitelist: false,
     enforceWhitelist: false,
-    enableCommandBlock: false,
+    enable_command_block: false,
     enableQuery: true,
     enableRcon: true,
     rconPort: 25575,
     rconPassword: '',
     queryPort: 25565,
     serverPort: 25565,
-    viewDistance: 10,
-    simulationDistance: 10,
+    view_distance: 10,
+    simulation_distance: 10,
     chunkLoading: 'eager',
     maxWorldSize: 29999984,
     maxBuildHeight: 320,
@@ -151,16 +151,16 @@ export const GeneralSettings: React.FC = () => {
           ...prev,
           serverName: serverData.general?.name || prev.serverName,
           serverDescription: serverData.general?.description || prev.serverDescription,
-          maxPlayers: serverData.general?.maxPlayers || prev.maxPlayers,
+          max_players: serverData.general?.max_players || prev.max_players,
           motd: serverData.general?.motd || prev.motd,
           difficulty: (serverData.general?.difficulty as "normal" | "peaceful" | "easy" | "hard") || prev.difficulty,
           gamemode: (serverData.general?.gamemode as "survival" | "creative" | "adventure" | "spectator") || prev.gamemode,
           pvp: serverData.general?.pvp ?? prev.pvp,
-          onlineMode: serverData.general?.onlineMode ?? prev.onlineMode,
+          online_mode: serverData.general?.online_mode ?? prev.online_mode,
           whitelist: serverData.general?.whitelist ?? prev.whitelist,
-          enableCommandBlock: serverData.general?.enableCommandBlock ?? prev.enableCommandBlock,
-          viewDistance: serverData.general?.viewDistance || prev.viewDistance,
-          simulationDistance: serverData.general?.simulationDistance || prev.simulationDistance,
+          enable_command_block: serverData.general?.enable_command_block ?? prev.enable_command_block,
+          view_distance: serverData.general?.view_distance || prev.view_distance,
+          simulation_distance: serverData.general?.simulation_distance || prev.simulation_distance,
         }));
       }
     }
@@ -176,7 +176,7 @@ export const GeneralSettings: React.FC = () => {
       const serverProperties: Record<string, string> = {};
       
       switch (key) {
-        case 'maxPlayers':
+        case 'max_players':
           serverProperties['max-players'] = value.toString();
           break;
         case 'motd':
@@ -191,19 +191,19 @@ export const GeneralSettings: React.FC = () => {
         case 'pvp':
           serverProperties['pvp'] = value.toString();
           break;
-        case 'onlineMode':
+        case 'online_mode':
           serverProperties['online-mode'] = value.toString();
           break;
         case 'whitelist':
           serverProperties['white-list'] = value.toString();
           break;
-        case 'enableCommandBlock':
+        case 'enable_command_block':
           serverProperties['enable-command-block'] = value.toString();
           break;
-        case 'viewDistance':
+        case 'view_distance':
           serverProperties['view-distance'] = value.toString();
           break;
-        case 'simulationDistance':
+        case 'simulation_distance':
           serverProperties['simulation-distance'] = value.toString();
           break;
         case 'serverPort':
@@ -308,16 +308,16 @@ export const GeneralSettings: React.FC = () => {
           description: settings.serverDescription,
           version: currentServerSettings.general?.version || '1.20.1',
           modpack: currentServerSettings.general?.modpack,
-          maxPlayers: settings.maxPlayers,
+          max_players: settings.max_players,
           motd: settings.motd,
           difficulty: settings.difficulty,
           gamemode: settings.gamemode,
           pvp: settings.pvp,
-          onlineMode: settings.onlineMode,
+          online_mode: settings.online_mode,
           whitelist: settings.whitelist,
-          enableCommandBlock: settings.enableCommandBlock,
-          viewDistance: settings.viewDistance,
-          simulationDistance: settings.simulationDistance
+          enable_command_block: settings.enable_command_block,
+          view_distance: settings.view_distance,
+          simulation_distance: settings.simulation_distance
         }
       });
     } catch (error) {
@@ -332,14 +332,14 @@ export const GeneralSettings: React.FC = () => {
     const numValue = typeof value === 'number' ? value : 0;
     
     switch (key) {
-      case 'maxPlayers':
+      case 'max_players':
         return numValue < 1 || numValue > 1000 ? 'error' : 'success';
       case 'serverPort':
       case 'queryPort':
       case 'rconPort':
         return numValue < 1 || numValue > 65535 ? 'error' : 'success';
-      case 'viewDistance':
-      case 'simulationDistance':
+      case 'view_distance':
+      case 'simulation_distance':
         return numValue < 3 || numValue > 32 ? 'error' : 'success';
       case 'maxTickTime':
         return numValue < 1000 ? 'error' : 'success';
@@ -407,17 +407,17 @@ export const GeneralSettings: React.FC = () => {
             
             <div className="space-y-4">
               <div>
-                <Label htmlFor="maxPlayers">Max Players</Label>
+                <Label htmlFor="max_players">Max Players</Label>
                 <div className="flex items-center space-x-2">
                   <Input
-                    id="maxPlayers"
+                    id="max_players"
                     type="number"
-                    value={settings.maxPlayers}
-                    onChange={(e) => handleSettingChange('maxPlayers', parseInt(e.target.value))}
+                    value={settings.max_players}
+                    onChange={(e) => handleSettingChange('max_players', parseInt(e.target.value))}
                     min="1"
                     max="1000"
                   />
-                  {getStatusIcon(getValidationStatus('maxPlayers'))}
+                  {getStatusIcon(getValidationStatus('max_players'))}
                 </div>
               </div>
               
@@ -533,13 +533,13 @@ export const GeneralSettings: React.FC = () => {
               
               <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor="enableCommandBlock">Command Blocks</Label>
+                  <Label htmlFor="enable_command_block">Command Blocks</Label>
                   <p className="text-sm text-muted-foreground">Enable command blocks</p>
                 </div>
                 <Switch
-                  id="enableCommandBlock"
-                  checked={settings.enableCommandBlock}
-                  onCheckedChange={(checked) => handleSettingChange('enableCommandBlock', checked)}
+                  id="enable_command_block"
+                  checked={settings.enable_command_block}
+                  onCheckedChange={(checked) => handleSettingChange('enable_command_block', checked)}
                 />
               </div>
             </div>
@@ -610,13 +610,13 @@ export const GeneralSettings: React.FC = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor="onlineMode">Online Mode</Label>
+                  <Label htmlFor="online_mode">Online Mode</Label>
                   <p className="text-sm text-muted-foreground">Verify players with Mojang</p>
                 </div>
                 <Switch
-                  id="onlineMode"
-                  checked={settings.onlineMode}
-                  onCheckedChange={(checked) => handleSettingChange('onlineMode', checked)}
+                  id="online_mode"
+                  checked={settings.online_mode}
+                  onCheckedChange={(checked) => handleSettingChange('online_mode', checked)}
                 />
               </div>
               
@@ -676,32 +676,32 @@ export const GeneralSettings: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <div>
-                <Label htmlFor="viewDistance">View Distance</Label>
+                <Label htmlFor="view_distance">View Distance</Label>
                 <div className="flex items-center space-x-2">
                   <Input
-                    id="viewDistance"
+                    id="view_distance"
                     type="number"
-                    value={settings.viewDistance}
-                    onChange={(e) => handleSettingChange('viewDistance', parseInt(e.target.value))}
+                    value={settings.view_distance}
+                    onChange={(e) => handleSettingChange('view_distance', parseInt(e.target.value))}
                     min="3"
                     max="32"
                   />
-                  {getStatusIcon(getValidationStatus('viewDistance'))}
+                  {getStatusIcon(getValidationStatus('view_distance'))}
                 </div>
               </div>
               
               <div>
-                <Label htmlFor="simulationDistance">Simulation Distance</Label>
+                <Label htmlFor="simulation_distance">Simulation Distance</Label>
                 <div className="flex items-center space-x-2">
                   <Input
-                    id="simulationDistance"
+                    id="simulation_distance"
                     type="number"
-                    value={settings.simulationDistance}
-                    onChange={(e) => handleSettingChange('simulationDistance', parseInt(e.target.value))}
+                    value={settings.simulation_distance}
+                    onChange={(e) => handleSettingChange('simulation_distance', parseInt(e.target.value))}
                     min="3"
                     max="32"
                   />
-                  {getStatusIcon(getValidationStatus('simulationDistance'))}
+                  {getStatusIcon(getValidationStatus('simulation_distance'))}
                 </div>
               </div>
               

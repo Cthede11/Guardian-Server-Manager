@@ -53,8 +53,7 @@ interface ModpackState {
 
 const defaultFilters: ModFilters = {
   minecraft_version: '1.21.1',
-  loader: 'forge',
-  mod_loader: 'forge',
+  loader: { type: 'forge', version: '47.1.0' },
   category: 'all',
   side: 'all',
   search_query: '',
@@ -86,7 +85,7 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await modpackApi.getModpacks();
-      set({ modpacks: response.success ? (response.data || []) : [], loading: false });
+      set({ modpacks: response || [], loading: false });
     } catch (error) {
       console.error('Error loading modpacks:', error);
       set({ 
@@ -102,10 +101,10 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const currentFilters = { ...get().filters, ...filters };
-      const response = await modpackApi.searchMods(currentFilters.search_query || '', currentFilters);
+      const response = await modpackApi.searchMods(currentFilters);
       
       // Handle case where response might be undefined or missing mods property
-      const mods = response?.success ? (response.data || []) : [];
+      const mods = response?.mods || [];
       const total = response?.total || 0;
       const page = response?.page || 1;
       const per_page = response?.per_page || 20;
@@ -138,14 +137,14 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       // Use local comprehensive version list instead of API
-      const versions = getVersionsForModpack('forge');
+      const versions = getVersionsForModpack();
       set({ minecraftVersions: versions, loading: false });
     } catch (error) {
       console.error('Error loading Minecraft versions:', error);
       set({ 
         error: error instanceof Error ? error.message : 'Failed to load Minecraft versions',
         loading: false,
-        minecraftVersions: getVersionsForModpack('forge') // Fallback to local versions
+        minecraftVersions: getVersionsForModpack() // Fallback to local versions
       });
     }
   },
@@ -155,17 +154,17 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const currentFilters = { ...get().filters, ...filters };
-      const response = await modpackApi.searchMods(currentFilters.search_query || '', currentFilters);
-      const mods = response?.success ? (response.data || []) : [];
+      const response = await modpackApi.searchMods(currentFilters);
+      const mods = response?.mods || [];
       const total = response?.total || 0;
       const page = response?.page || 1;
       const per_page = response?.per_page || 20;
       const has_more = response?.has_more || false;
       
       set({ 
-        mods,
+        mods: mods,
         searchResults: {
-          mods,
+          mods: mods,
           total,
           page,
           per_page,
@@ -187,7 +186,7 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await modpackApi.createModpack(modpack);
-      const newModpack = response?.success ? (response.data || null) : null;
+      const newModpack = response || null;
       set((state) => ({
         modpacks: newModpack ? [...state.modpacks, newModpack] : state.modpacks,
         loading: false
@@ -207,7 +206,7 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await modpackApi.updateModpack(id, modpack);
-      const updatedModpack = response?.success ? (response.data || null) : null;
+      const updatedModpack = response || null;
       set((state) => ({
         modpacks: state.modpacks.map(mp => mp.id === id ? (updatedModpack || mp) : mp),
         loading: false
@@ -267,10 +266,21 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
   checkCompatibility: async (modpack) => {
     set({ loading: true, error: null });
     try {
-      const modIds = modpack.mods.map(mod => mod.id);
-      const response = await modpackApi.checkCompatibility(modIds);
+      const compatibilityData: ModpackCompatibility = {
+        minecraft_version: modpack.minecraft_version,
+        loader: modpack.loader,
+        client_mods: modpack.client_mods,
+        server_mods: modpack.server_mods,
+        report: {
+          is_compatible: true,
+          issues: [],
+          warnings: [],
+          recommendations: []
+        }
+      };
+      const response = await modpackApi.checkModpackCompatibility(compatibilityData);
       set({ loading: false });
-      return response.success ? response.data : null;
+      return response;
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Failed to check compatibility',
@@ -285,7 +295,7 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await modpackApi.getServerMods(serverId);
-      const mods = response?.success ? (response.data || []) : [];
+      const mods = response || [];
       set({ loading: false });
       return mods;
     } catch (error) {
@@ -300,7 +310,7 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
   addModToServer: async (serverId, modId, version) => {
     set({ loading: true, error: null });
     try {
-      await modpackApi.addModToServer(serverId, modId);
+      await modpackApi.addModToServer(serverId, modId, version);
       set({ loading: false });
       return true;
     } catch (error) {

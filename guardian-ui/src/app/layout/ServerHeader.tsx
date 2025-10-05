@@ -103,7 +103,7 @@ export const ServerHeader: React.FC = () => {
         };
       case 'promote':
         return {
-          disabled: server.status !== 'running' || !server.blueGreen?.candidateHealthy || isLoading,
+          disabled: server.status !== 'running' || !server.blue_green?.candidate_healthy || isLoading,
           loading: isLoading,
         };
       default:
@@ -145,10 +145,10 @@ export const ServerHeader: React.FC = () => {
           <h1 className="text-2xl font-bold gradient-text">{server.name}</h1>
           <div className="flex items-center gap-4 mt-2">
             <StatusPill status={server.status as "stopped" | "starting" | "running" | "stopping"} />
-            {server.blueGreen && (
+            {server.blue_green && (
               <Badge variant="outline" className="text-xs bg-primary/15 border-primary/40 text-primary px-3 py-1">
-                {server.blueGreen.active === 'blue' ? 'Blue' : 'Green'}
-                {server.blueGreen.candidateHealthy && (
+                {server.blue_green.active === 'blue' ? 'Blue' : 'Green'}
+                {server.blue_green.candidate_healthy && (
                   <Circle className="h-2 w-2 ml-2 text-success" />
                 )}
               </Badge>
