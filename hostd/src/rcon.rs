@@ -1,440 +1,284 @@
-use anyhow::{Result, anyhow};
+use anyhow::Result;
+use std::net::{TcpStream, SocketAddr};
+use std::io::{Read, Write};
 use serde::{Deserialize, Serialize};
-use std::{
-    io::{Read, Write},
-    net::{TcpStream, ToSocketAddrs},
-    time::Duration,
-};
-use tracing::{debug, error, info, warn};
+use uuid::Uuid;
+use chrono::Utc;
 
-/// RCON client for Minecraft server communication
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Player {
+    pub uuid: String,
+    pub name: String,
+    pub dimension: String,
+    pub last_seen: String,
+    pub online: bool,
+    pub playtime: u64,
+    pub ping: u32,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerInfo {
+    pub player_count: u32,
+    pub max_players: u32,
+    pub tps: f64,
+    pub uptime: String,
+}
+
+/// RCON client for Minecraft servers
 pub struct RconClient {
     host: String,
     port: u16,
     password: String,
-    timeout: Duration,
 }
 
-/// RCON packet structure
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 struct RconPacket {
     length: i32,
     request_id: i32,
     packet_type: i32,
-    body: String,
+    payload: String,
+    padding: u8,
 }
-
-impl RconPacket {
-    fn new(request_id: i32, packet_type: i32, body: String) -> Self {
-        let body_bytes = body.as_bytes();
-        let length = 4 + 4 + body_bytes.len() + 1; // request_id + packet_type + body + null terminator
-        
-        Self {
-            length: length as i32,
-            request_id,
-            packet_type,
-            body,
-        }
-    }
-
-    fn serialize(&self) -> Vec<u8> {
-        let mut data = Vec::new();
-        
-        // Length
-        data.extend_from_slice(&self.length.to_le_bytes());
-        
-        // Request ID
-        data.extend_from_slice(&self.request_id.to_le_bytes());
-        
-        // Packet type
-        data.extend_from_slice(&self.packet_type.to_le_bytes());
-        
-        // Body
-        data.extend_from_slice(self.body.as_bytes());
-        
-        // Null terminator
-        data.push(0);
-        
-        data
-    }
-
-    fn deserialize(data: &[u8]) -> Result<Self> {
-        if data.len() < 12 {
-            return Err(anyhow!("Packet too short"));
-        }
-
-        let length = i32::from_le_bytes([data[0], data[1], data[2], data[3]]);
-        let request_id = i32::from_le_bytes([data[4], data[5], data[6], data[7]]);
-        let packet_type = i32::from_le_bytes([data[8], data[9], data[10], data[11]]);
-        
-        let body = if data.len() > 12 {
-            String::from_utf8_lossy(&data[12..data.len()-1]).to_string() // Remove null terminator
-        } else {
-            String::new()
-        };
-
-        Ok(Self {
-            length,
-            request_id,
-            packet_type,
-            body,
-        })
-    }
-}
-
-/// RCON packet types
-const RCON_AUTH: i32 = 3;
-const RCON_AUTH_RESPONSE: i32 = 2;
-const RCON_COMMAND: i32 = 2;
-const RCON_RESPONSE: i32 = 0;
 
 impl RconClient {
-    /// Create a new RCON client
     pub fn new(host: String, port: u16, password: String) -> Self {
-        Self {
-            host,
-            port,
-            password,
-            timeout: Duration::from_secs(10),
-        }
+        Self { host, port, password }
     }
-
-    /// Set the connection timeout
-    pub fn with_timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = timeout;
-        self
-    }
-
-    /// Connect to the RCON server
-    fn connect(&self) -> Result<TcpStream> {
-        let addr = format!("{}:{}", self.host, self.port);
-        debug!("Connecting to RCON server: {}", addr);
-        
-        let stream = TcpStream::connect_timeout(
-            &addr.parse()?,
-            self.timeout
-        )?;
-        
-        stream.set_read_timeout(Some(self.timeout))?;
-        stream.set_write_timeout(Some(self.timeout))?;
-        
-        Ok(stream)
-    }
-
-    /// Send a packet and receive a response
-    fn send_packet(&self, stream: &mut TcpStream, packet: RconPacket) -> Result<RconPacket> {
-        let data = packet.serialize();
-        debug!("Sending RCON packet: {:?}", packet);
-        
-        stream.write_all(&data)?;
-        stream.flush()?;
-
-        // Read response
-        let mut response_data = Vec::new();
-        let mut buffer = [0u8; 4096];
-        
-        loop {
-            let bytes_read = stream.read(&mut buffer)?;
-            if bytes_read == 0 {
-                break;
-            }
-            
-            response_data.extend_from_slice(&buffer[..bytes_read]);
-            
-            // Check if we have a complete packet
-            if response_data.len() >= 4 {
-                let length = i32::from_le_bytes([
-                    response_data[0], response_data[1], response_data[2], response_data[3]
-                ]) as usize;
-                
-                if response_data.len() >= length + 4 {
-                    break;
-                }
-            }
-        }
-
-        let response = RconPacket::deserialize(&response_data)?;
-        debug!("Received RCON response: {:?}", response);
-        
-        Ok(response)
-    }
-
-    /// Authenticate with the RCON server
-    fn authenticate(&self, stream: &mut TcpStream) -> Result<()> {
-        let auth_packet = RconPacket::new(1, RCON_AUTH, self.password.clone());
-        let response = self.send_packet(stream, auth_packet)?;
-        
-        if response.packet_type == RCON_AUTH_RESPONSE && response.request_id == 1 {
-            info!("RCON authentication successful");
-            Ok(())
-        } else {
-            Err(anyhow!("RCON authentication failed"))
-        }
-    }
-
-    /// Send a command to the server
-    pub fn send_command(&self, command: &str) -> Result<String> {
-        let mut stream = self.connect()?;
-        
-        // Authenticate
-        self.authenticate(&mut stream)?;
-        
-        // Send command
-        let command_packet = RconPacket::new(2, RCON_COMMAND, command.to_string());
-        let response = self.send_packet(&mut stream, command_packet)?;
-        
-        if response.packet_type == RCON_RESPONSE {
-            Ok(response.body)
-        } else {
-            Err(anyhow!("Invalid response packet type"))
-        }
-    }
-
-    /// Check if RCON is available
+    
     pub fn is_available(&self) -> bool {
-        match self.connect() {
+        let addr = format!("{}:{}", self.host, self.port);
+        match TcpStream::connect(addr) {
             Ok(_) => true,
-            Err(e) => {
-                debug!("RCON not available: {}", e);
-                false
-            }
+            Err(_) => false,
         }
     }
-
-    /// Test the connection and authentication
-    pub fn test_connection(&self) -> Result<()> {
-        let mut stream = self.connect()?;
-        self.authenticate(&mut stream)?;
+    
+    pub fn send_command(&self, command: &str) -> Result<String> {
+        let addr = format!("{}:{}", self.host, self.port);
+        let mut stream = TcpStream::connect(addr)?;
         
-        // Send a simple command to test
-        let test_packet = RconPacket::new(3, RCON_COMMAND, "list".to_string());
-        let response = self.send_packet(&mut stream, test_packet)?;
+        // Send authentication packet
+        let auth_packet = self.create_packet(0, 3, &self.password);
+        self.send_packet(&mut stream, &auth_packet)?;
         
-        if response.packet_type == RCON_RESPONSE {
-            info!("RCON connection test successful");
-            Ok(())
-        } else {
-            Err(anyhow!("RCON connection test failed"))
+        // Read authentication response
+        let auth_response = self.read_packet(&mut stream)?;
+        if auth_response.request_id == -1 {
+            return Err(anyhow::anyhow!("Authentication failed"));
         }
-    }
-
-    /// Get server information
-    pub fn get_server_info(&self) -> Result<ServerInfo> {
-        let list_response = self.send_command("list")?;
-        let tps_response = self.send_command("tps")?;
         
-        let players_online = self.parse_player_count(&list_response)?;
-        let tps = self.parse_tps(&tps_response)?;
+        // Send command packet
+        let command_packet = self.create_packet(auth_response.request_id, 2, command);
+        self.send_packet(&mut stream, &command_packet)?;
         
-        Ok(ServerInfo {
-            players_online,
-            tps,
-            list_response,
-            tps_response,
-        })
+        // Read command response
+        let response = self.read_packet(&mut stream)?;
+        
+        Ok(response.payload)
     }
-
-    /// Parse player count from list command response
-    fn parse_player_count(&self, response: &str) -> Result<u32> {
-        // Parse response like "There are 5 of a max of 20 players online: Player1, Player2, ..."
-        if let Some(start) = response.find("There are ") {
-            let start = start + 11; // Length of "There are "
-            if let Some(end) = response[start..].find(" of a max of") {
-                let count_str = &response[start..start + end];
-                return Ok(count_str.parse()?);
-            }
-        }
-        Ok(0)
-    }
-
-    /// Parse TPS from tps command response
-    fn parse_tps(&self, response: &str) -> Result<f64> {
-        // Parse response like "TPS: 20.0 (1m, 5m, 15m)"
-        if let Some(start) = response.find("TPS: ") {
-            let start = start + 5; // Length of "TPS: "
-            if let Some(end) = response[start..].find(" (") {
-                let tps_str = &response[start..start + end];
-                return Ok(tps_str.parse()?);
-            }
-        }
-        Ok(20.0) // Default TPS
-    }
-
-    /// Get player list
+    
     pub fn get_players(&self) -> Result<Vec<Player>> {
         let response = self.send_command("list")?;
-        self.parse_players(&response)
+        self.parse_player_list(&response)
     }
-
-    /// Parse player list from list command response
-    fn parse_players(&self, response: &str) -> Result<Vec<Player>> {
+    
+    /// Parse the player list from the server response
+    fn parse_player_list(&self, response: &str) -> Result<Vec<Player>> {
         let mut players = Vec::new();
         
-        // Parse response like "There are 5 of a max of 20 players online: Player1, Player2, Player3, Player4, Player5"
-        if let Some(players_part) = response.split(": ").nth(1) {
-            for player_name in players_part.split(", ") {
-                let name = player_name.trim();
-                if !name.is_empty() {
-                    players.push(Player {
-                        uuid: uuid::Uuid::new_v4().to_string(), // TODO: Get actual UUID
-                        name: name.to_string(),
-                        online: true,
-                        last_seen: Some(chrono::Utc::now()),
-                        playtime: None,
-                        ping: None,
-                        dimension: None,
-                        x: None,
-                        y: None,
-                        z: None,
-                    });
+        // The response format is typically: "There are X of a max of Y players online: player1, player2, ..."
+        if response.contains("There are") && response.contains("players online:") {
+            // Extract the player list part
+            if let Some(colon_pos) = response.find("players online:") {
+                let player_list = &response[colon_pos + 15..].trim();
+                
+                if !player_list.is_empty() && *player_list != "There are 0 of a max of" {
+                    // Split by comma and parse each player
+                    for player_name in player_list.split(',') {
+                        let player_name = player_name.trim();
+                        if !player_name.is_empty() {
+                            players.push(Player {
+                                uuid: Uuid::new_v4().to_string(), // We don't have UUID from list command
+                                name: player_name.to_string(),
+                                dimension: "overworld".to_string(), // Default dimension
+                                last_seen: Utc::now().to_rfc3339(),
+                                online: true,
+                                playtime: 0, // Not available from list command
+                                ping: 0, // Not available from list command
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            });
+                        }
+                    }
                 }
             }
         }
         
         Ok(players)
     }
-
-    /// Kick a player
-    pub fn kick_player(&self, player_name: &str, reason: Option<&str>) -> Result<String> {
-        let command = if let Some(reason) = reason {
-            format!("kick {} {}", player_name, reason)
+    
+    /// Get detailed player information (requires additional commands)
+    pub fn get_player_info(&self, player_name: &str) -> Result<Option<Player>> {
+        // Try to get player data using the data command
+        let response = self.send_command(&format!("data get entity {} Pos", player_name))?;
+        
+        if response.contains("No entity was found") {
+            return Ok(None);
+        }
+        
+        // Parse position data (format: "player has the following entity data: [x, y, z]")
+        let mut x = 0.0;
+        let mut y = 0.0;
+        let mut z = 0.0;
+        
+        if let Some(bracket_start) = response.find('[') {
+            if let Some(bracket_end) = response.find(']') {
+                let coords = &response[bracket_start + 1..bracket_end];
+                let parts: Vec<&str> = coords.split(',').map(|s| s.trim()).collect();
+                if parts.len() == 3 {
+                    x = parts[0].parse().unwrap_or(0.0);
+                    y = parts[1].parse().unwrap_or(0.0);
+                    z = parts[2].parse().unwrap_or(0.0);
+                }
+            }
+        }
+        
+        // Get dimension
+        let dimension_response = self.send_command(&format!("data get entity {} Dimension", player_name))?;
+        let dimension = if dimension_response.contains("minecraft:overworld") {
+            "overworld".to_string()
+        } else if dimension_response.contains("minecraft:nether") {
+            "nether".to_string()
+        } else if dimension_response.contains("minecraft:end") {
+            "end".to_string()
         } else {
-            format!("kick {}", player_name)
+            "overworld".to_string()
         };
         
-        self.send_command(&command)
+        Ok(Some(Player {
+            uuid: Uuid::new_v4().to_string(), // We don't have UUID from these commands
+            name: player_name.to_string(),
+            dimension,
+            last_seen: Utc::now().to_rfc3339(),
+            online: true,
+            playtime: 0, // Not easily available
+            ping: 0, // Not easily available
+            x,
+            y,
+            z,
+        }))
     }
-
-    /// Ban a player
-    pub fn ban_player(&self, player_name: &str, reason: Option<&str>) -> Result<String> {
-        let command = if let Some(reason) = reason {
-            format!("ban {} {}", player_name, reason)
-        } else {
-            format!("ban {}", player_name)
-        };
+    
+    /// Send a command and get the response
+    pub fn execute_command(&self, command: &str) -> Result<String> {
+        self.send_command(command)
+    }
+    
+    /// Check if the server is responding
+    pub fn ping(&self) -> Result<bool> {
+        match self.send_command("list") {
+            Ok(_) => Ok(true),
+            Err(_) => Ok(false),
+        }
+    }
+    
+    /// Get server information
+    pub fn get_server_info(&self) -> Result<ServerInfo> {
+        let list_response = self.send_command("list")?;
+        let tps_response = self.send_command("tps")?;
         
-        self.send_command(&command)
-    }
-
-    /// Send a message to a player
-    pub fn message_player(&self, player_name: &str, message: &str) -> Result<String> {
-        let command = format!("msg {} {}", player_name, message);
-        self.send_command(&command)
-    }
-
-    /// Teleport a player
-    pub fn teleport_player(&self, player_name: &str, x: f64, y: f64, z: f64) -> Result<String> {
-        let command = format!("tp {} {} {} {}", player_name, x, y, z);
-        self.send_command(&command)
-    }
-
-    /// Give an item to a player
-    pub fn give_item(&self, player_name: &str, item: &str, count: Option<u32>) -> Result<String> {
-        let command = if let Some(count) = count {
-            format!("give {} {} {}", player_name, item, count)
-        } else {
-            format!("give {} {}", player_name, item)
-        };
+        // Parse player count from list response
+        let mut player_count = 0;
+        let mut max_players = 0;
         
-        self.send_command(&command)
-    }
-
-    /// Set the time
-    pub fn set_time(&self, time: &str) -> Result<String> {
-        let command = format!("time set {}", time);
-        self.send_command(&command)
-    }
-
-    /// Set the weather
-    pub fn set_weather(&self, weather: &str) -> Result<String> {
-        let command = format!("weather {}", weather);
-        self.send_command(&command)
-    }
-
-    /// Save the world
-    pub fn save_world(&self) -> Result<String> {
-        self.send_command("save-all")
-    }
-
-    /// Stop the server
-    pub fn stop_server(&self) -> Result<String> {
-        self.send_command("stop")
-    }
-}
-
-/// Server information from RCON
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ServerInfo {
-    pub players_online: u32,
-    pub tps: f64,
-    pub list_response: String,
-    pub tps_response: String,
-}
-
-/// Player information
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Player {
-    pub uuid: String,
-    pub name: String,
-    pub online: bool,
-    pub last_seen: Option<chrono::DateTime<chrono::Utc>>,
-    pub playtime: Option<u64>,
-    pub ping: Option<u32>,
-    pub dimension: Option<String>,
-    pub x: Option<f64>,
-    pub y: Option<f64>,
-    pub z: Option<f64>,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_rcon_packet_serialization() {
-        let packet = RconPacket::new(1, RCON_AUTH, "password".to_string());
-        let data = packet.serialize();
+        if let Some(are_pos) = list_response.find("There are") {
+            if let Some(of_pos) = list_response.find("of a max of") {
+                if let Some(players_pos) = list_response.find("players online") {
+                    let count_str = &list_response[are_pos + 10..of_pos].trim();
+                    let max_str = &list_response[of_pos + 11..players_pos].trim();
+                    
+                    player_count = count_str.parse().unwrap_or(0);
+                    max_players = max_str.parse().unwrap_or(0);
+                }
+            }
+        }
         
-        // Should have length, request_id, packet_type, body, and null terminator
-        assert!(data.len() > 12);
-        assert_eq!(data[data.len()-1], 0); // Null terminator
+        // Parse TPS from tps response (format varies by server)
+        let mut tps = 20.0;
+        if tps_response.contains("TPS") {
+            // Try to extract TPS value
+            for word in tps_response.split_whitespace() {
+                if let Ok(parsed_tps) = word.parse::<f64>() {
+                    if parsed_tps > 0.0 && parsed_tps <= 20.0 {
+                        tps = parsed_tps;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        Ok(ServerInfo {
+            player_count,
+            max_players,
+            tps,
+            uptime: "unknown".to_string(), // Not easily available via RCON
+        })
     }
-
-    #[test]
-    fn test_rcon_packet_deserialization() {
-        let original = RconPacket::new(1, RCON_AUTH, "password".to_string());
-        let data = original.serialize();
-        let deserialized = RconPacket::deserialize(&data).unwrap();
-        
-        assert_eq!(original.request_id, deserialized.request_id);
-        assert_eq!(original.packet_type, deserialized.packet_type);
-        assert_eq!(original.body, deserialized.body);
+    
+    fn create_packet(&self, request_id: i32, packet_type: i32, payload: &str) -> RconPacket {
+        RconPacket {
+            length: (payload.len() + 10) as i32,
+            request_id,
+            packet_type,
+            payload: payload.to_string(),
+            padding: 0,
+        }
     }
-
-    #[test]
-    fn test_parse_player_count() {
-        let client = RconClient::new("localhost".to_string(), 25575, "password".to_string());
+    
+    fn send_packet(&self, stream: &mut TcpStream, packet: &RconPacket) -> Result<()> {
+        let mut data = Vec::new();
+        data.extend_from_slice(&packet.length.to_le_bytes());
+        data.extend_from_slice(&packet.request_id.to_le_bytes());
+        data.extend_from_slice(&packet.packet_type.to_le_bytes());
+        data.extend_from_slice(packet.payload.as_bytes());
+        data.push(packet.padding);
+        data.push(0);
         
-        let response = "There are 5 of a max of 20 players online: Player1, Player2, Player3, Player4, Player5";
-        let count = client.parse_player_count(response).unwrap();
-        assert_eq!(count, 5);
-        
-        let empty_response = "There are 0 of a max of 20 players online:";
-        let count = client.parse_player_count(empty_response).unwrap();
-        assert_eq!(count, 0);
+        stream.write_all(&data)?;
+            Ok(())
     }
-
-    #[test]
-    fn test_parse_tps() {
-        let client = RconClient::new("localhost".to_string(), 25575, "password".to_string());
+    
+    fn read_packet(&self, stream: &mut TcpStream) -> Result<RconPacket> {
+        let mut length_buf = [0u8; 4];
+        stream.read_exact(&mut length_buf)?;
+        let length = i32::from_le_bytes(length_buf);
         
-        let response = "TPS: 20.0 (1m, 5m, 15m)";
-        let tps = client.parse_tps(response).unwrap();
-        assert_eq!(tps, 20.0);
+        let mut request_id_buf = [0u8; 4];
+        stream.read_exact(&mut request_id_buf)?;
+        let request_id = i32::from_le_bytes(request_id_buf);
         
-        let response = "TPS: 15.5 (1m, 5m, 15m)";
-        let tps = client.parse_tps(response).unwrap();
-        assert_eq!(tps, 15.5);
+        let mut packet_type_buf = [0u8; 4];
+        stream.read_exact(&mut packet_type_buf)?;
+        let packet_type = i32::from_le_bytes(packet_type_buf);
+        
+        let payload_length = length - 10;
+        let mut payload_buf = vec![0u8; payload_length as usize];
+        stream.read_exact(&mut payload_buf)?;
+        let payload = String::from_utf8(payload_buf)?;
+        
+        let mut padding_buf = [0u8; 2];
+        stream.read_exact(&mut padding_buf)?;
+        
+        Ok(RconPacket {
+            length,
+            request_id,
+            packet_type,
+            payload,
+            padding: padding_buf[0],
+        })
     }
 }

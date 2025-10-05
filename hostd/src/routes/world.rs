@@ -1,6 +1,6 @@
 use axum::{extract::{Path, State}, Json, http::StatusCode};
 use serde::Serialize;
-use crate::ApiResponse;
+use crate::api::ApiResponse;
 
 #[derive(Serialize, Clone)]
 pub struct WorldBorder { pub center: (f64, f64), pub radius: u32 }
@@ -60,6 +60,7 @@ pub async fn list_dimensions(
                 success: true,
                 data: Some(Dimensions { items }),
                 error: None,
+                timestamp: chrono::Utc::now(),
             }))
         }
         Err(e) => {

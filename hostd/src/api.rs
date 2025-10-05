@@ -8,11 +8,12 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashMap;
+use std::sync::Arc;
 use uuid::Uuid;
 use tracing::{info, warn, error, debug};
 use chrono::{self, Utc};
 
-use crate::websocket::{WebSocketManager, WebSocketMessage};
+use crate::websocket_manager::{WebSocketManager, WebSocketMessage};
 use crate::database::{ServerConfig, MinecraftVersion, LoaderVersion, ModVersion, Modpack, Settings, Mod};
 use crate::mod_manager::{ModManager, ModCompatibilityResult, ModInfo};
 use crate::compatibility_engine::CompatibilityIssue;
@@ -92,7 +93,8 @@ pub struct CreateServerRequest {
     pub name: String,
     pub loader: String,
     pub version: String,
-    pub mc_version: String,
+    #[serde(alias = "mc_version")]
+    pub minecraft_version: String,
     pub paths: ServerPaths,
     #[serde(rename = "jarPath")]
     pub jar_path: Option<String>,
@@ -272,7 +274,7 @@ pub struct ApplyModpackRequest {
 /// Application state
 #[derive(Clone)]
 pub struct AppState {
-    pub websocket_manager: WebSocketManager,
+    pub websocket_manager: Arc<WebSocketManager>,
     pub minecraft_manager: crate::minecraft::MinecraftManager,
     pub database: crate::database::DatabaseManager,
     pub mod_manager: ModManager,
@@ -388,6 +390,8 @@ pub fn create_api_router(state: AppState) -> Router {
         
         // Health check endpoint
         .route("/api/health", get(health_check))
+        .route("/api/healthz", get(health_check))
+        .route("/healthz", get(health_check))
         .route("/api/status", get(get_status))
         
         .with_state(state)
@@ -419,7 +423,7 @@ async fn get_servers(State(state): State<AppState>) -> Result<Json<ApiResponse<V
                         active: "blue".to_string(),
                         candidate_healthy: server.status == crate::minecraft::ServerStatus::Running,
                     },
-                    version: Some(server.config.mc_version.clone()),
+                    version: Some(server.config.minecraft_version.clone()),
                     max_players: Some(server.config.max_players as u32),
                     uptime: None,
                     memory_usage: Some(2048),
@@ -452,26 +456,43 @@ async fn create_server(
     let server_config = ServerConfig {
         id: server_id.clone(),
         name: payload.name.clone(),
-        host: server_root_str.clone(),
+        minecraft_version: payload.minecraft_version.clone(),
+        loader: payload.loader.clone(),
+        loader_version: payload.version.clone(),
         port: 25565,
         rcon_port: 25575,
-        rcon_password: Uuid::new_v4().to_string(),
-        java_path: "java".to_string(), // TODO: Make configurable
-        // If user provided a jar path, copy to server root as server.jar; otherwise default name and autodetect
-        server_jar: "server.jar".to_string(),
-        jvm_args: "-Xmx4G -Xms2G -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1HeapRegionSize=8M -XX:G1ReservePercent=20 -XX:G1HeapWastePercent=5 -XX:G1MixedGCCountTarget=4 -XX:InitiatingHeapOccupancyPercent=15 -XX:G1MixedGCLiveThresholdPercent=90 -XX:G1RSetUpdatingPauseTimePercent=5 -XX:SurvivorRatio=32 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1".to_string(),
-        server_args: "--nogui".to_string(),
+        query_port: 25566,
+        max_players: payload.max_players.unwrap_or(20),
+        memory: 4096, // Default memory allocation
+        java_args: serde_json::to_string(&vec![
+            "-Xmx4G", "-Xms2G", "-XX:+UseG1GC", "-XX:+ParallelRefProcEnabled",
+            "-XX:MaxGCPauseMillis=200", "-XX:+UnlockExperimentalVMOptions",
+            "-XX:+DisableExplicitGC", "-XX:+AlwaysPreTouch", "-XX:G1NewSizePercent=30",
+            "-XX:G1MaxNewSizePercent=40", "-XX:G1HeapRegionSize=8M", "-XX:G1ReservePercent=20",
+            "-XX:G1HeapWastePercent=5", "-XX:G1MixedGCCountTarget=4",
+            "-XX:InitiatingHeapOccupancyPercent=15", "-XX:G1MixedGCLiveThresholdPercent=90",
+            "-XX:G1RSetUpdatingPauseTimePercent=5", "-XX:SurvivorRatio=32",
+            "-XX:+PerfDisableSharedMem", "-XX:MaxTenuringThreshold=1"
+        ]).unwrap_or_default(),
+        server_args: serde_json::to_string(&vec!["--nogui"]).unwrap_or_default(),
         auto_start: false,
         auto_restart: true,
-        max_players: payload.max_players.unwrap_or(20),
-        mc_version: payload.mc_version.clone(),
-        pregeneration_policy: payload.pregeneration_policy.unwrap_or(serde_json::json!({
-            "enabled": false,
-            "radius": 0,
-            "dimensions": ["overworld"],
-            "gpu_acceleration": true,
-            "efficiency_package": false
-        })),
+        world_name: "world".to_string(),
+        difficulty: "normal".to_string(),
+        gamemode: "survival".to_string(),
+        pvp: true,
+        online_mode: true,
+        whitelist: false,
+        enable_command_block: false,
+        view_distance: 10,
+        simulation_distance: 10,
+        motd: "A Minecraft Server".to_string(),
+        // Additional production fields
+        host: "localhost".to_string(),
+        java_path: "java".to_string(),
+        jvm_args: "-Xmx4G -Xms2G".to_string(),
+        server_jar: "server.jar".to_string(),
+        rcon_password: uuid::Uuid::new_v4().to_string(),
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
     };
@@ -533,7 +554,7 @@ async fn create_server(
                     active: "blue".to_string(),
                     candidate_healthy: false,
                 },
-                version: Some(payload.mc_version),
+                version: Some(payload.minecraft_version),
                 max_players: Some(payload.max_players.unwrap_or(20) as u32),
                 uptime: None,
                 memory_usage: Some(0),
@@ -693,9 +714,10 @@ async fn start_server(
             info!("Successfully started server: {}", id);
             
             // Broadcast status update
-            let message = WebSocketMessage::ServerStatus {
+            let message = WebSocketMessage::ServerStatusChange {
                 server_id: id.clone(),
-                status: "starting".to_string(),
+                old_status: "stopped".to_string(),
+                new_status: "starting".to_string(),
                 timestamp: chrono::Utc::now(),
             };
             
@@ -722,9 +744,10 @@ async fn stop_server(
             info!("Successfully stopped server: {}", id);
             
             // Broadcast status update
-            let message = WebSocketMessage::ServerStatus {
+            let message = WebSocketMessage::ServerStatusChange {
                 server_id: id.clone(),
-                status: "stopping".to_string(),
+                old_status: "running".to_string(),
+                new_status: "stopping".to_string(),
                 timestamp: chrono::Utc::now(),
             };
             
@@ -783,9 +806,7 @@ async fn update_server(
     if let Some(max_players) = payload.max_players {
         server.config.max_players = max_players;
     }
-    if let Some(pregeneration_policy) = payload.pregeneration_policy {
-        server.config.pregeneration_policy = pregeneration_policy;
-    }
+    // pregeneration_policy field removed from ServerConfig
 
     server.config.updated_at = chrono::Utc::now();
 
@@ -886,10 +907,10 @@ async fn delete_server(
             info!("Successfully deleted server: {}", id);
             
             // Broadcast deletion update
-            let message = WebSocketMessage::ServerEvent {
+            let message = WebSocketMessage::ServerStatusChange {
                 server_id: id.clone(),
-                event: "deleted".to_string(),
-                data: serde_json::json!({}),
+                old_status: "running".to_string(),
+                new_status: "deleted".to_string(),
                 timestamp: chrono::Utc::now(),
             };
             
@@ -1171,8 +1192,8 @@ async fn get_players(
                 uuid: p.uuid,
                 name: p.name,
                 online: p.online,
-                last_seen: p.last_seen.map(|t| t.to_rfc3339()),
-                playtime: p.playtime,
+                last_seen: Some(p.last_seen),
+                playtime: Some(p.playtime),
             }).collect();
             Ok(Json(ApiResponse::success(players)))
         }
@@ -1187,7 +1208,7 @@ async fn get_player(
     match state.minecraft_manager.get_server_players(&id).await {
         Ok(players) => {
             if let Some(p) = players.into_iter().find(|p| p.uuid == uuid) {
-                let player = Player { uuid: p.uuid, name: p.name, online: p.online, last_seen: p.last_seen.map(|t| t.to_rfc3339()), playtime: p.playtime };
+                let player = Player { uuid: p.uuid, name: p.name, online: p.online, last_seen: Some(p.last_seen), playtime: Some(p.playtime) };
                 Ok(Json(ApiResponse::success(player)))
             } else {
                 Ok(Json(ApiResponse::error("Player not found".to_string())))
@@ -1440,19 +1461,12 @@ async fn create_backup(
     let config = crate::backup::BackupConfig {
         strategy: crate::backup::BackupStrategy::Full,
         retention: crate::backup::RetentionPolicy::default(),
+        compression: true,
         storage: crate::backup::StorageConfig {
-            local_path: backup_dir.clone(),
-            remote: None,
-            compression_level: 6,
-            encryption_enabled: false,
-            encryption_key: None,
+            local_path: backup_dir.to_string_lossy().to_string(),
+            remote_url: None,
+            credentials: None,
         },
-        schedule: "manual".to_string(),
-        enabled: true,
-        include_paths: vec![std::path::PathBuf::from(server_root)],
-        exclude_paths: vec![],
-        max_size_bytes: 0,
-        compression_threads: 2,
     };
     let manager = crate::backup::BackupManager::new(config);
     if let Err(e) = manager.start().await { warn!("backup manager start: {}", e); }
@@ -1483,16 +1497,15 @@ pub async fn restore_backup(
     let config = crate::backup::BackupConfig {
         strategy: crate::backup::BackupStrategy::Full,
         retention: crate::backup::RetentionPolicy::default(),
-        storage: crate::backup::StorageConfig { local_path: std::path::PathBuf::from("data/backups"), remote: None, compression_level: 6, encryption_enabled: false, encryption_key: None },
-        schedule: "manual".to_string(),
-        enabled: true,
-        include_paths: vec![server_root.clone()],
-        exclude_paths: vec![],
-        max_size_bytes: 0,
-        compression_threads: 2,
+        compression: true,
+        storage: crate::backup::StorageConfig { 
+            local_path: "data/backups".to_string(), 
+            remote_url: None, 
+            credentials: None 
+        },
     };
     let manager = crate::backup::BackupManager::new(config);
-    match manager.restore_from_backup(&backup_id, &server_root).await {
+    match manager.restore_from_backup(&backup_id, &server_root.to_string_lossy()).await {
         Ok(_) => Ok(Json(ApiResponse::success("Backup restored".to_string()))),
         Err(e) => Ok(Json(ApiResponse::error(format!("Failed to restore: {}", e)))),
     }
@@ -1506,13 +1519,12 @@ async fn delete_backup(
     let manager = crate::backup::BackupManager::new(crate::backup::BackupConfig {
         strategy: crate::backup::BackupStrategy::Full,
         retention: crate::backup::RetentionPolicy::default(),
-        storage: crate::backup::StorageConfig { local_path: std::path::PathBuf::from("data/backups"), remote: None, compression_level: 6, encryption_enabled: false, encryption_key: None },
-        schedule: "manual".to_string(),
-        enabled: true,
-        include_paths: vec![],
-        exclude_paths: vec![],
-        max_size_bytes: 0,
-        compression_threads: 2,
+        compression: true,
+        storage: crate::backup::StorageConfig { 
+            local_path: "data/backups".to_string(), 
+            remote_url: None, 
+            credentials: None 
+        },
     });
     match manager.delete_backup(&backup_id).await {
         Ok(_) => Ok(Json(ApiResponse::success("Backup deleted".to_string()))),
@@ -2195,7 +2207,7 @@ pub struct ApplyFixesRequest {
 async fn scan_compatibility(
     State(state): State<AppState>,
     Path(id): Path<String>,
-) -> Result<Json<ApiResponse<crate::compatibility::CompatibilityReport>>, StatusCode> {
+) -> Result<Json<ApiResponse<crate::compatibility_engine::CompatibilityReport>>, StatusCode> {
     // Get server configuration
     let server = match state.minecraft_manager.get_server(&id).await {
         Some(server) => server,
@@ -2203,7 +2215,7 @@ async fn scan_compatibility(
     };
 
     // Create compatibility scanner
-    let scanner = crate::compatibility::CompatibilityScanner::new();
+    let scanner = crate::compatibility_engine::CompatibilityScanner::new();
     
     // Determine mods directory
     let mods_dir = std::path::Path::new(&server.config.host).join("mods");
@@ -2227,7 +2239,7 @@ async fn apply_compatibility_fixes(
     State(state): State<AppState>,
     Path(id): Path<String>,
     Json(payload): Json<ApplyFixesRequest>,
-) -> Result<Json<ApiResponse<crate::compatibility::CompatibilityReport>>, StatusCode> {
+) -> Result<Json<ApiResponse<crate::compatibility_engine::CompatibilityReport>>, StatusCode> {
     // Get server configuration
     let server = match state.minecraft_manager.get_server(&id).await {
         Some(server) => server,
@@ -2566,12 +2578,17 @@ async fn get_lighting_settings(
     // For now, return default settings
     let settings = crate::lighting::LightingSettings {
         enabled: true,
+        optimization_level: crate::lighting::OptimizationLevel::Balanced,
         default_level: crate::lighting::OptimizationLevel::Balanced,
+        auto_optimize: true,
         gpu_acceleration: true,
         auto_optimize_after_pregeneration: true,
         preserve_lighting_data: true,
         max_concurrent_jobs: 4,
         chunk_batch_size: 100,
+        schedule: None,
+        chunk_radius: 100,
+        priority: 5,
     };
     
     Ok(Json(ApiResponse {
@@ -2705,7 +2722,10 @@ mod tests {
     async fn test_health_check() {
         let manager = WebSocketManager::new();
         let state = AppState {
-            websocket_manager: manager,
+            websocket_manager: Arc::new(manager),
+            minecraft_manager: crate::minecraft::MinecraftManager::new(crate::database::DatabaseManager::new(":memory:").await.unwrap()),
+            database: crate::database::DatabaseManager::new(":memory:").await.unwrap(),
+            mod_manager: crate::mod_manager::ModManager::new(std::path::PathBuf::from("mods")),
         };
         let app = create_api_router(state);
 
@@ -2722,7 +2742,10 @@ mod tests {
     async fn test_get_servers() {
         let manager = WebSocketManager::new();
         let state = AppState {
-            websocket_manager: manager,
+            websocket_manager: Arc::new(manager),
+            minecraft_manager: crate::minecraft::MinecraftManager::new(crate::database::DatabaseManager::new(":memory:").await.unwrap()),
+            database: crate::database::DatabaseManager::new(":memory:").await.unwrap(),
+            mod_manager: crate::mod_manager::ModManager::new(std::path::PathBuf::from("mods")),
         };
         let app = create_api_router(state);
 

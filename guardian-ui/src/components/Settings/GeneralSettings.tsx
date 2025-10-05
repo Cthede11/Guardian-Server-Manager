@@ -149,18 +149,18 @@ export const GeneralSettings: React.FC = () => {
       if (serverData.general) {
         setSettings(prev => ({
           ...prev,
-          serverName: serverData.general.name || prev.serverName,
-          serverDescription: serverData.general.description || prev.serverDescription,
-          maxPlayers: serverData.general.max_players || prev.maxPlayers,
-          motd: serverData.general.motd || prev.motd,
-          difficulty: (serverData.general.difficulty as "normal" | "peaceful" | "easy" | "hard") || prev.difficulty,
-          gamemode: (serverData.general.gamemode as "survival" | "creative" | "adventure" | "spectator") || prev.gamemode,
-          pvp: serverData.general.pvp ?? prev.pvp,
-          onlineMode: serverData.general.online_mode ?? prev.onlineMode,
-          whitelist: serverData.general.whitelist ?? prev.whitelist,
-          enableCommandBlock: serverData.general.enable_command_block ?? prev.enableCommandBlock,
-          viewDistance: serverData.general.view_distance || prev.viewDistance,
-          simulationDistance: serverData.general.simulation_distance || prev.simulationDistance,
+          serverName: serverData.general?.name || prev.serverName,
+          serverDescription: serverData.general?.description || prev.serverDescription,
+          maxPlayers: serverData.general?.maxPlayers || prev.maxPlayers,
+          motd: serverData.general?.motd || prev.motd,
+          difficulty: (serverData.general?.difficulty as "normal" | "peaceful" | "easy" | "hard") || prev.difficulty,
+          gamemode: (serverData.general?.gamemode as "survival" | "creative" | "adventure" | "spectator") || prev.gamemode,
+          pvp: serverData.general?.pvp ?? prev.pvp,
+          onlineMode: serverData.general?.onlineMode ?? prev.onlineMode,
+          whitelist: serverData.general?.whitelist ?? prev.whitelist,
+          enableCommandBlock: serverData.general?.enableCommandBlock ?? prev.enableCommandBlock,
+          viewDistance: serverData.general?.viewDistance || prev.viewDistance,
+          simulationDistance: serverData.general?.simulationDistance || prev.simulationDistance,
         }));
       }
     }
@@ -307,17 +307,17 @@ export const GeneralSettings: React.FC = () => {
           name: settings.serverName,
           description: settings.serverDescription,
           version: currentServerSettings.general?.version || '1.20.1',
-          loader: currentServerSettings.general?.loader || 'vanilla',
-          max_players: settings.maxPlayers,
+          modpack: currentServerSettings.general?.modpack,
+          maxPlayers: settings.maxPlayers,
           motd: settings.motd,
           difficulty: settings.difficulty,
           gamemode: settings.gamemode,
           pvp: settings.pvp,
-          online_mode: settings.onlineMode,
+          onlineMode: settings.onlineMode,
           whitelist: settings.whitelist,
-          enable_command_block: settings.enableCommandBlock,
-          view_distance: settings.viewDistance,
-          simulation_distance: settings.simulationDistance
+          enableCommandBlock: settings.enableCommandBlock,
+          viewDistance: settings.viewDistance,
+          simulationDistance: settings.simulationDistance
         }
       });
     } catch (error) {

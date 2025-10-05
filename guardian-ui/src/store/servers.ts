@@ -282,12 +282,12 @@ export const useServersStore = create<ServersState>((set, get) => ({
           server.id === id 
             ? { 
                 ...server, 
-                blueGreen: {
+                blueGreen: server.blueGreen ? {
                   ...server.blueGreen,
                   active: server.blueGreen.active === 'blue' 
                     ? 'green' as const 
                     : 'blue' as const,
-                }
+                } : undefined
               } 
             : server
         ),
@@ -458,8 +458,8 @@ export const useServersStore = create<ServersState>((set, get) => ({
                 ...state.serverSettings[id]?.general,
                 maxPlayers: parseInt(properties['max-players']) || 20,
                 motd: properties['motd'] || '',
-                difficulty: properties['difficulty'] || 'normal',
-                gamemode: properties['gamemode'] || 'survival',
+                difficulty: (properties['difficulty'] as 'peaceful' | 'easy' | 'normal' | 'hard') || 'normal',
+                gamemode: (properties['gamemode'] as 'survival' | 'creative' | 'adventure' | 'spectator') || 'survival',
                 pvp: properties['pvp'] === 'true',
                 onlineMode: properties['online-mode'] === 'true',
                 whitelist: properties['white-list'] === 'true',

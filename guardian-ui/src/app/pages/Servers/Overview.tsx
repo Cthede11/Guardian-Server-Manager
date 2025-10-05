@@ -144,23 +144,23 @@ export const Overview: React.FC = () => {
         <StatCard
           title="Players"
           value={selectedServer.status === 'running' 
-            ? `${selectedServer.players_online || 0}` 
-            : '0'}
-          subtitle={`${selectedServer.max_players || 20} max`}
+            ? `${selectedServer.playersOnline || 0}` 
+          : '0'}
+          subtitle={`${selectedServer.maxPlayers || 20} max`}
           icon={<Users className="h-4 w-4" />}
         />
         <StatCard
           title="Memory"
-          value={selectedServer.status === 'running' && selectedServer.heap_mb
-            ? `${selectedServer.heap_mb}MB`
+          value={selectedServer.status === 'running' && selectedServer.heapMb
+            ? `${selectedServer.heapMb}MB`
             : '0MB'}
           subtitle={`${selectedServer.memory || 4096}MB max`}
           icon={<HardDrive className="h-4 w-4" />}
         />
         <StatCard
           title="Tick Time"
-          value={selectedServer.status === 'running' && selectedServer.tick_p95_ms
-            ? `${selectedServer.tick_p95_ms.toFixed(1)}ms`
+          value={selectedServer.status === 'running' && selectedServer.tickP95
+            ? `${selectedServer.tickP95.toFixed(1)}ms`
             : '0ms'}
           subtitle="95th percentile"
           icon={<Clock className="h-4 w-4" />}
@@ -197,25 +197,25 @@ export const Overview: React.FC = () => {
               <span className="text-sm">Query</span>
             </div>
             <div className="flex items-center space-x-2">
-              {(health?.crash_tickets || 0) === 0 ? (
+              {(health?.crashTickets || 0) === 0 ? (
                 <CheckCircle className="h-4 w-4 text-green-500" />
               ) : (
                 <AlertTriangle className="h-4 w-4 text-yellow-500" />
               )}
               <span className="text-sm">Crashes</span>
-              {(health?.crash_tickets || 0) > 0 && (
-                <Badge variant="secondary">{health?.crash_tickets || 0}</Badge>
+              {(health?.crashTickets || 0) > 0 && (
+                <Badge variant="secondary">{health?.crashTickets || 0}</Badge>
               )}
             </div>
             <div className="flex items-center space-x-2">
-              {(health?.freeze_tickets || 0) === 0 ? (
+              {(health?.freezeTickets || 0) === 0 ? (
                 <CheckCircle className="h-4 w-4 text-green-500" />
               ) : (
                 <AlertTriangle className="h-4 w-4 text-yellow-500" />
               )}
               <span className="text-sm">Freezes</span>
-              {(health?.freeze_tickets || 0) > 0 && (
-                <Badge variant="secondary">{health?.freeze_tickets || 0}</Badge>
+              {(health?.freezeTickets || 0) > 0 && (
+                <Badge variant="secondary">{health?.freezeTickets || 0}</Badge>
               )}
             </div>
           </div>
@@ -223,7 +223,7 @@ export const Overview: React.FC = () => {
       </Card>
 
       {/* Blue/Green Deployment Status */}
-      {selectedServer.blue_green && (
+      {selectedServer.blueGreen && (
         <Card>
           <CardHeader>
             <CardTitle>Blue/Green Deployment</CardTitle>
@@ -236,27 +236,27 @@ export const Overview: React.FC = () => {
               <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-2">
                   <div className={`w-3 h-3 rounded-full ${
-                    selectedServer.blue_green.active === 'blue' ? 'bg-blue-500' : 'bg-gray-300'
+                    selectedServer.blueGreen.active === 'blue' ? 'bg-blue-500' : 'bg-gray-300'
                   }`} />
                   <span className="text-sm font-medium">Blue</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <div className={`w-3 h-3 rounded-full ${
-                    selectedServer.blue_green.active === 'green' ? 'bg-green-500' : 'bg-gray-300'
+                    selectedServer.blueGreen.active === 'green' ? 'bg-green-500' : 'bg-gray-300'
                   }`} />
                   <span className="text-sm font-medium">Green</span>
                 </div>
               </div>
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-muted-foreground">Active:</span>
-                <Badge variant={selectedServer.blue_green.active === 'blue' ? 'default' : 'secondary'}>
-                  {selectedServer.blue_green.active}
+                <Badge variant={selectedServer.blueGreen.active === 'blue' ? 'default' : 'secondary'}>
+                  {selectedServer.blueGreen.active}
                 </Badge>
               </div>
             </div>
             <div className="mt-4 flex items-center space-x-2">
               <span className="text-sm text-muted-foreground">Candidate Health:</span>
-              {selectedServer.blue_green.candidate_healthy ? (
+              {selectedServer.blueGreen.candidateHealthy ? (
                 <Badge variant="default" className="bg-green-500">
                   Healthy
                 </Badge>

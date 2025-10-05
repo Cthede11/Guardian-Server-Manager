@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 use chrono::Utc;
 
-use crate::ApiResponse;
+use crate::api::ApiResponse;
 
 /// Minecraft version information
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -211,10 +211,10 @@ pub fn create_modpack_router(state: ModpackState) -> Router {
         .route("/api/mods/compatibility", post(check_mod_compatibility))
         
         // Server mod management
-        .route("/api/servers/:server_id/mods", get(get_server_mods))
-        .route("/api/servers/:server_id/mods", post(add_mod_to_server))
-        .route("/api/servers/:server_id/mods/:mod_id", delete(remove_mod_from_server))
-        .route("/api/servers/:server_id/modpacks/:modpack_id", post(apply_modpack_to_server))
+        .route("/api/servers/:id/mods", get(get_server_mods))
+        .route("/api/servers/:id/mods", post(add_mod_to_server))
+        .route("/api/servers/:id/mods/:mod_id", delete(remove_mod_from_server))
+        .route("/api/servers/:id/modpacks/:modpack_id", post(apply_modpack_to_server))
         .with_state(state)
 }
 
@@ -512,33 +512,33 @@ pub async fn check_mod_compatibility(
 // Server Mod Management
 
 pub async fn get_server_mods(
-    Path(server_id): Path<String>
+    Path(id): Path<String>
 ) -> Json<ApiResponse<Vec<ModInfo>>> {
     // Placeholder implementation - in real implementation, this would read from server directory
     Json(ApiResponse::success(vec![]))
 }
 
 pub async fn add_mod_to_server(
-    Path((server_id, mod_id)): Path<(String, String)>,
+    Path((id, mod_id)): Path<(String, String)>,
     Json(request): Json<serde_json::Value>
 ) -> Json<ApiResponse<()>> {
     // Placeholder implementation - in real implementation, this would download and install the mod
-    println!("Adding mod {} to server {}", mod_id, server_id);
+    println!("Adding mod {} to server {}", mod_id, id);
     Json(ApiResponse::success(()))
 }
 
 pub async fn remove_mod_from_server(
-    Path((server_id, mod_id)): Path<(String, String)>
+    Path((id, mod_id)): Path<(String, String)>
 ) -> Json<ApiResponse<()>> {
     // Placeholder implementation - in real implementation, this would remove the mod from server
-    println!("Removing mod {} from server {}", mod_id, server_id);
+    println!("Removing mod {} from server {}", mod_id, id);
     Json(ApiResponse::success(()))
 }
 
 pub async fn apply_modpack_to_server(
-    Path((server_id, modpack_id)): Path<(String, String)>
+    Path((id, modpack_id)): Path<(String, String)>
 ) -> Json<ApiResponse<()>> {
     // Placeholder implementation - in real implementation, this would apply all mods from modpack
-    println!("Applying modpack {} to server {}", modpack_id, server_id);
+    println!("Applying modpack {} to server {}", modpack_id, id);
     Json(ApiResponse::success(()))
 }

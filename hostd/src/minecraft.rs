@@ -8,8 +8,6 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::{
-    fs,
-    process::Command as TokioCommand,
     sync::{Mutex, RwLock},
     time::{interval, sleep},
 };
@@ -17,8 +15,8 @@ use tracing::{info, warn, error, debug};
 use uuid::Uuid;
 
 use crate::database::{DatabaseManager, ServerConfig, EventLog};
-use crate::rcon::RconClient;
-use crate::websocket::WebSocketManager;
+use crate::rcon::{RconClient, Player as RconPlayer};
+use crate::websocket_manager::WebSocketManager;
 
 /// Minecraft server process manager
 #[derive(Debug, Clone)]
@@ -61,13 +59,13 @@ pub struct Player {
     pub uuid: String,
     pub name: String,
     pub online: bool,
-    pub last_seen: Option<chrono::DateTime<chrono::Utc>>,
-    pub playtime: Option<u64>,
-    pub ping: Option<u32>,
-    pub dimension: Option<String>,
-    pub x: Option<f64>,
-    pub y: Option<f64>,
-    pub z: Option<f64>,
+    pub last_seen: String,
+    pub playtime: u64,
+    pub ping: u32,
+    pub dimension: String,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
 }
 
 /// Console message
@@ -530,13 +528,13 @@ impl MinecraftServer {
                         uuid: Uuid::new_v4().to_string(), // TODO: Get actual UUID
                         name: name.to_string(),
                         online: true,
-                        last_seen: Some(chrono::Utc::now()),
-                        playtime: None,
-                        ping: None,
-                        dimension: None,
-                        x: None,
-                        y: None,
-                        z: None,
+                        last_seen: chrono::Utc::now().to_rfc3339(),
+                        playtime: 0,
+                        ping: 0,
+                        dimension: "overworld".to_string(),
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
                     });
                 }
             }
@@ -677,7 +675,7 @@ impl MinecraftManager {
             
             // Send WebSocket notification
             if let Some(ws_manager) = &self.websocket_manager {
-                ws_manager.send_server_status(id, "starting".to_string()).await;
+                ws_manager.send_server_status(Uuid::parse_str(&id)?, "starting".to_string()).await;
             }
         } else {
             return Err(anyhow!("Server not found: {}", id));
@@ -693,7 +691,7 @@ impl MinecraftManager {
             
             // Send WebSocket notification
             if let Some(ws_manager) = &self.websocket_manager {
-                ws_manager.send_server_status(id, "stopping".to_string()).await;
+                ws_manager.send_server_status(Uuid::parse_str(&id)?, "stopping".to_string()).await;
             }
         } else {
             return Err(anyhow!("Server not found: {}", id));
@@ -709,7 +707,7 @@ impl MinecraftManager {
             
             // Send WebSocket notification
             if let Some(ws_manager) = &self.websocket_manager {
-                ws_manager.send_server_status(id, "restarting".to_string()).await;
+                ws_manager.send_server_status(Uuid::parse_str(&id)?, "restarting".to_string()).await;
             }
         } else {
             return Err(anyhow!("Server not found: {}", id));
@@ -768,7 +766,11 @@ impl MinecraftManager {
                     for (server_id, server) in servers_read.iter() {
                         if server.status == ServerStatus::Running {
                             if let Ok(metrics) = server.get_metrics().await {
-                                ws_manager.send_metrics(server_id, metrics).await;
+                                if let Ok(server_uuid) = Uuid::parse_str(&server_id) {
+                                    if let Ok(metrics_value) = serde_json::to_value(metrics) {
+                                        let _ = ws_manager.send_metrics(server_uuid, metrics_value).await;
+                                    }
+                                }
                             }
                         }
                     }
@@ -794,16 +796,33 @@ mod tests {
         let config = ServerConfig {
             id: "test-server".to_string(),
             name: "Test Server".to_string(),
+            minecraft_version: "1.21.1".to_string(),
+            loader: "vanilla".to_string(),
+            loader_version: "1.21.1".to_string(),
             host: "/tmp/test-server".to_string(),
             port: 25565,
             rcon_port: 25575,
-            rcon_password: "password".to_string(),
-            java_path: "/usr/bin/java".to_string(),
-            server_jar: "server.jar".to_string(),
-            jvm_args: "-Xmx4G".to_string(),
-            server_args: "nogui".to_string(),
+            query_port: 25566,
+            max_players: 20,
+            memory: 4096,
+            java_args: "[]".to_string(),
+            server_args: "[]".to_string(),
             auto_start: true,
             auto_restart: true,
+            world_name: "world".to_string(),
+            difficulty: "normal".to_string(),
+            gamemode: "survival".to_string(),
+            pvp: true,
+            online_mode: true,
+            whitelist: false,
+            enable_command_block: false,
+            view_distance: 10,
+            simulation_distance: 10,
+            motd: "A Minecraft Server".to_string(),
+            java_path: "/usr/bin/java".to_string(),
+            jvm_args: "-Xmx4G".to_string(),
+            server_jar: "server.jar".to_string(),
+            rcon_password: "password".to_string(),
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         };
@@ -817,10 +836,10 @@ mod tests {
     async fn test_rcon_client() {
         let rcon = RconClient::new("localhost".to_string(), 25575, "password".to_string());
         
-        let response = rcon.send_command("list").await.unwrap();
+        let response = rcon.send_command("list").unwrap();
         assert!(!response.is_empty());
         
-        let available = rcon.is_available().await;
+        let available = rcon.is_available();
         assert!(available);
     }
 
@@ -837,3 +856,4 @@ mod tests {
         assert_eq!(servers.len(), 0);
     }
 }
+

@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  guardian-backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    ports:
+      - "52100:52100"
+    environment:
+      - RUST_LOG=info
+      - DATABASE_URL=sqlite:///data/guardian.db
+      - JWT_SECRET=${JWT_SECRET}
+      - API_KEY=${API_KEY}
+    volumes:
+      - ./data:/app/data
+      - ./configs:/app/configs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:52100/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - guardian-network
+
+  guardian-frontend:
+    build:
+      context: ./guardian-ui
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://guardian-backend:52100
+    depends_on:
+      - guardian-backend
+    restart: unless-stopped
+    networks:
+      - guardian-network
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - guardian-backend
+      - guardian-frontend
+    restart: unless-stopped
+    networks:
+      - guardian-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - guardian-network
+
+volumes:
+  redis-data:
+
+networks:
+  guardian-network:
+    driver: bridge

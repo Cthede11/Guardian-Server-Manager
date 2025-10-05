@@ -1,0 +1,159 @@
+# Production configuration for Guardian Server Manager
+server:
+  host: "0.0.0.0"
+  port: 8080
+  workers: 4
+  max_connections: 1000
+  timeout: 30
+
+# Database configuration
+database:
+  url: "sqlite:///app/data/guardian.db"
+  max_connections: 20
+  connection_timeout: 30
+  idle_timeout: 600
+
+# Redis configuration
+redis:
+  url: "redis://redis:6379"
+  max_connections: 20
+  connection_timeout: 5
+  command_timeout: 3
+
+# Authentication configuration
+auth:
+  jwt_secret: "${JWT_SECRET}"
+  jwt_expiry: 86400  # 24 hours
+  password_min_length: 8
+  password_require_special: true
+  password_require_number: true
+  password_require_uppercase: true
+  session_timeout: 3600  # 1 hour
+
+# Security configuration
+security:
+  rate_limiting:
+    enabled: true
+    max_requests: 100
+    window_seconds: 60
+    burst_size: 20
+  
+  cors:
+    allowed_origins: ["https://yourdomain.com", "https://www.yourdomain.com"]
+    allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allowed_headers: ["*"]
+    allow_credentials: true
+  
+  headers:
+    content_security_policy: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';"
+    x_frame_options: "DENY"
+    x_content_type_options: "nosniff"
+    x_xss_protection: "1; mode=block"
+    strict_transport_security: "max-age=31536000; includeSubDomains"
+
+# Logging configuration
+logging:
+  level: "info"
+  format: "json"
+  file: "/app/logs/guardian.log"
+  max_size: "100MB"
+  max_files: 10
+  compress: true
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  metrics_interval: 10
+  health_check_interval: 30
+  alert_retention_days: 30
+  prometheus:
+    enabled: true
+    port: 9090
+    path: "/metrics"
+
+# Backup configuration
+backup:
+  enabled: true
+  default_retention_days: 30
+  max_backups_per_server: 10
+  compression_level: 6
+  storage_path: "/app/backups"
+  cleanup_interval: 3600  # 1 hour
+
+# Server management configuration
+server_management:
+  default_memory: 2048
+  default_max_players: 20
+  auto_restart: true
+  restart_delay: 5
+  max_restart_attempts: 3
+  health_check_interval: 30
+  process_timeout: 300
+
+# WebSocket configuration
+websocket:
+  enabled: true
+  max_connections: 1000
+  ping_interval: 30
+  pong_timeout: 10
+  max_message_size: 1048576  # 1MB
+
+# RCON configuration
+rcon:
+  enabled: true
+  default_port: 25575
+  connection_timeout: 5
+  command_timeout: 10
+  max_retries: 3
+
+# File management configuration
+file_management:
+  max_file_size: 104857600  # 100MB
+  allowed_extensions: [".jar", ".zip", ".tar.gz", ".properties", ".json", ".yaml", ".yml"]
+  upload_path: "/app/servers"
+  temp_path: "/tmp/guardian"
+
+# Performance configuration
+performance:
+  cache:
+    enabled: true
+    ttl: 300  # 5 minutes
+    max_size: 1000
+  
+  compression:
+    enabled: true
+    level: 6
+    min_size: 1024
+  
+  connection_pooling:
+    enabled: true
+    max_connections: 100
+    min_connections: 10
+    idle_timeout: 300
+
+# External services configuration
+external_services:
+  modrinth:
+    enabled: true
+    api_url: "https://api.modrinth.com/v2"
+    rate_limit: 100
+    timeout: 30
+  
+  curseforge:
+    enabled: true
+    api_url: "https://api.curseforge.com/v1"
+    rate_limit: 50
+    timeout: 30
+  
+  mojang:
+    enabled: true
+    api_url: "https://launchermeta.mojang.com"
+    rate_limit: 200
+    timeout: 30
+
+# Development configuration (disabled in production)
+development:
+  enabled: false
+  hot_reload: false
+  debug_mode: false
+  verbose_logging: false

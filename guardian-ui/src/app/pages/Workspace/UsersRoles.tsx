@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 // import { Textarea } from '@/components/ui/textarea';
 // import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { apiClient as api } from '@/lib/api';
 import { 
   Users, 
   UserPlus, 
@@ -79,8 +80,18 @@ export const UsersRoles: React.FC = () => {
   const fetchData = async () => {
     // setIsLoading(true);
     try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const [usersResponse, rolesResponse] = await Promise.all([
+        api.getUsers?.(),
+        api.getRoles?.()
+      ]);
+      
+      if (usersResponse?.ok && usersResponse.data) {
+        setUsers(usersResponse.data as UserData[]);
+      }
+      
+      if (rolesResponse?.ok && rolesResponse.data) {
+        setRoles(rolesResponse.data as RoleData[]);
+      }
       // setHasChanges(false);
     } catch (error) {
       console.error('Failed to fetch users and roles:', error);
@@ -158,12 +169,10 @@ export const UsersRoles: React.FC = () => {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
-  const handleCreateUser = () => {
+  const handleCreateUser = async () => {
     setIsCreatingUser(true);
-    // Mock user creation
-    setTimeout(() => {
-      const newUser: UserData = {
-        id: Date.now().toString(),
+    try {
+      const response = await api.createUser?.({
         username: 'newuser',
         email: 'newuser@guardian.com',
         firstName: 'New',
@@ -171,53 +180,90 @@ export const UsersRoles: React.FC = () => {
         role: 'member',
         status: 'pending',
         permissions: ['read'],
-        lastLoginAt: null,
-        createdAt: new Date().toISOString(),
-        isOnline: false,
         twoFactorEnabled: false,
         apiAccess: false,
         serverAccess: []
-      };
-      setUsers(prev => [...prev, newUser]);
+      });
+      
+      if (response?.ok && response.data) {
+        setUsers(prev => [...prev, response.data as UserData]);
+      } else {
+        throw new Error('Failed to create user');
+      }
+    } catch (error) {
+      console.error('Failed to create user:', error);
+    } finally {
       setIsCreatingUser(false);
-    }, 1000);
+    }
   };
 
-  const handleCreateRole = () => {
+  const handleCreateRole = async () => {
     setIsCreatingRole(true);
-    // Mock role creation
-    setTimeout(() => {
-      const newRole: RoleData = {
-        id: Date.now().toString(),
+    try {
+      const response = await api.createRole?.({
         name: 'New Role',
         description: 'A new role',
         permissions: ['read'],
         color: 'bg-blue-500',
-        isDefault: false,
-        userCount: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      setRoles(prev => [...prev, newRole]);
+        isDefault: false
+      });
+      
+      if (response?.ok && response.data) {
+        setRoles(prev => [...prev, response.data as RoleData]);
+      } else {
+        throw new Error('Failed to create role');
+      }
+    } catch (error) {
+      console.error('Failed to create role:', error);
+    } finally {
       setIsCreatingRole(false);
-    }, 1000);
+    }
   };
 
-  const handleDeleteUser = (id: string) => {
-    setUsers(prev => prev.filter(user => user.id !== id));
+  const handleDeleteUser = async (id: string) => {
+    try {
+      const response = await api.deleteUser?.(id);
+      if (response?.ok) {
+        setUsers(prev => prev.filter(user => user.id !== id));
+      } else {
+        throw new Error('Failed to delete user');
+      }
+    } catch (error) {
+      console.error('Failed to delete user:', error);
+    }
   };
 
-  const handleDeleteRole = (id: string) => {
-    setRoles(prev => prev.filter(role => role.id !== id));
+  const handleDeleteRole = async (id: string) => {
+    try {
+      const response = await api.deleteRole?.(id);
+      if (response?.ok) {
+        setRoles(prev => prev.filter(role => role.id !== id));
+      } else {
+        throw new Error('Failed to delete role');
+      }
+    } catch (error) {
+      console.error('Failed to delete role:', error);
+    }
   };
 
-  const handleToggleUserStatus = (id: string) => {
-    setUsers(prev => prev.map(user => 
-      user.id === id ? { 
-        ...user, 
-        status: user.status === 'active' ? 'inactive' : 'active' 
-      } : user
-    ));
+  const handleToggleUserStatus = async (id: string) => {
+    try {
+      const user = users.find(u => u.id === id);
+      if (!user) return;
+      
+      const newStatus = user.status === 'active' ? 'inactive' : 'active';
+      const response = await api.updateUser?.(id, { status: newStatus });
+      
+      if (response?.ok) {
+        setUsers(prev => prev.map(u => 
+          u.id === id ? { ...u, status: newStatus } : u
+        ));
+      } else {
+        throw new Error('Failed to update user status');
+      }
+    } catch (error) {
+      console.error('Failed to update user status:', error);
+    }
   };
 
   return (

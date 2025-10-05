@@ -182,9 +182,9 @@ const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           onChange={(e) => setFormData({ ...formData, version: e.target.value })}
           className="w-full px-3 py-2 border border-border rounded-md bg-background"
         >
-          {getVersionsForModpack().map((version: any) => (
-            <option key={version.version} value={version.version}>
-              {version.version} {version.is_latest ? '(Latest)' : ''}
+          {getVersionsForModpack('forge').map((version: any) => (
+            <option key={version.id} value={version.id}>
+              {version.name} {version.id === '1.21.7' ? '(Latest)' : ''}
             </option>
           ))}
         </select>
@@ -443,7 +443,7 @@ export const Sidebar: React.FC = () => {
                                   <div className="server-meta">
                                     <StatusPill status={server.status as "stopped" | "starting" | "running" | "stopping"} />
                                     <span className="text-xs text-muted-foreground font-medium">
-                                      {server.players_online} players
+                                      {server.playersOnline} players
                                     </span>
                                   </div>
                                 </div>
@@ -451,9 +451,9 @@ export const Sidebar: React.FC = () => {
                             </Link>
                      
                      <div className="flex items-center gap-1">
-                       {server.blue_green && (
+                       {server.blueGreen && (
                          <div className={`w-2 h-2 rounded-full ${
-                           server.blue_green.active === 'blue' ? 'bg-blue-500' : 'bg-green-500'
+                           server.blueGreen.active === 'blue' ? 'bg-blue-500' : 'bg-green-500'
                          }`} />
                        )}
                        

@@ -16,7 +16,7 @@ function* candidatePorts(): Generator<number> {
 let cachedBase: string | null = null;
 
 async function ping(base: string) {
-  try { const r = await fetch(`${base}/healthz`, { cache: "no-store" }); return r.ok; } catch { return false; }
+  try { const r = await fetch(`${base}/api/healthz`, { cache: "no-store" }); return r.ok; } catch { return false; }
 }
 
 // Function to update the API base URL (called from Tauri command)
@@ -272,13 +272,6 @@ export const apiClient = {
     });
   },
 
-  // Sharding
-  async getShardingTopology(): Promise<any> {
-    return apiCall('/api/sharding/topology');
-  },
-  async getShardingAssignments(): Promise<any> {
-    return apiCall('/api/sharding/assignments');
-  },
 
   // Player actions
   async playerAction(serverId: string, playerUuid: string, action: string, data?: any): Promise<any> {
@@ -349,28 +342,116 @@ export const apiClient = {
   async promoteServer(serverId: string): Promise<any> {
     return apiCall(`/api/servers/${serverId}/promote`, { method: 'POST' });
   },
+
+  // User management
+  async getUsers(): Promise<any> {
+    return apiCall('/api/users');
+  },
+  async createUser(userData: any): Promise<any> {
+    return apiCall('/api/users', { 
+      method: 'POST', 
+      body: JSON.stringify(userData) 
+    });
+  },
+  async updateUser(userId: string, userData: any): Promise<any> {
+    return apiCall(`/api/users/${userId}`, { 
+      method: 'PUT', 
+      body: JSON.stringify(userData) 
+    });
+  },
+  async deleteUser(userId: string): Promise<any> {
+    return apiCall(`/api/users/${userId}`, { method: 'DELETE' });
+  },
+
+  // Role management
+  async getRoles(): Promise<any> {
+    return apiCall('/api/roles');
+  },
+  async createRole(roleData: any): Promise<any> {
+    return apiCall('/api/roles', { 
+      method: 'POST', 
+      body: JSON.stringify(roleData) 
+    });
+  },
+  async updateRole(roleId: string, roleData: any): Promise<any> {
+    return apiCall(`/api/roles/${roleId}`, { 
+      method: 'PUT', 
+      body: JSON.stringify(roleData) 
+    });
+  },
+  async deleteRole(roleId: string): Promise<any> {
+    return apiCall(`/api/roles/${roleId}`, { method: 'DELETE' });
+  },
+
+  // Backup targets
+  async getBackupTargets(): Promise<any> {
+    return apiCall('/api/backup-targets');
+  },
+  async createBackupTarget(targetData: any): Promise<any> {
+    return apiCall('/api/backup-targets', { 
+      method: 'POST', 
+      body: JSON.stringify(targetData) 
+    });
+  },
+  async updateBackupTarget(targetId: string, targetData: any): Promise<any> {
+    return apiCall(`/api/backup-targets/${targetId}`, { 
+      method: 'PUT', 
+      body: JSON.stringify(targetData) 
+    });
+  },
+  async deleteBackupTarget(targetId: string): Promise<any> {
+    return apiCall(`/api/backup-targets/${targetId}`, { method: 'DELETE' });
+  },
+  async testBackupTarget(targetId: string): Promise<any> {
+    return apiCall(`/api/backup-targets/${targetId}/test`, { method: 'POST' });
+  },
+
+  // Diagnostic bundles
+  async createDiagnosticBundle(bundleData: any): Promise<any> {
+    return apiCall('/api/diagnostics/bundles', { 
+      method: 'POST', 
+      body: JSON.stringify(bundleData) 
+    });
+  },
+
+  // Sharding
+  async getShardingAssignments(): Promise<any> {
+    return apiCall('/api/sharding/assignments');
+  },
+  async getShardingTopology(): Promise<any> {
+    return apiCall('/api/sharding/topology');
+  },
+  async bulkAssignPlayers(playerIds: string[], targetShard: string): Promise<any> {
+    return apiCall('/api/sharding/assignments/bulk', { 
+      method: 'POST', 
+      body: JSON.stringify({ playerIds, targetShard }) 
+    });
+  },
+  async retryAssignment(assignmentId: string): Promise<any> {
+    return apiCall(`/api/sharding/assignments/${assignmentId}/retry`, { method: 'POST' });
+  },
 };
 
 // Events for real-time communication
 export const events = {
   // WebSocket events are now handled by the websocket module
   subscribeToConsole(serverId: string, callback: (data: any) => void): Promise<() => void> {
-    return import('./api/websocket').then(ws => ws.subscribeToConsole(serverId, callback).then(sub => sub.unsubscribe));
+    return import('./websocket').then(ws => ws.realtimeConnection.subscribe('console', callback));
   },
   subscribeToMetrics(serverId: string, callback: (data: any) => void): Promise<() => void> {
-    return import('./api/websocket').then(ws => ws.subscribeToMetrics(serverId, callback).then(sub => sub.unsubscribe));
+    return import('./websocket').then(ws => ws.realtimeConnection.subscribe('metrics', callback));
   },
   subscribeToPlayers(serverId: string, callback: (data: any) => void): Promise<() => void> {
-    return import('./api/websocket').then(ws => ws.subscribeToPlayers(serverId, callback).then(sub => sub.unsubscribe));
+    return import('./websocket').then(ws => ws.realtimeConnection.subscribe('players', callback));
   },
   subscribeToFreezes(serverId: string, callback: (data: any) => void): Promise<() => void> {
-    return import('./api/websocket').then(ws => ws.subscribeToFreezes(serverId, callback).then(sub => sub.unsubscribe));
+    return import('./websocket').then(ws => ws.realtimeConnection.subscribe('freezes', callback));
   },
   subscribeToPregen(serverId: string, callback: (data: any) => void): Promise<() => void> {
-    return import('./api/websocket').then(ws => ws.subscribeToPregen(serverId, callback).then(sub => sub.unsubscribe));
+    return import('./websocket').then(ws => ws.realtimeConnection.subscribe('pregen', callback));
   },
   subscribeToHealth(serverId: string, callback: (data: any) => void): Promise<() => void> {
-    return import('./api/websocket').then(ws => ws.subscribeToHealth(serverId, callback).then(sub => sub.unsubscribe));
+    return import('./websocket').then(ws => ws.realtimeConnection.subscribe('health', callback));
   },
 };
 

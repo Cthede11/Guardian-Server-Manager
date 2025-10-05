@@ -114,7 +114,14 @@ export const Diagnostics: React.FC = () => {
   };
 
   const getHealthStatus = () => {
-    return healthStatus(stats.systemHealth);
+    // Convert number to ServerHealth object
+    const healthObj = {
+      rcon: true,
+      query: true,
+      crashTickets: stats.systemHealth,
+      freezeTickets: 0
+    };
+    return healthStatus(healthObj);
   };
 
   const currentHealthStatus = getHealthStatus();
@@ -169,13 +176,13 @@ export const Diagnostics: React.FC = () => {
       </div>
 
       {/* Health Status Alert */}
-      {currentHealthStatus !== 'success' && (
-        <Alert variant={currentHealthStatus === 'error' ? 'destructive' : 'default'}>
+      {currentHealthStatus !== 'healthy' && (
+        <Alert variant={currentHealthStatus === 'critical' ? 'destructive' : 'default'}>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            {currentHealthStatus === 'error' 
-              ? `System health is critical (${healthLabel(stats.systemHealth)}). Immediate attention required.`
-              : `System health is degraded (${healthLabel(stats.systemHealth)}). Monitor closely.`
+            {currentHealthStatus === 'critical' 
+              ? `System health is critical (${stats.systemHealth} tickets). Immediate attention required.`
+              : `System health is degraded (${stats.systemHealth} tickets). Monitor closely.`
             }
           </AlertDescription>
         </Alert>
@@ -216,7 +223,7 @@ export const Diagnostics: React.FC = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">System Health</CardTitle>
-            {currentHealthStatus === 'success' ? (
+            {currentHealthStatus === 'healthy' ? (
               <CheckCircle className="h-4 w-4 text-green-500" />
             ) : (
               <AlertTriangle className="h-4 w-4 text-yellow-500" />

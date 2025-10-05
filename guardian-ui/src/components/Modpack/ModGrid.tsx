@@ -162,7 +162,7 @@ export const ModGrid: React.FC<ModGridProps> = ({ mods, loading, onModSelect }) 
                 </span>
               </div>
               <span className="text-xs">
-                {formatFileSize(mod.file_size)}
+                {formatFileSize(mod.fileSize)}
               </span>
             </div>
 

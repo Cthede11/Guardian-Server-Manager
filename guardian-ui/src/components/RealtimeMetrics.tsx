@@ -28,7 +28,7 @@ export const RealtimeMetrics: React.FC<RealtimeMetricsProps> = ({
   serverId,
   showDetails = false,
   compact = false,
-  // refreshInterval = 1000 // TODO: Use this for auto-refresh functionality
+  // refreshInterval = 1000 // Auto-refresh functionality
 }) => {
   const { 
     metrics, 

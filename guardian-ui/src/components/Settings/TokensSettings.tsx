@@ -45,6 +45,8 @@ interface TokensSettingsData {
   tokenExpiration: number;
   tokenRotation: boolean;
   tokenRotationInterval: number;
+  rcon: string;
+  query: string;
   
   // Token Security
   tokenEncryption: boolean;
@@ -90,6 +92,8 @@ export const TokensSettings: React.FC = () => {
     tokenExpiration: 86400,
     tokenRotation: true,
     tokenRotationInterval: 3600,
+    rcon: '',
+    query: '',
     
     // Token Security
     tokenEncryption: true,
@@ -191,10 +195,8 @@ export const TokensSettings: React.FC = () => {
       await updateSettings(serverId, {
         ...currentServerSettings,
         tokens: {
-          ...currentServerSettings.tokens,
-          enabled: settings.enableTokens,
-          secret_key: settings.tokenSalt || 'default-secret-key',
-          expiration_hours: settings.tokenExpiration || 24,
+          rcon: settings.rcon || '',
+          query: settings.query || '',
           [key]: value
         }
       });

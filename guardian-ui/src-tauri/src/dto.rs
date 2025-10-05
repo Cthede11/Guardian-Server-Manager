@@ -12,15 +12,15 @@ pub struct ServerSummary {
     pub id: String,
     pub name: String,
     pub status: String, // "running" | "stopped" | "degraded" | "starting" | "stopping"
-    pub tps: f32,
-    pub tick_p95_ms: f32,
-    pub heap_mb: u32,
-    pub players_online: u32,
-    pub gpu_queue_ms: f32,
-    pub last_snapshot_at: Option<i64>,
-    pub blue_green: Option<BlueGreen>,
+    pub tps: f64,
+    pub tickP95: f64,
+    pub heapMb: u32,
+    pub playersOnline: u32,
+    pub gpuQueueMs: f64,
+    pub lastSnapshotAt: Option<String>,
+    pub blueGreen: Option<BlueGreen>,
     pub version: Option<String>,
-    pub max_players: Option<u32>,
+    pub maxPlayers: Option<u32>,
     pub memory: Option<u32>,
 }
 
@@ -31,18 +31,18 @@ pub struct ConsoleLines {
 
 #[derive(Serialize, Deserialize, Type, Clone)]
 pub struct ConsoleLine {
-    pub ts: i64,
+    pub ts: String,
     pub level: String, // "INFO" | "WARN" | "ERROR" | "DEBUG"
     pub msg: String,
 }
 
 #[derive(Serialize, Deserialize, Type, Clone)]
 pub struct Metrics {
-    pub tps: f32,
-    pub tick_p95_ms: f32,
-    pub heap_mb: u32,
-    pub gpu_queue_ms: f32,
-    pub players_online: u32,
+    pub tps: f64,
+    pub tickP95: f64,
+    pub heapMb: u32,
+    pub gpuQueueMs: f64,
+    pub playersOnline: u32,
 }
 
 #[derive(Serialize, Deserialize, Type, Clone)]

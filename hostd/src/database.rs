@@ -1,8 +1,8 @@
 use anyhow::Result;
+use chrono;
 use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqlitePool, Row};
-use std::sync::Arc;
-use tracing::{info, warn, error, debug};
+use tracing::{info, warn, debug};
 use uuid::Uuid;
 
 /// Database manager for Guardian
@@ -12,25 +12,64 @@ pub struct DatabaseManager {
 }
 
 /// Server configuration stored in database
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ServerConfig {
     pub id: String,
     pub name: String,
-    pub host: String,
+    pub minecraft_version: String,
+    pub loader: String,
+    pub loader_version: String,
     pub port: u16,
     pub rcon_port: u16,
-    pub rcon_password: String,
-    pub java_path: String,
-    pub server_jar: String,
-    pub jvm_args: String,
-    pub server_args: String,
+    pub query_port: u16,
+    pub max_players: u32,
+    pub memory: u32,
+    pub java_args: String, // JSON string
+    pub server_args: String, // JSON string
     pub auto_start: bool,
     pub auto_restart: bool,
-    pub max_players: u32,
-    pub mc_version: String,
-    pub pregeneration_policy: serde_json::Value,
+    pub world_name: String,
+    pub difficulty: String,
+    pub gamemode: String,
+    pub pvp: bool,
+    pub online_mode: bool,
+    pub whitelist: bool,
+    pub enable_command_block: bool,
+    pub view_distance: u32,
+    pub simulation_distance: u32,
+    pub motd: String,
+    // Additional fields needed for production
+    pub host: String,
+    pub java_path: String,
+    pub jvm_args: String,
+    pub server_jar: String,
+    pub rcon_password: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Server log entry
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct ServerLog {
+    pub id: String,
+    pub server_id: String,
+    pub level: String,
+    pub message: String,
+    pub component: Option<String>,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+}
+
+/// Server metrics entry
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct ServerMetric {
+    pub id: String,
+    pub server_id: String,
+    pub tps: f64,
+    pub tick_p95: f64,
+    pub heap_mb: u32,
+    pub players_online: u32,
+    pub gpu_queue_ms: f64,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
 }
 
 /// Global settings stored in database
@@ -263,19 +302,33 @@ impl DatabaseManager {
             CREATE TABLE IF NOT EXISTS servers (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
-                host TEXT NOT NULL,
-                port INTEGER NOT NULL,
-                rcon_port INTEGER NOT NULL,
-                rcon_password TEXT NOT NULL,
-                java_path TEXT NOT NULL,
-                server_jar TEXT NOT NULL,
-                jvm_args TEXT NOT NULL,
-                server_args TEXT NOT NULL,
-                auto_start BOOLEAN NOT NULL DEFAULT 0,
-                auto_restart BOOLEAN NOT NULL DEFAULT 0,
+                minecraft_version TEXT NOT NULL DEFAULT '1.20.1',
+                loader TEXT NOT NULL DEFAULT 'vanilla',
+                loader_version TEXT NOT NULL DEFAULT 'latest',
+                port INTEGER NOT NULL DEFAULT 25565,
+                rcon_port INTEGER NOT NULL DEFAULT 25575,
+                query_port INTEGER NOT NULL DEFAULT 25566,
                 max_players INTEGER NOT NULL DEFAULT 20,
-                mc_version TEXT NOT NULL DEFAULT '1.20.1',
-                pregeneration_policy TEXT NOT NULL DEFAULT '{}',
+                memory INTEGER NOT NULL DEFAULT 4096,
+                java_args TEXT NOT NULL DEFAULT '[]',
+                server_args TEXT NOT NULL DEFAULT '[]',
+                auto_start BOOLEAN NOT NULL DEFAULT 0,
+                auto_restart BOOLEAN NOT NULL DEFAULT 1,
+                world_name TEXT NOT NULL DEFAULT 'world',
+                difficulty TEXT NOT NULL DEFAULT 'normal',
+                gamemode TEXT NOT NULL DEFAULT 'survival',
+                pvp BOOLEAN NOT NULL DEFAULT 1,
+                online_mode BOOLEAN NOT NULL DEFAULT 1,
+                whitelist BOOLEAN NOT NULL DEFAULT 0,
+                enable_command_block BOOLEAN NOT NULL DEFAULT 0,
+                view_distance INTEGER NOT NULL DEFAULT 10,
+                simulation_distance INTEGER NOT NULL DEFAULT 10,
+                motd TEXT NOT NULL DEFAULT 'A Minecraft Server',
+                host TEXT NOT NULL DEFAULT 'localhost',
+                java_path TEXT NOT NULL DEFAULT 'java',
+                jvm_args TEXT NOT NULL DEFAULT '-Xmx4G -Xms2G',
+                server_jar TEXT NOT NULL DEFAULT 'server.jar',
+                rcon_password TEXT NOT NULL DEFAULT '',
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
@@ -440,13 +493,13 @@ impl DatabaseManager {
             }
         }
         
-        // Add mc_version column to servers table
-        if let Err(e) = sqlx::query("ALTER TABLE servers ADD COLUMN mc_version TEXT DEFAULT '1.20.1'")
+        // Add minecraft_version column to servers table
+        if let Err(e) = sqlx::query("ALTER TABLE servers ADD COLUMN minecraft_version TEXT DEFAULT '1.20.1'")
             .execute(&self.pool)
             .await
         {
             if !e.to_string().contains("duplicate column name") {
-                warn!("Failed to add mc_version column to servers table: {}", e);
+                warn!("Failed to add minecraft_version column to servers table: {}", e);
             }
         }
         
@@ -550,13 +603,39 @@ impl DatabaseManager {
             }
         }
         
-        // Add pregeneration_policy column to servers table
-        if let Err(e) = sqlx::query("ALTER TABLE servers ADD COLUMN pregeneration_policy TEXT DEFAULT '{}'")
-            .execute(&self.pool)
-            .await
-        {
-            if !e.to_string().contains("duplicate column name") {
-                warn!("Failed to add pregeneration_policy column to servers table: {}", e);
+        // Add missing columns for ServerConfig fields
+        let missing_columns = [
+            ("loader", "TEXT DEFAULT 'vanilla'"),
+            ("loader_version", "TEXT DEFAULT 'latest'"),
+            ("query_port", "INTEGER DEFAULT 25566"),
+            ("memory", "INTEGER DEFAULT 4096"),
+            ("java_args", "TEXT DEFAULT '[]'"),
+            ("server_args", "TEXT DEFAULT '[]'"),
+            ("world_name", "TEXT DEFAULT 'world'"),
+            ("difficulty", "TEXT DEFAULT 'normal'"),
+            ("gamemode", "TEXT DEFAULT 'survival'"),
+            ("pvp", "BOOLEAN DEFAULT 1"),
+            ("online_mode", "BOOLEAN DEFAULT 1"),
+            ("whitelist", "BOOLEAN DEFAULT 0"),
+            ("enable_command_block", "BOOLEAN DEFAULT 0"),
+            ("view_distance", "INTEGER DEFAULT 10"),
+            ("simulation_distance", "INTEGER DEFAULT 10"),
+            ("motd", "TEXT DEFAULT 'A Minecraft Server'"),
+            ("host", "TEXT DEFAULT 'localhost'"),
+            ("java_path", "TEXT DEFAULT 'java'"),
+            ("jvm_args", "TEXT DEFAULT '-Xmx4G -Xms2G'"),
+            ("server_jar", "TEXT DEFAULT 'server.jar'"),
+            ("rcon_password", "TEXT DEFAULT ''"),
+        ];
+        
+        for (column_name, column_def) in &missing_columns {
+            if let Err(e) = sqlx::query(&format!("ALTER TABLE servers ADD COLUMN {} {}", column_name, column_def))
+                .execute(&self.pool)
+                .await
+            {
+                if !e.to_string().contains("duplicate column name") {
+                    warn!("Failed to add {} column to servers table: {}", column_name, e);
+                }
             }
         }
         
@@ -762,6 +841,23 @@ impl DatabaseManager {
         .execute(&self.pool)
         .await?;
 
+        // Create server_logs table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS server_logs (
+                id TEXT PRIMARY KEY,
+                server_id TEXT NOT NULL,
+                level TEXT NOT NULL,
+                message TEXT NOT NULL,
+                component TEXT,
+                timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (server_id) REFERENCES servers (id) ON DELETE CASCADE
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
         // Create modpacks table
         sqlx::query(
             r#"
@@ -915,7 +1011,7 @@ impl DatabaseManager {
             INSERT INTO servers (
                 id, name, host, port, rcon_port, rcon_password,
                 java_path, server_jar, jvm_args, server_args,
-                auto_start, auto_restart, max_players, mc_version, pregeneration_policy,
+                auto_start, auto_restart, max_players, minecraft_version,
                 created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
@@ -933,8 +1029,8 @@ impl DatabaseManager {
         .bind(config.auto_start)
         .bind(config.auto_restart)
         .bind(config.max_players)
-        .bind(&config.mc_version)
-        .bind(&config.pregeneration_policy)
+        .bind(&config.minecraft_version)
+        // pregeneration_policy field removed
         .bind(config.created_at)
         .bind(config.updated_at)
         .execute(&self.pool)
@@ -947,9 +1043,11 @@ impl DatabaseManager {
     pub async fn get_server(&self, id: &str) -> Result<Option<ServerConfig>> {
         let row = sqlx::query(
             r#"
-            SELECT id, name, host, port, rcon_port, rcon_password,
-                   java_path, server_jar, jvm_args, server_args,
-                   auto_start, auto_restart, max_players, mc_version, pregeneration_policy,
+            SELECT id, name, minecraft_version, loader, loader_version, port, rcon_port, query_port,
+                   max_players, memory, java_args, server_args, auto_start, auto_restart,
+                   world_name, difficulty, gamemode, pvp, online_mode, whitelist,
+                   enable_command_block, view_distance, simulation_distance, motd,
+                   host, java_path, jvm_args, server_jar, rcon_password,
                    created_at, updated_at
             FROM servers WHERE id = ?
             "#,
@@ -962,19 +1060,33 @@ impl DatabaseManager {
             Ok(Some(ServerConfig {
                 id: row.get("id"),
                 name: row.get("name"),
-                host: row.get("host"),
+                minecraft_version: row.get("minecraft_version"),
+                loader: row.get("loader"),
+                loader_version: row.get("loader_version"),
                 port: row.get("port"),
                 rcon_port: row.get("rcon_port"),
-                rcon_password: row.get("rcon_password"),
-                java_path: row.get("java_path"),
-                server_jar: row.get("server_jar"),
-                jvm_args: row.get("jvm_args"),
+                query_port: row.get("query_port"),
+                max_players: row.get("max_players"),
+                memory: row.get("memory"),
+                java_args: row.get("java_args"),
                 server_args: row.get("server_args"),
                 auto_start: row.get("auto_start"),
                 auto_restart: row.get("auto_restart"),
-                max_players: row.get("max_players"),
-                mc_version: row.get("mc_version"),
-                pregeneration_policy: row.get("pregeneration_policy"),
+                world_name: row.get("world_name"),
+                difficulty: row.get("difficulty"),
+                gamemode: row.get("gamemode"),
+                pvp: row.get("pvp"),
+                online_mode: row.get("online_mode"),
+                whitelist: row.get("whitelist"),
+                enable_command_block: row.get("enable_command_block"),
+                view_distance: row.get("view_distance"),
+                simulation_distance: row.get("simulation_distance"),
+                motd: row.get("motd"),
+                host: row.get("host"),
+                java_path: row.get("java_path"),
+                jvm_args: row.get("jvm_args"),
+                server_jar: row.get("server_jar"),
+                rcon_password: row.get("rcon_password"),
                 created_at: row.get("created_at"),
                 updated_at: row.get("updated_at"),
             }))
@@ -986,9 +1098,11 @@ impl DatabaseManager {
     pub async fn get_all_servers(&self) -> Result<Vec<ServerConfig>> {
         let rows = sqlx::query(
             r#"
-            SELECT id, name, host, port, rcon_port, rcon_password,
-                   java_path, server_jar, jvm_args, server_args,
-                   auto_start, auto_restart, max_players, mc_version, pregeneration_policy,
+            SELECT id, name, minecraft_version, loader, loader_version, port, rcon_port, query_port,
+                   max_players, memory, java_args, server_args, auto_start, auto_restart,
+                   world_name, difficulty, gamemode, pvp, online_mode, whitelist,
+                   enable_command_block, view_distance, simulation_distance, motd,
+                   host, java_path, jvm_args, server_jar, rcon_password,
                    created_at, updated_at
             FROM servers ORDER BY name
             "#,
@@ -1001,19 +1115,33 @@ impl DatabaseManager {
             .map(|row| ServerConfig {
                 id: row.get("id"),
                 name: row.get("name"),
-                host: row.get("host"),
+                minecraft_version: row.get("minecraft_version"),
+                loader: row.get("loader"),
+                loader_version: row.get("loader_version"),
                 port: row.get("port"),
                 rcon_port: row.get("rcon_port"),
-                rcon_password: row.get("rcon_password"),
-                java_path: row.get("java_path"),
-                server_jar: row.get("server_jar"),
-                jvm_args: row.get("jvm_args"),
+                query_port: row.get("query_port"),
+                max_players: row.get("max_players"),
+                memory: row.get("memory"),
+                java_args: row.get("java_args"),
                 server_args: row.get("server_args"),
                 auto_start: row.get("auto_start"),
                 auto_restart: row.get("auto_restart"),
-                max_players: row.get("max_players"),
-                mc_version: row.get("mc_version"),
-                pregeneration_policy: row.get("pregeneration_policy"),
+                world_name: row.get("world_name"),
+                difficulty: row.get("difficulty"),
+                gamemode: row.get("gamemode"),
+                pvp: row.get("pvp"),
+                online_mode: row.get("online_mode"),
+                whitelist: row.get("whitelist"),
+                enable_command_block: row.get("enable_command_block"),
+                view_distance: row.get("view_distance"),
+                simulation_distance: row.get("simulation_distance"),
+                motd: row.get("motd"),
+                host: row.get("host"),
+                java_path: row.get("java_path"),
+                jvm_args: row.get("jvm_args"),
+                server_jar: row.get("server_jar"),
+                rcon_password: row.get("rcon_password"),
                 created_at: row.get("created_at"),
                 updated_at: row.get("updated_at"),
             })
@@ -1028,7 +1156,7 @@ impl DatabaseManager {
             UPDATE servers SET
                 name = ?, host = ?, port = ?, rcon_port = ?, rcon_password = ?,
                 java_path = ?, server_jar = ?, jvm_args = ?, server_args = ?,
-                auto_start = ?, auto_restart = ?, max_players = ?, pregeneration_policy = ?,
+                auto_start = ?, auto_restart = ?, max_players = ?,
                 updated_at = ?
             WHERE id = ?
             "#,
@@ -1045,7 +1173,7 @@ impl DatabaseManager {
         .bind(config.auto_start)
         .bind(config.auto_restart)
         .bind(config.max_players)
-        .bind(&config.pregeneration_policy)
+        // pregeneration_policy field removed
         .bind(config.updated_at)
         .bind(&config.id)
         .execute(&self.pool)
@@ -1925,6 +2053,61 @@ impl DatabaseManager {
         info!("Deleted modpack: {}", id);
         Ok(())
     }
+
+    /// Log a server message
+    pub async fn log_server_message(
+        &self,
+        server_id: &str,
+        level: &str,
+        message: &str,
+        component: Option<&str>,
+    ) -> Result<()> {
+        let log = ServerLog {
+            id: Uuid::new_v4().to_string(),
+            server_id: server_id.to_string(),
+            level: level.to_string(),
+            message: message.to_string(),
+            component: component.map(|s| s.to_string()),
+            timestamp: chrono::Utc::now(),
+        };
+        
+        sqlx::query(
+            "INSERT INTO server_logs (id, server_id, level, message, component, timestamp) VALUES (?, ?, ?, ?, ?, ?)"
+        )
+        .bind(&log.id)
+        .bind(&log.server_id)
+        .bind(&log.level)
+        .bind(&log.message)
+        .bind(&log.component)
+        .bind(&log.timestamp)
+        .execute(&self.pool)
+        .await?;
+        
+        Ok(())
+    }
+
+    /// Get database health status
+    pub async fn get_health_status(&self) -> Result<HealthStatus> {
+        // Check database connectivity
+        let _: i64 = sqlx::query_scalar("SELECT 1")
+            .fetch_one(&self.pool)
+            .await?;
+        
+        // Get basic stats
+        let server_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM servers")
+            .fetch_one(&self.pool)
+            .await?;
+        
+        let log_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM server_logs")
+            .fetch_one(&self.pool)
+            .await?;
+        
+        Ok(HealthStatus {
+            status: "healthy".to_string(),
+            timestamp: chrono::Utc::now(),
+            details: Some(format!("Servers: {}, Logs: {}", server_count, log_count)),
+        })
+    }
 }
 
 #[cfg(test)]
@@ -1944,16 +2127,33 @@ mod tests {
         let server = ServerConfig {
             id: "test-server".to_string(),
             name: "Test Server".to_string(),
+            minecraft_version: "1.21.1".to_string(),
+            loader: "vanilla".to_string(),
+            loader_version: "1.21.1".to_string(),
             host: "localhost".to_string(),
             port: 25565,
             rcon_port: 25575,
-            rcon_password: "password".to_string(),
-            java_path: "/usr/bin/java".to_string(),
-            server_jar: "server.jar".to_string(),
-            jvm_args: "-Xmx4G".to_string(),
-            server_args: "nogui".to_string(),
+            query_port: 25566,
+            max_players: 20,
+            memory: 4096,
+            java_args: "[]".to_string(),
+            server_args: "[]".to_string(),
             auto_start: true,
             auto_restart: true,
+            world_name: "world".to_string(),
+            difficulty: "normal".to_string(),
+            gamemode: "survival".to_string(),
+            pvp: true,
+            online_mode: true,
+            whitelist: false,
+            enable_command_block: false,
+            view_distance: 10,
+            simulation_distance: 10,
+            motd: "A Minecraft Server".to_string(),
+            java_path: "/usr/bin/java".to_string(),
+            jvm_args: "-Xmx4G".to_string(),
+            server_jar: "server.jar".to_string(),
+            rcon_password: "password".to_string(),
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         };
@@ -1989,19 +2189,5 @@ mod tests {
         let events = db.get_events(Some("test-server"), Some(10)).await.unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].event_type, "server_start");
-    }
-    
-    /// Get database health status
-    pub async fn get_health_status(&self) -> Result<HealthStatus> {
-        // Check database connectivity
-        let _: i64 = sqlx::query_scalar("SELECT 1")
-            .fetch_one(&self.pool)
-            .await?;
-        
-        Ok(HealthStatus {
-            status: "healthy".to_string(),
-            timestamp: chrono::Utc::now(),
-            details: Some("Database connection successful".to_string()),
-        })
     }
 }

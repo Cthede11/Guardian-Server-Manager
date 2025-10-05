@@ -123,7 +123,7 @@ export const ServerCreationWizard: React.FC<ServerCreationWizardProps> = ({
     
     // Step 2: Basic Settings
     javaPath: '',
-    javaArgs: '-Xmx4G -Xms2G -XX:+UseG1GC',
+    javaArgs: ['-Xmx4G', '-Xms2G', '-XX:+UseG1GC'],
     memory: 4096,
     maxPlayers: 20,
     difficulty: 'normal' as 'peaceful' | 'easy' | 'normal' | 'hard',
@@ -163,7 +163,22 @@ export const ServerCreationWizard: React.FC<ServerCreationWizardProps> = ({
       chunkLoading: 'lazy' as 'lazy' | 'eager',
       optimizeChunks: true,
       enableJmx: false
-    }
+    },
+    
+    // Additional properties needed for server creation
+    modpack: '',
+    motd: 'A Minecraft Server',
+    onlineMode: true,
+    whitelist: false,
+    enableCommandBlock: false,
+    gpuEnabled: false,
+    gpuQueueSize: 1000,
+    gpuMaxWorkers: 4,
+    haEnabled: false,
+    blueGreen: false,
+    healthCheckInterval: 5000,
+    composerProfile: 'development',
+    composerTimeout: 30000
   });
 
   useEffect(() => {
@@ -246,17 +261,15 @@ export const ServerCreationWizard: React.FC<ServerCreationWizardProps> = ({
         type: preset.type as any,
         version: preset.version,
         memory: preset.memory,
-        javaArgs: preset.javaArgs
+        javaArgs: Array.isArray(preset.javaArgs) ? preset.javaArgs : preset.javaArgs.split(' ')
       }));
     }
   };
 
   const loadJavaInstallations = async () => {
     try {
-      const config = await fileManager.getConfig();
-      if (config) {
-        setJavaInstallations(config.javaInstallations);
-      }
+      // TODO: Load Java installations from settings or API
+      setJavaInstallations([]);
     } catch (error) {
       errorHandler.handleError(error as Error, 'Load Java Installations');
     }
@@ -264,12 +277,12 @@ export const ServerCreationWizard: React.FC<ServerCreationWizardProps> = ({
 
   const loadDefaultSettings = async () => {
     try {
-      const settings = await settingsManager.getAppSettings();
+      // Use default values for now
       setFormData(prev => ({
         ...prev,
-        javaArgs: settings.servers.defaultJavaArgs,
-        memory: settings.servers.defaultMemory,
-        javaPath: settings.servers.defaultJavaPath
+        javaArgs: ['-Xmx2G', '-XX:+UseG1GC'],
+        memory: 2048,
+        javaPath: ''
       }));
     } catch (error) {
       errorHandler.handleError(error as Error, 'Load Default Settings');
@@ -305,67 +318,80 @@ export const ServerCreationWizard: React.FC<ServerCreationWizardProps> = ({
       const serverConfig: ServerConfig = {
         id: serverId,
         name: formData.name,
-        type: formData.type,
         version: formData.version,
-        loader: formData.type,
-        java: {
-          path: formData.javaPath,
-          args: formData.javaArgs,
-          version: '21' // Default Java version
-        },
-        network: {
-          serverPort: formData.serverPort,
-          rconPort: formData.rconPort,
+        modpack: formData.modpack,
+        path: formData.paths.world,
+        port: formData.serverPort,
+        maxPlayers: formData.maxPlayers,
+        memory: formData.memory,
+        jvmArgs: formData.javaArgs,
+        properties: {
+          rconPort: formData.rconPort.toString(),
           rconPassword: formData.rconPassword,
-          queryPort: formData.queryPort,
+          queryPort: formData.queryPort.toString(),
+          motd: formData.motd,
+          difficulty: formData.difficulty,
+          gamemode: formData.gamemode,
+          pvp: formData.pvp.toString(),
+          onlineMode: formData.onlineMode.toString(),
+          whitelist: formData.whitelist.toString(),
+          enableCommandBlock: formData.enableCommandBlock.toString(),
+          viewDistance: formData.settings.viewDistance.toString(),
+          simulationDistance: formData.settings.simulationDistance.toString()
+        },
+        createdAt: now,
+        updatedAt: now
+      };
+
+      // Create server directory and files
+      await fileManager.createDirectory(`servers/${serverId}`);
+      
+      // Create server settings
+      await settingsManager.createServerSettings(serverId, {
+        general: {
+          name: formData.name,
+          description: formData.description,
+          version: formData.version,
+          modpack: formData.modpack,
+          maxPlayers: formData.maxPlayers,
+          motd: formData.motd,
+          difficulty: formData.difficulty,
+          gamemode: formData.gamemode,
+          pvp: formData.pvp,
+          onlineMode: formData.onlineMode,
+          whitelist: formData.whitelist,
+          enableCommandBlock: formData.enableCommandBlock,
+          viewDistance: formData.settings.viewDistance,
+          simulationDistance: formData.settings.simulationDistance
+        },
+        jvm: {
+          memory: formData.memory,
+          flags: formData.javaArgs,
+          gcType: 'G1GC'
+        },
+        gpu: {
+          enabled: formData.gpuEnabled,
+          queueSize: formData.gpuQueueSize,
+          maxWorkers: formData.gpuMaxWorkers
+        },
+        ha: {
+          enabled: formData.haEnabled,
+          blueGreen: formData.blueGreen,
+          healthCheckInterval: formData.healthCheckInterval
         },
         paths: {
           world: formData.paths.world,
           mods: formData.paths.mods,
           config: formData.paths.config,
-          logs: formData.paths.logs,
-          backups: formData.paths.backups
+          logs: formData.paths.logs
         },
-        settings: {
-          autoStart: false,
-          autoRestart: true,
-          maxRestarts: 3,
-          backupInterval: 24,
-          backupRetention: 7,
-          memory: formData.memory,
-          javaArgs: formData.javaArgs
+        composer: {
+          profile: formData.composerProfile,
+          dockerfile: 'Dockerfile'
         },
-        created: now,
-        lastModified: now
-      };
-
-      // Create server directory and files
-      await fileManager.createServerDirectory(serverId, serverConfig);
-      
-      // Create server settings
-      await settingsManager.createServerSettings(serverId, {
-        id: serverId,
-        name: formData.name,
-        type: formData.type,
-        version: formData.version,
-        java: {
-          path: formData.javaPath,
-          args: formData.javaArgs,
-          memory: formData.memory
-        },
-        network: {
-          serverPort: formData.serverPort,
-          rconPort: formData.rconPort,
-          rconPassword: formData.rconPassword,
-          queryPort: formData.queryPort
-        },
-        paths: formData.paths,
-        settings: formData.settings,
-        advanced: {
-          jvmArgs: formData.javaArgs.split(' '),
-          environment: {},
-          workingDirectory: '',
-          priority: 'normal'
+        tokens: {
+          rcon: formData.rconPassword,
+          query: formData.queryPort.toString()
         }
       });
 
@@ -582,11 +608,11 @@ export const ServerCreationWizard: React.FC<ServerCreationWizardProps> = ({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {getVersionsForModpack().map((version: any) => (
-                        <SelectItem key={version.version} value={version.version}>
+                      {getVersionsForModpack('forge').map((version: any) => (
+                        <SelectItem key={version.id} value={version.id}>
                             <div className="flex items-center gap-2">
-                              {version.is_latest && <Badge variant="default" className="text-xs">Latest</Badge>}
-                              {version.version}
+                              {version.id === '1.21.7' && <Badge variant="default" className="text-xs">Latest</Badge>}
+                              {version.name}
                             </div>
                         </SelectItem>
                       ))}
@@ -691,8 +717,8 @@ export const ServerCreationWizard: React.FC<ServerCreationWizardProps> = ({
                         </Label>
                         <Textarea
                     id="javaArgs"
-                    value={formData.javaArgs}
-                    onChange={(e) => setFormData({ ...formData, javaArgs: e.target.value })}
+                    value={Array.isArray(formData.javaArgs) ? formData.javaArgs.join(' ') : formData.javaArgs}
+                    onChange={(e) => setFormData({ ...formData, javaArgs: e.target.value.split(' ') })}
                     placeholder="-Xmx4G -Xms2G -XX:+UseG1GC"
                           rows={3}
                           className="font-mono text-sm"

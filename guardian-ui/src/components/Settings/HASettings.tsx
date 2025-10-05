@@ -25,6 +25,8 @@ interface HASettingsData {
   haMode: 'active-passive' | 'active-active' | 'load-balanced';
   haNodes: number;
   haReplicationFactor: number;
+  blueGreen: boolean;
+  healthCheckInterval: number;
   
   // Node Configuration
   nodeId: string;
@@ -39,7 +41,6 @@ interface HASettingsData {
   failoverCooldown: number;
   
   // Health Monitoring
-  healthCheckInterval: number;
   healthCheckTimeout: number;
   healthCheckRetries: number;
   healthCheckEndpoint: string;
@@ -102,6 +103,8 @@ export const HASettings: React.FC = () => {
     haMode: 'active-passive',
     haNodes: 2,
     haReplicationFactor: 2,
+    blueGreen: false,
+    healthCheckInterval: 5000,
     
     // Node Configuration
     nodeId: 'node-1',
@@ -116,7 +119,6 @@ export const HASettings: React.FC = () => {
     failoverCooldown: 60000,
     
     // Health Monitoring
-    healthCheckInterval: 5000,
     healthCheckTimeout: 10000,
     healthCheckRetries: 3,
     healthCheckEndpoint: '/health',
@@ -210,9 +212,8 @@ export const HASettings: React.FC = () => {
         ha: {
           ...currentServerSettings.ha,
           enabled: settings.enableHA,
-          restart_delay_seconds: 30,
-          max_restarts: 5,
-          health_check_interval: settings.healthCheckInterval || 5000,
+          blueGreen: settings.blueGreen,
+          healthCheckInterval: settings.healthCheckInterval || 5000,
           [key]: value
         }
       });

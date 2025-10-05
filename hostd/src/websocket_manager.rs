@@ -93,13 +93,16 @@ pub struct WebSocketConnection {
 }
 
 /// WebSocket manager for handling real-time connections
+#[derive(Debug)]
 pub struct WebSocketManager {
     /// Active connections
-    connections: Arc<RwLock<HashMap<String, WebSocketConnection>>>,
+    pub connections: Arc<RwLock<HashMap<String, WebSocketConnection>>>,
     /// Broadcast channel for sending messages to all connections
-    broadcast_tx: broadcast::Sender<WebSocketMessage>,
+    pub broadcast_tx: broadcast::Sender<WebSocketMessage>,
+    /// Global sender for broadcasting messages
+    pub global_sender: broadcast::Sender<WebSocketMessage>,
     /// Server-specific broadcast channels
-    server_channels: Arc<RwLock<HashMap<String, broadcast::Sender<WebSocketMessage>>>>,
+    pub server_channels: Arc<RwLock<HashMap<String, broadcast::Sender<WebSocketMessage>>>>,
 }
 
 impl WebSocketManager {
@@ -108,7 +111,8 @@ impl WebSocketManager {
         
         Self {
             connections: Arc::new(RwLock::new(HashMap::new())),
-            broadcast_tx,
+            broadcast_tx: broadcast_tx.clone(),
+            global_sender: broadcast_tx,
             server_channels: Arc::new(RwLock::new(HashMap::new())),
         }
     }
@@ -122,7 +126,7 @@ impl WebSocketManager {
     }
 
     /// Handle individual WebSocket connection
-    async fn handle_socket(self: Arc<Self>, socket: WebSocket) {
+    pub async fn handle_socket(self: Arc<Self>, socket: WebSocket) {
         let connection_id = Uuid::new_v4().to_string();
         let mut rx = self.broadcast_tx.subscribe();
         
@@ -285,11 +289,17 @@ impl WebSocketManager {
     }
 
     /// Send message to a specific connection
-    async fn send_to_connection(&self, connection_id: &str, message: WebSocketMessage) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn send_to_connection(&self, connection_id: &str, message: WebSocketMessage) -> Result<(), Box<dyn std::error::Error>> {
         // This would be implemented with a proper message queue
         // For now, we'll use the broadcast channel
         self.broadcast_tx.send(message)?;
         Ok(())
+    }
+
+    /// Get the number of active connections
+    pub async fn get_connection_count(&self) -> usize {
+        let connections = self.connections.read().await;
+        connections.len()
     }
 
     /// Subscribe connection to a specific server
@@ -355,6 +365,45 @@ impl WebSocketManager {
         connections.values()
             .filter(|conn| conn.server_id.as_ref() == Some(&server_id.to_string()))
             .count()
+    }
+
+    /// Send server status update
+    pub async fn send_server_status(&self, server_id: Uuid, status: String) -> Result<(), Box<dyn std::error::Error>> {
+        let message = WebSocketMessage::ServerStatusChange {
+            server_id: server_id.to_string(),
+            timestamp: Utc::now(),
+            old_status: "unknown".to_string(),
+            new_status: status.clone(),
+        };
+        self.broadcast_to_server(&server_id.to_string(), message).await
+    }
+
+    /// Send server metrics
+    pub async fn send_metrics(&self, server_id: Uuid, metrics: serde_json::Value) -> Result<(), Box<dyn std::error::Error>> {
+        // Extract metrics from the JSON value
+        let tps = metrics.get("tps").and_then(|v| v.as_f64()).unwrap_or(20.0);
+        let tick_p95_ms = metrics.get("tick_p95_ms").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let heap_mb = metrics.get("heap_mb").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let players_online = metrics.get("players_online").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+        let memory_usage_mb = metrics.get("memory_usage_mb").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let cpu_usage_percent = metrics.get("cpu_usage_percent").and_then(|v| v.as_f64()).unwrap_or(0.0);
+
+        let message = WebSocketMessage::MetricsUpdate {
+            server_id: server_id.to_string(),
+            timestamp: Utc::now(),
+            tps,
+            tick_p95_ms,
+            heap_mb,
+            players_online,
+            memory_usage_mb,
+            cpu_usage_percent,
+        };
+        self.broadcast_to_server(&server_id.to_string(), message).await
+    }
+
+    /// Send server status update (alias for compatibility)
+    pub async fn send_server_status_update(&self, server_id: Uuid, status: &str) -> Result<(), Box<dyn std::error::Error>> {
+        self.send_server_status(server_id, status.to_string()).await
     }
 }
 

@@ -11,24 +11,7 @@ export const AppShell: React.FC = () => {
   const { id: serverId } = useParams<{ id: string }>();
 
   // Start/stop real-time monitoring based on server selection
-  React.useEffect(() => {
-    if (serverId) {
-      realtimeProvider.startServerMonitoring(serverId);
-    }
-
-    return () => {
-      if (serverId) {
-        realtimeProvider.stopServerMonitoring(serverId);
-      }
-    };
-  }, [serverId]);
-
-  // Cleanup on unmount
-  React.useEffect(() => {
-    return () => {
-      realtimeProvider.stopAllMonitoring();
-    };
-  }, []);
+  // Real-time monitoring is handled by individual components
 
   return (
     <ErrorBoundary>

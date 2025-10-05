@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 // import { Textarea } from '@/components/ui/textarea';
 // import { Switch } from '@/components/ui/switch';
 // import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { apiClient as api } from '@/lib/api';
 import { 
   Database, 
   HardDrive, 
@@ -82,8 +83,10 @@ export const BackupTargets: React.FC = () => {
   const fetchData = async () => {
     // setIsLoading(true);
     try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await api.getBackupTargets?.();
+      if (response?.ok && response.data) {
+        setTargets(response.data as BackupTargetData[]);
+      }
       // setHasChanges(false);
     } catch (error) {
       console.error('Failed to fetch backup targets:', error);
@@ -158,16 +161,13 @@ export const BackupTargets: React.FC = () => {
     }
   };
 
-  const handleCreateTarget = () => {
+  const handleCreateTarget = async () => {
     setIsCreating(true);
-    // Mock target creation
-    setTimeout(() => {
-      const newTarget: BackupTargetData = {
-        id: Date.now().toString(),
+    try {
+      const response = await api.createBackupTarget?.({
         name: 'New Target',
         description: 'A new backup target',
         type: 'local',
-        status: 'inactive',
         endpoint: '',
         credentials: {},
         settings: {
@@ -179,54 +179,74 @@ export const BackupTargets: React.FC = () => {
           threads: 4,
           timeout: 300,
           retries: 3
-        },
-        health: {
-          lastTested: null,
-          lastBackup: null,
-          totalBackups: 0,
-          totalSize: '0B',
-          availableSpace: 'Unknown',
-          responseTime: 0,
-          successRate: 0
-        },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      setTargets(prev => [...prev, newTarget]);
+        }
+      });
+      
+      if (response?.ok && response.data) {
+        setTargets(prev => [...prev, response.data as BackupTargetData]);
+      } else {
+        throw new Error('Failed to create backup target');
+      }
+    } catch (error) {
+      console.error('Failed to create backup target:', error);
+    } finally {
       setIsCreating(false);
-    }, 1000);
+    }
   };
 
-  const handleDeleteTarget = (id: string) => {
-    setTargets(prev => prev.filter(target => target.id !== id));
+  const handleDeleteTarget = async (id: string) => {
+    try {
+      const response = await api.deleteBackupTarget?.(id);
+      if (response?.ok) {
+        setTargets(prev => prev.filter(target => target.id !== id));
+      } else {
+        throw new Error('Failed to delete backup target');
+      }
+    } catch (error) {
+      console.error('Failed to delete backup target:', error);
+    }
   };
 
   const handleTestTarget = async (id: string) => {
     setIsTesting(id);
-    // Mock test
-    setTimeout(() => {
-      setTargets(prev => prev.map(target => 
-        target.id === id ? { 
-          ...target, 
-          status: 'active',
-          health: {
-            ...target.health,
-            lastTested: new Date().toISOString(),
-            responseTime: Math.floor(Math.random() * 200) + 10
-          }
-        } : target
-      ));
+    try {
+      const response = await api.testBackupTarget?.(id);
+      if (response?.ok && response.data) {
+        setTargets(prev => prev.map(target => 
+          target.id === id ? { 
+            ...target, 
+            status: response.data.status,
+            health: response.data.health
+          } : target
+        ));
+      } else {
+        throw new Error('Failed to test backup target');
+      }
+    } catch (error) {
+      console.error('Failed to test backup target:', error);
+    } finally {
       setIsTesting(null);
-    }, 2000);
+    }
   };
 
-  const handleToggleTarget = (id: string) => {
-    setTargets(prev => prev.map(target => 
-      target.id === id ? { 
-        ...target, 
-        status: target.status === 'active' ? 'inactive' : 'active' 
-      } : target
-    ));
+  const handleToggleTarget = async (id: string) => {
+    try {
+      const target = targets.find(t => t.id === id);
+      if (!target) return;
+      
+      const newStatus = target.status === 'active' ? 'inactive' : 'active';
+      const response = await api.updateBackupTarget?.(id, { status: newStatus });
+      
+      if (response?.ok) {
+        setTargets(prev => prev.map(t => 
+          t.id === id ? { ...t, status: newStatus } : t
+        ));
+      } else {
+        throw new Error('Failed to update backup target status');
+      }
+    } catch (error) {
+      console.error('Failed to update backup target status:', error);
+    }
   };
 
   return (

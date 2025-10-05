@@ -21,7 +21,7 @@ export const ServerSummarySchema = z.object({
   blueGreen: z.object({
     active: z.enum(['blue', 'green']),
     candidateHealthy: z.boolean(),
-  }),
+  }).optional(),
 });
 export type ServerSummary = z.infer<typeof ServerSummarySchema>;
 
@@ -207,6 +207,17 @@ export const ServerSettingsSchema = z.object({
     description: z.string(),
     version: z.string(),
     loader: z.string(),
+    modpack: z.string().optional(),
+    maxPlayers: z.number(),
+    motd: z.string(),
+    difficulty: z.enum(['peaceful', 'easy', 'normal', 'hard']),
+    gamemode: z.enum(['survival', 'creative', 'adventure', 'spectator']),
+    pvp: z.boolean(),
+    onlineMode: z.boolean(),
+    whitelist: z.boolean(),
+    enableCommandBlock: z.boolean(),
+    viewDistance: z.number(),
+    simulationDistance: z.number(),
   }),
   jvm: z.object({
     memory: z.number(),
@@ -219,6 +230,7 @@ export const ServerSettingsSchema = z.object({
   ha: z.object({
     enabled: z.boolean(),
     blueGreen: z.boolean(),
+    healthCheckInterval: z.number(),
   }),
   paths: z.object({
     world: z.string(),

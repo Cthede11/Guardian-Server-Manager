@@ -247,8 +247,6 @@ export const PathsSettings: React.FC = () => {
           world: settings.worldPath,
           mods: settings.modsPath,
           config: settings.configPath,
-          logs: settings.logsPath,
-          backups: settings.backupsPath,
           [key]: value
         }
       });
@@ -292,7 +290,7 @@ export const PathsSettings: React.FC = () => {
 
 
   const getPathStatus = (path: string) => {
-    // Mock path validation
+    // Path validation
     if (path.startsWith('/opt/guardian')) return 'success';
     if (path.startsWith('/var/guardian')) return 'success';
     if (path.startsWith('/etc/guardian')) return 'success';

@@ -209,6 +209,13 @@ public class AsmGuardAction implements Action {
                 super.visitLabel(createLabel());
             }
         }
+        
+        /**
+         * Create a new label for branching instructions
+         */
+        private Label createLabel() {
+            return new Label();
+        }
     }
     
     /**

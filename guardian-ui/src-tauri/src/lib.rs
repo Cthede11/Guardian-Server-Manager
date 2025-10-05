@@ -103,6 +103,11 @@ async fn start_backend_internal() -> Result<String, String> {
     
     let mut cmd = Command::new(&hostd_path);
     
+    // Set the working directory to the data directory so hostd can find the database
+    let data_dir = dirs::data_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join("Guardian").join("data");
+    fs::create_dir_all(&data_dir).map_err(|e| format!("Failed to create data directory: {}", e))?;
+    cmd.current_dir(&data_dir);
+    
     // CRITICAL: Use this pattern for ALL process spawning
     cmd.stdin(Stdio::null())
        .stdout(Stdio::null())
@@ -187,6 +192,8 @@ fn start_hostd_service<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> Resul
 
     // Start hostd process
     let mut hostd_cmd = Command::new(&hostd_path);
+    // Set the working directory to the data directory so hostd can find the database
+    hostd_cmd.current_dir(&data_dir);
     // hostd doesn't use command line arguments - it has its own configuration logic
     
     // Create log file for backend output

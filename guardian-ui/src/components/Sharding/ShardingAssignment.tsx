@@ -150,18 +150,20 @@ export const ShardingAssignment: React.FC = () => {
 
     setIsAssigning(true);
     try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Update assignments
-      setAssignments(prev => prev.map(assignment => 
-        selectedPlayers.includes(assignment.id)
-          ? { ...assignment, targetShard, status: 'pending' as const }
-          : assignment
-      ));
-      
-      setSelectedPlayers([]);
-      setTargetShard('');
+      const response = await api.bulkAssignPlayers?.(selectedPlayers, targetShard);
+      if (response?.ok) {
+        // Update assignments
+        setAssignments(prev => prev.map(assignment => 
+          selectedPlayers.includes(assignment.id)
+            ? { ...assignment, targetShard, status: 'pending' as const }
+            : assignment
+        ));
+        
+        setSelectedPlayers([]);
+        setTargetShard('');
+      } else {
+        throw new Error('Failed to assign players');
+      }
     } catch (error) {
       console.error('Failed to assign players:', error);
     } finally {
@@ -172,14 +174,16 @@ export const ShardingAssignment: React.FC = () => {
   const handleRetryAssignment = async (assignmentId: string) => {
     setIsAssigning(true);
     try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setAssignments(prev => prev.map(assignment => 
-        assignment.id === assignmentId
-          ? { ...assignment, status: 'in_progress' as const }
-          : assignment
-      ));
+      const response = await api.retryAssignment?.(assignmentId);
+      if (response?.ok) {
+        setAssignments(prev => prev.map(assignment => 
+          assignment.id === assignmentId
+            ? { ...assignment, status: 'in_progress' as const }
+            : assignment
+        ));
+      } else {
+        throw new Error('Failed to retry assignment');
+      }
     } catch (error) {
       console.error('Failed to retry assignment:', error);
     } finally {

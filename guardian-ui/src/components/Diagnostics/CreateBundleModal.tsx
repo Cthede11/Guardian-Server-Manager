@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 // import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { apiClient as api } from '@/lib/api';
 import { 
   FileText, 
   Download, 
@@ -215,17 +216,23 @@ export const CreateBundleModal: React.FC = () => {
   const handleCreateBundle = async () => {
     setIsCreating(true);
     try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      const bundleId = `bundle-${Date.now()}`;
-      setCreatedBundle({
-        id: bundleId,
+      const response = await api.createDiagnosticBundle?.({
         name: bundleName || 'Diagnostic Bundle',
-        size: calculateBundleSize()
+        description: bundleDescription,
+        components: selectedComponents,
+        customComponents: customComponents
       });
       
-      setCurrentStep(4);
+      if (response?.ok && response.data) {
+        setCreatedBundle({
+          id: response.data.id,
+          name: response.data.name,
+          size: response.data.size
+        });
+        setCurrentStep(4);
+      } else {
+        throw new Error('Failed to create diagnostic bundle');
+      }
     } catch (error) {
       console.error('Failed to create bundle:', error);
     } finally {

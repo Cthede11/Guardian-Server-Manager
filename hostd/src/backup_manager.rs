@@ -169,9 +169,28 @@ impl BackupManager {
             server_backups.push(backup.clone());
         }
 
-        // TODO: Perform backup in background
-        // For now, just mark as completed
-        let _ = self.update_backup_status(&server_id, &backup_id, BackupStatus::Completed).await;
+        // Perform backup in background
+        let manager = self.clone();
+        let server_id = server_id.to_string();
+        let backup_id = backup_id.clone();
+            tokio::spawn(async move {
+                let (success, error_msg) = {
+                    let result = manager.perform_backup(&server_id, &backup_id).await;
+                    match result {
+                        Ok(_) => (true, None),
+                        Err(e) => (false, Some(format!("{}", e))),
+                    }
+                };
+                
+                if success {
+                    let _ = manager.update_backup_status(&server_id, &backup_id, BackupStatus::Completed).await;
+                } else {
+                    if let Some(msg) = error_msg {
+                        tracing::error!("Backup failed for server {}: {}", server_id, msg);
+                    }
+                    let _ = manager.update_backup_status(&server_id, &backup_id, BackupStatus::Failed).await;
+                }
+            });
 
         Ok(backup)
     }
@@ -197,39 +216,39 @@ impl BackupManager {
         let server_dir = self.servers_base_dir.join(server_id);
         
         if backup.includes.world {
-            self.add_directory_to_archive(&mut archive, &server_dir.join("world"), "world").await?;
+            self.add_directory_to_archive(&mut archive, &server_dir.join("world"), "world")?;
         }
         
         if backup.includes.mods {
-            self.add_directory_to_archive(&mut archive, &server_dir.join("mods"), "mods").await?;
+            self.add_directory_to_archive(&mut archive, &server_dir.join("mods"), "mods")?;
         }
         
         if backup.includes.config {
-            self.add_directory_to_archive(&mut archive, &server_dir.join("config"), "config").await?;
+            self.add_directory_to_archive(&mut archive, &server_dir.join("config"), "config")?;
         }
         
         if backup.includes.logs {
-            self.add_directory_to_archive(&mut archive, &server_dir.join("logs"), "logs").await?;
+            self.add_directory_to_archive(&mut archive, &server_dir.join("logs"), "logs")?;
         }
         
         if backup.includes.server_properties {
-            self.add_file_to_archive(&mut archive, &server_dir.join("server.properties"), "server.properties").await?;
+            self.add_file_to_archive(&mut archive, &server_dir.join("server.properties"), "server.properties")?;
         }
         
         if backup.includes.whitelist {
-            self.add_file_to_archive(&mut archive, &server_dir.join("whitelist.json"), "whitelist.json").await?;
+            self.add_file_to_archive(&mut archive, &server_dir.join("whitelist.json"), "whitelist.json")?;
         }
         
         if backup.includes.ops {
-            self.add_file_to_archive(&mut archive, &server_dir.join("ops.json"), "ops.json").await?;
+            self.add_file_to_archive(&mut archive, &server_dir.join("ops.json"), "ops.json")?;
         }
         
         if backup.includes.banned_players {
-            self.add_file_to_archive(&mut archive, &server_dir.join("banned-players.json"), "banned-players.json").await?;
+            self.add_file_to_archive(&mut archive, &server_dir.join("banned-players.json"), "banned-players.json")?;
         }
         
         if backup.includes.banned_ips {
-            self.add_file_to_archive(&mut archive, &server_dir.join("banned-ips.json"), "banned-ips.json").await?;
+            self.add_file_to_archive(&mut archive, &server_dir.join("banned-ips.json"), "banned-ips.json")?;
         }
 
         // Finalize archive
@@ -266,7 +285,7 @@ impl BackupManager {
     }
 
     /// Add directory to archive
-    async fn add_directory_to_archive(
+    fn add_directory_to_archive(
         &self,
         archive: &mut ZipWriter<std::fs::File>,
         dir_path: &Path,
@@ -276,16 +295,17 @@ impl BackupManager {
             return Ok(());
         }
 
-        let mut entries = async_fs::read_dir(dir_path).await?;
-        while let Some(entry) = entries.next_entry().await? {
+        let entries = std::fs::read_dir(dir_path)?;
+        for entry in entries {
+            let entry = entry?;
             let entry_path = entry.path();
             let relative_path = entry_path.strip_prefix(dir_path)?;
             let archive_entry_path = format!("{}/{}", archive_path, relative_path.to_string_lossy());
             
-            if entry.metadata().await?.is_file() {
-                self.add_file_to_archive(archive, &entry_path, &archive_entry_path).await?;
-            } else if entry.metadata().await?.is_dir() {
-                  Box::pin(self.add_directory_to_archive(archive, &entry_path, &archive_entry_path)).await?;
+            if entry.metadata()?.is_file() {
+                self.add_file_to_archive(archive, &entry_path, &archive_entry_path)?;
+            } else if entry.metadata()?.is_dir() {
+                self.add_directory_to_archive(archive, &entry_path, &archive_entry_path)?;
             }
         }
 
@@ -293,7 +313,7 @@ impl BackupManager {
     }
 
     /// Add file to archive
-    async fn add_file_to_archive(
+    fn add_file_to_archive(
         &self,
         archive: &mut ZipWriter<std::fs::File>,
         file_path: &Path,
@@ -303,7 +323,7 @@ impl BackupManager {
             return Ok(());
         }
 
-        let file_data = async_fs::read(file_path).await?;
+        let file_data = std::fs::read(file_path)?;
         archive.start_file(archive_path, zip::write::FileOptions::default())?;
         archive.write_all(&file_data)?;
 
