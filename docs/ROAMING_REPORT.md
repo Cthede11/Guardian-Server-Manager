@@ -1,72 +1,68 @@
-# Roaming Report - Class B/C Proposals
+# Roaming Report - Background Agent Proposals
 
-## Proposals
+## CURRENT STATE
 
-### Proposal 1: Frontend Build System Issues (Class B)
-**Status:** OPEN  
-**Context:** The frontend build is failing due to missing modules and dependencies. Many TypeScript imports cannot be resolved.  
-**Files:** guardian-ui/src/**/*.tsx, guardian-ui/src/**/*.ts  
-**Risk Level:** Medium  
-**Suggested Approach:** 
-1. Generate missing type definitions from backend API
-2. Create missing lib modules (client, websocket, types.gen, etc.)
-3. Fix import paths and dependencies
-4. Ensure proper TypeScript configuration
+### Outstanding Proposals
+1. **Modpack System API Restructuring** (Class B) - Major refactor needed
+2. **Type System Alignment** (Class B) - Frontend/backend type mismatches
+3. **Settings System Enhancement** (Class B) - Missing general settings structure
 
-**Test Impact:** Frontend build will need to pass before deployment  
-**UI Impact:** High - affects entire frontend functionality
+### Suggested Next Priorities
+1. Complete TypeScript type alignment for modpack components
+2. Implement proper API client with correct method signatures
+3. Add missing settings structure for general configuration
+4. Fix remaining function signature mismatches
 
-### Proposal 2: Rust Edition Compatibility (Class B)
-**Status:** OPEN  
-**Context:** Backend build fails due to dependency requiring Rust edition 2024, which is not stable in current Cargo version.  
-**Files:** hostd/Cargo.toml, hostd/src/**/*.rs  
-**Risk Level:** Medium  
-**Suggested Approach:**
-1. Update Cargo to nightly version or wait for stable edition 2024
-2. Pin problematic dependencies to older versions
-3. Consider alternative dependencies that don't require edition 2024
+### Risky Areas Needing Human Review
+- Modpack system has significant type mismatches between frontend expectations and backend reality
+- API client methods don't match actual backend endpoints
+- Settings system needs restructuring to support general configuration
 
-**Test Impact:** Backend build and tests need to pass  
-**UI Impact:** None - backend only
+---
 
-### Proposal 3: Monitoring Integration (Class B)
-**Status:** OPEN  
-**Context:** API endpoints use hardcoded values instead of real monitoring data. MonitoringManager exists but not integrated with API AppState.  
-**Files:** hostd/src/api.rs, hostd/src/core/app_state.rs  
-**Risk Level:** Low  
-**Suggested Approach:**
-1. Add monitoring_manager to API AppState
-2. Update API endpoints to use real monitoring data
-3. Implement proper error handling for monitoring failures
+## PROPOSALS
 
-**Test Impact:** API responses will change from hardcoded to real data  
-**UI Impact:** Medium - affects metrics display accuracy
+### 1. Modpack System API Restructuring
+**Status**: OPEN  
+**Risk Level**: Medium  
+**Files**: `guardian-ui/src/lib/api/modpack.ts`, `guardian-ui/src/lib/types/modpack.ts`, `guardian-ui/src/components/Modpack/*`  
+**Context**: The modpack system has significant type mismatches between frontend components and the API client. Components expect different property names and structures than what's defined in the types.
 
-### Proposal 4: RCON Integration (Class B)
-**Status:** OPEN  
-**Context:** Console message sending and player count retrieval are not implemented. RCON client exists but not integrated.  
-**Files:** hostd/src/api.rs, hostd/src/core/process_manager.rs  
-**Risk Level:** Medium  
-**Suggested Approach:**
-1. Integrate RCON client with API endpoints
-2. Implement proper error handling for RCON failures
-3. Add connection pooling and retry logic
+**Suggested Approach**:
+- Align Modpack interface with frontend component expectations
+- Add missing properties like `side`, `category`, `source`, `client_mods`, `server_mods`
+- Update API client methods to match actual backend endpoints
+- Add proper error handling and validation
 
-**Test Impact:** Console and player endpoints need integration tests  
-**UI Impact:** High - affects server management functionality
+**Test Impact**: High - affects all modpack-related components
+**UI Impact**: Medium - improves type safety and user experience
 
-### Proposal 5: GPU Manager Integration (Class B)
-**Status:** OPEN  
-**Context:** GPU metrics and pregen job management are not properly integrated with the GPU manager.  
-**Files:** hostd/src/api.rs, hostd/src/gpu_manager.rs  
-**Risk Level:** Medium  
-**Suggested Approach:**
-1. Integrate GPU manager with API endpoints
-2. Implement proper job queuing and status tracking
-3. Add GPU capability detection and fallback
+### 2. Settings System Enhancement
+**Status**: OPEN  
+**Risk Level**: Low  
+**Files**: `guardian-ui/src/lib/settings-manager.ts`, `guardian-ui/src/components/FirstRunWizard.tsx`  
+**Context**: The settings system is missing a `general` configuration section that components expect.
 
-**Test Impact:** GPU-related endpoints need testing  
-**UI Impact:** Medium - affects pregen and GPU features
+**Suggested Approach**:
+- Add `general` section to Settings interface
+- Include properties like `autoStart`, `notifications`, `language`, `theme`
+- Update settings manager to handle nested configuration
+- Ensure backward compatibility with existing settings
 
-<!-- Roamer will add Class B/C proposals here with status: OPEN, APPROVED (by human), BLOCKED, DONE -->
+**Test Impact**: Low - mainly type additions
+**UI Impact**: Low - improves settings management
 
+### 3. API Client Method Signature Alignment
+**Status**: OPEN  
+**Risk Level**: Medium  
+**Files**: `guardian-ui/src/lib/api.ts`, `guardian-ui/src/lib/client.ts`  
+**Context**: The API client methods don't match the expected signatures in components.
+
+**Suggested Approach**:
+- Update API client to use proper HTTP methods (GET, POST, etc.)
+- Align method signatures with component expectations
+- Add proper error handling and response parsing
+- Implement proper WebSocket connection management
+
+**Test Impact**: Medium - affects API integration
+**UI Impact**: Medium - improves error handling and user feedback

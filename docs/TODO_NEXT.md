@@ -11,3 +11,6 @@
 - [ ] Integrate monitoring manager with API endpoints for real metrics data
 - [ ] Implement RCON integration for console commands and player count
 - [ ] Integrate GPU manager with API endpoints for pregen job management
+- [ ] Modpack System API Restructuring - align frontend types with backend expectations
+- [ ] Settings System Enhancement - add missing general configuration structure
+- [ ] API Client Method Signature Alignment - fix method signatures and error handling
