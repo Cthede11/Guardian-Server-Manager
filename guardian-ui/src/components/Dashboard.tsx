@@ -39,10 +39,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ className }) => {
   useEffect(() => {
     if (selectedServerId) {
       // Start metrics collection
-      metricsCollector.startCollection(selectedServerId);
+      metricsCollector.startCollection();
       
       // Connect to real-time updates
-      realtimeConnection.connect(selectedServerId).then(() => {
+      realtimeConnection.connect().then(() => {
         setIsConnected(true);
       }).catch((error: any) => {
         errorHandler.handleError(error, 'WebSocket Connection');
@@ -136,8 +136,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ className }) => {
               <div>
                 <CardTitle className="text-xl">{selectedServer.name}</CardTitle>
                 <div className="flex items-center space-x-2 mt-1">
-                  <Badge variant="outline">{selectedServer.loader || 'Unknown'}</Badge>
-                  <Badge variant="outline">{selectedServer.version}</Badge>
+                  <Badge variant="outline">{selectedServer.version || 'Unknown'}</Badge>
                   <div className={`flex items-center space-x-1 ${getStatusColor(selectedServer.status)}`}>
                     {getStatusIcon(selectedServer.status)}
                     <span className="text-sm font-medium capitalize">{selectedServer.status}</span>
@@ -220,14 +219,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ className }) => {
               <div>
                 <p className="text-sm font-medium text-gray-600">Players</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {metrics?.players.online || 0}/{selectedServer?.max_players || 20}
+                  {metrics?.playersOnline || 0}/{selectedServer?.maxPlayers || 20}
                 </p>
               </div>
               <Users className="h-8 w-8 text-green-500" />
             </div>
             <div className="mt-2">
               <Progress 
-                value={metrics?.players.online ? (metrics.players.online / (selectedServer?.max_players || 20)) * 100 : 0} 
+                value={metrics?.playersOnline ? (metrics.playersOnline / (selectedServer?.maxPlayers || 20)) * 100 : 0} 
                 className="h-2"
               />
             </div>
@@ -240,17 +239,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ className }) => {
               <div>
                 <p className="text-sm font-medium text-gray-600">Memory</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {metrics?.memory.used ? `${Math.round(metrics.memory.used / 1024)}GB` : '0GB'}
+                  {metrics?.heapMb ? `${Math.round(metrics.heapMb / 1024)}GB` : '0GB'}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {metrics?.memory.percentage ? `${Math.round(metrics.memory.percentage)}%` : '0%'} used
+                  {metrics?.memoryUsage ? `${Math.round(metrics.memoryUsage)}%` : '0%'} used
                 </p>
               </div>
               <MemoryStick className="h-8 w-8 text-purple-500" />
             </div>
             <div className="mt-2">
               <Progress 
-                value={metrics?.memory.percentage || 0} 
+                value={metrics?.memoryUsage || 0} 
                 className="h-2"
               />
             </div>
@@ -263,14 +262,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ className }) => {
               <div>
                 <p className="text-sm font-medium text-gray-600">Tick Time</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {metrics?.tickTime ? `${metrics.tickTime.toFixed(1)}ms` : '0ms'}
+                  {metrics?.tickP95 ? `${metrics.tickP95.toFixed(1)}ms` : '0ms'}
                 </p>
               </div>
               <Clock className="h-8 w-8 text-orange-500" />
             </div>
             <div className="mt-2">
               <Progress 
-                value={metrics?.tickTime ? Math.min((metrics.tickTime / 50) * 100, 100) : 0} 
+                value={metrics?.tickP95 ? Math.min((metrics.tickP95 / 50) * 100, 100) : 0} 
                 className="h-2"
               />
             </div>
@@ -309,7 +308,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ className }) => {
           <CardContent className="space-y-3">
             <div className="flex justify-between">
               <span className="text-sm text-gray-600">Type:</span>
-              <span className="text-sm font-medium">{selectedServer.loader || 'Unknown'}</span>
+              <span className="text-sm font-medium">{selectedServer.version || 'Unknown'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-gray-600">Version:</span>
@@ -335,11 +334,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ className }) => {
           <CardContent className="space-y-3">
             <div className="flex justify-between">
               <span className="text-sm text-gray-600">GPU Queue:</span>
-              <span className="text-sm font-medium">{metrics?.tickTime ? `${metrics.tickTime.toFixed(1)}ms` : '0ms'}</span>
+              <span className="text-sm font-medium">{metrics?.tickP95 ? `${metrics.tickP95.toFixed(1)}ms` : '0ms'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-gray-600">CPU Usage:</span>
-              <span className="text-sm font-medium">{metrics?.cpu.usage ? `${metrics.cpu.usage.toFixed(1)}%` : '0%'}</span>
+              <span className="text-sm font-medium">{metrics?.cpuUsage ? `${metrics.cpuUsage.toFixed(1)}%` : '0%'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-gray-600">Disk Usage:</span>
@@ -348,7 +347,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ className }) => {
             <div className="flex justify-between">
               <span className="text-sm text-gray-600">Network In:</span>
               <span className="text-sm font-medium">
-                {metrics?.network.bytesIn ? `${(metrics.network.bytesIn / 1024).toFixed(1)}KB/s` : '0KB/s'}
+                {metrics?.networkIn ? `${(metrics.networkIn / 1024).toFixed(1)}KB/s` : '0KB/s'}
               </span>
             </div>
           </CardContent>

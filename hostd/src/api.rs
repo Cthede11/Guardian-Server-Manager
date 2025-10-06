@@ -1567,7 +1567,17 @@ async fn update_server_settings(
 
 // Health check endpoints
 async fn health_check(State(state): State<AppState>) -> Result<Json<ApiResponse<String>>, StatusCode> {
-    Ok(Json(ApiResponse::success("OK".to_string())))
+    // Test database connectivity
+    match state.database.get_health_status().await {
+        Ok(health_status) => {
+            info!("Health check passed: {}", health_status.status);
+            Ok(Json(ApiResponse::success("OK".to_string())))
+        }
+        Err(e) => {
+            error!("Health check failed: {}", e);
+            Ok(Json(ApiResponse::error(format!("Database health check failed: {}", e))))
+        }
+    }
 }
 
 async fn get_status(State(state): State<AppState>) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {

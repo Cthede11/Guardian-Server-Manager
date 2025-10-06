@@ -192,7 +192,7 @@ export const GPUSettings: React.FC = () => {
         gpu: {
           ...currentServerSettings.gpu,
           enabled: settings.enableGpuWorker,
-          queue_size: settings.gpuQueueSize || 100,
+          queueSize: settings.gpuQueueSize || 100,
           [key]: value
         }
       });

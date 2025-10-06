@@ -110,7 +110,7 @@ async fn main() -> Result<()> {
     app_state.start().await?;
 
     // Create the database manager
-    let database = hostd::database::DatabaseManager::new("guardian.db").await?;
+    let database = hostd::database::DatabaseManager::new("data/guardian.db").await?;
     
     // Create the API app state for the comprehensive router
     let api_app_state = ApiAppState {

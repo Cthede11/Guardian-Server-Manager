@@ -204,16 +204,16 @@ export const useServers = create<ServersState>((set, get) => ({
       // Optimistically update blue/green status
       set((state) => {
         const server = state.summaries[id];
-        if (!server?.blue_green) return state;
+        if (!server?.blueGreen) return state;
         
         return {
           summaries: {
             ...state.summaries,
             [id]: {
               ...server,
-              blue_green: {
-                ...server.blue_green,
-                active: server.blue_green.active === 'blue' ? 'green' : 'blue'
+              blueGreen: {
+                ...server.blueGreen,
+                active: server.blueGreen.active === 'blue' ? 'green' : 'blue'
               }
             }
           }

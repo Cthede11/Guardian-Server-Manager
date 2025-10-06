@@ -1,194 +1,194 @@
-use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
-use argon2::password_hash::{rand_core::OsRng, SaltString};
+use aes_gcm::{Aes256Gcm, Key, Nonce, KeyInit};
+use aes_gcm::aead::Aead;
+use rand::{Rng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
+use argon2::password_hash::{rand_core::OsRng, SaltString};
 
 /// Encryption service for sensitive data
 pub struct EncryptionService {
-    argon2: Argon2<'static>,
-    encryption_keys: Arc<RwLock<HashMap<String, Vec<u8>>>>,
+    key: [u8; 32],
 }
 
 impl EncryptionService {
-    pub fn new() -> Self {
-        Self {
-            argon2: Argon2::default(),
-            encryption_keys: Arc::new(RwLock::new(HashMap::new())),
-        }
+    pub fn new(key: [u8; 32]) -> Self {
+        Self { key }
     }
-    
-    /// Hash a password using Argon2
+
+    /// Generate a new encryption key
+    pub fn generate_key() -> [u8; 32] {
+        let mut key = [0u8; 32];
+        rand::thread_rng().fill(&mut key);
+        key
+    }
+
+    /// Encrypt sensitive data
+    pub fn encrypt(&self, plaintext: &str) -> Result<EncryptedData, EncryptionError> {
+        let key = Key::<Aes256Gcm>::from_slice(&self.key);
+        let cipher = Aes256Gcm::new(key);
+        
+        // Generate random nonce
+        let mut nonce_bytes = [0u8; 12];
+        rand::thread_rng().fill(&mut nonce_bytes);
+        let nonce = Nonce::from_slice(&nonce_bytes);
+        
+        // Encrypt the data
+        let ciphertext = cipher
+            .encrypt(nonce, plaintext.as_bytes())
+            .map_err(|_| EncryptionError::EncryptionFailed)?;
+        
+        Ok(EncryptedData {
+            ciphertext,
+            nonce: nonce_bytes.to_vec(),
+        })
+    }
+
+    /// Decrypt sensitive data
+    pub fn decrypt(&self, encrypted_data: &EncryptedData) -> Result<String, EncryptionError> {
+        let key = Key::<Aes256Gcm>::from_slice(&self.key);
+        let cipher = Aes256Gcm::new(key);
+        let nonce = Nonce::from_slice(&encrypted_data.nonce);
+        
+        let plaintext = cipher
+            .decrypt(nonce, encrypted_data.ciphertext.as_slice())
+            .map_err(|_| EncryptionError::DecryptionFailed)?;
+        
+        String::from_utf8(plaintext)
+            .map_err(|_| EncryptionError::InvalidUtf8)
+    }
+
+    /// Hash password with salt
     pub fn hash_password(&self, password: &str) -> Result<String, EncryptionError> {
         let salt = SaltString::generate(&mut OsRng);
-        let password_hash = self.argon2
+        let argon2 = Argon2::default();
+        
+        let password_hash = argon2
             .hash_password(password.as_bytes(), &salt)
             .map_err(|_| EncryptionError::HashingFailed)?;
         
         Ok(password_hash.to_string())
     }
-    
-    /// Verify a password against its hash
+
+    /// Verify password against hash
     pub fn verify_password(&self, password: &str, hash: &str) -> Result<bool, EncryptionError> {
         let parsed_hash = PasswordHash::new(hash)
-            .map_err(|_| EncryptionError::InvalidHash)?;
+            .map_err(|_| EncryptionError::VerificationFailed)?;
         
-        let result = self.argon2
+        let argon2 = Argon2::default();
+        let is_valid = argon2
             .verify_password(password.as_bytes(), &parsed_hash)
             .is_ok();
         
-        Ok(result)
+        Ok(is_valid)
     }
-    
-    /// Encrypt sensitive data
-    pub async fn encrypt_data(&self, data: &str, key_id: &str) -> Result<String, EncryptionError> {
-        let keys = self.encryption_keys.read().await;
-        let key = keys.get(key_id)
-            .ok_or(EncryptionError::KeyNotFound)?;
-        
-        // Simple XOR encryption for demonstration
-        // In production, use AES-256-GCM
-        let encrypted: Vec<u8> = data
-            .bytes()
-            .zip(key.iter().cycle())
-            .map(|(b, k)| b ^ k)
-            .collect();
-        
-        use base64::{Engine as _, engine::general_purpose};
-        Ok(general_purpose::STANDARD.encode(encrypted))
-    }
-    
-    /// Decrypt sensitive data
-    pub async fn decrypt_data(&self, encrypted_data: &str, key_id: &str) -> Result<String, EncryptionError> {
-        let keys = self.encryption_keys.read().await;
-        let key = keys.get(key_id)
-            .ok_or(EncryptionError::KeyNotFound)?;
-        
-        use base64::{Engine as _, engine::general_purpose};
-        let encrypted = general_purpose::STANDARD.decode(encrypted_data)
-            .map_err(|_| EncryptionError::DecryptionFailed)?;
-        
-        // Simple XOR decryption for demonstration
-        // In production, use AES-256-GCM
-        let decrypted: Vec<u8> = encrypted
-            .iter()
-            .zip(key.iter().cycle())
-            .map(|(b, k)| b ^ k)
-            .collect();
-        
-        String::from_utf8(decrypted)
-            .map_err(|_| EncryptionError::DecryptionFailed)
-    }
-    
-    /// Generate a new encryption key
-    pub async fn generate_key(&self, key_id: &str) -> Result<(), EncryptionError> {
-        let mut keys = self.encryption_keys.write().await;
-        let key = (0..32).map(|_| rand::random::<u8>()).collect();
-        keys.insert(key_id.to_string(), key);
-        Ok(())
+
+    /// Generate random salt
+    fn generate_salt(&self) -> [u8; 16] {
+        let mut salt = [0u8; 16];
+        rand::thread_rng().fill(&mut salt);
+        salt
     }
 }
 
+/// Encrypted data structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EncryptedData {
+    pub ciphertext: Vec<u8>,
+    pub nonce: Vec<u8>,
+}
+
+/// Encryption errors
 #[derive(Debug, thiserror::Error)]
 pub enum EncryptionError {
-    #[error("Password hashing failed")]
-    HashingFailed,
-    #[error("Invalid hash format")]
-    InvalidHash,
-    #[error("Key not found")]
-    KeyNotFound,
     #[error("Encryption failed")]
     EncryptionFailed,
     #[error("Decryption failed")]
     DecryptionFailed,
+    #[error("Invalid UTF-8")]
+    InvalidUtf8,
+    #[error("Hashing failed")]
+    HashingFailed,
+    #[error("Verification failed")]
+    VerificationFailed,
 }
 
-/// Secure random string generator
-pub struct SecureRandom;
-
-impl SecureRandom {
-    pub fn generate_token(length: usize) -> String {
-        use rand::Rng;
-        const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        let mut rng = rand::thread_rng();
-        
-        (0..length)
-            .map(|_| {
-                let idx = rng.gen_range(0..CHARSET.len());
-                CHARSET[idx] as char
-            })
-            .collect()
-    }
-    
-    pub fn generate_uuid() -> String {
-        uuid::Uuid::new_v4().to_string()
-    }
-    
-    pub fn generate_api_key() -> String {
-        format!("gsk_{}", Self::generate_token(32))
-    }
+/// Secure configuration manager
+pub struct SecureConfig {
+    encryption_service: EncryptionService,
+    encrypted_values: HashMap<String, EncryptedData>,
 }
 
-/// JWT token management
-pub struct JWTManager {
-    secret: String,
-    issuer: String,
-    audience: String,
-}
-
-impl JWTManager {
-    pub fn new(secret: String, issuer: String, audience: String) -> Self {
+impl SecureConfig {
+    pub fn new(encryption_key: [u8; 32]) -> Self {
         Self {
-            secret,
-            issuer,
-            audience,
+            encryption_service: EncryptionService::new(encryption_key),
+            encrypted_values: HashMap::new(),
         }
     }
-    
-    pub fn generate_token(&self, user_id: &str, expires_in_hours: u64) -> Result<String, JWTError> {
-        let now = chrono::Utc::now();
-        let exp = now + chrono::Duration::hours(expires_in_hours as i64);
-        
-        let header = jsonwebtoken::Header::default();
-        let claims = JWTPayload {
-            sub: user_id.to_string(),
-            iss: self.issuer.clone(),
-            aud: self.audience.clone(),
-            iat: now.timestamp(),
-            exp: exp.timestamp(),
-        };
-        
-        jsonwebtoken::encode(&header, &claims, &jsonwebtoken::EncodingKey::from_secret(self.secret.as_ref()))
-            .map_err(|_| JWTError::TokenGenerationFailed)
+
+    /// Store encrypted configuration value
+    pub fn set_encrypted(&mut self, key: &str, value: &str) -> Result<(), EncryptionError> {
+        let encrypted = self.encryption_service.encrypt(value)?;
+        self.encrypted_values.insert(key.to_string(), encrypted);
+        Ok(())
     }
-    
-    pub fn verify_token(&self, token: &str) -> Result<JWTPayload, JWTError> {
-        let validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::HS256);
-        
-        jsonwebtoken::decode::<JWTPayload>(
-            token,
-            &jsonwebtoken::DecodingKey::from_secret(self.secret.as_ref()),
-            &validation,
-        )
-        .map(|data| data.claims)
-        .map_err(|_| JWTError::TokenVerificationFailed)
+
+    /// Retrieve and decrypt configuration value
+    pub fn get_encrypted(&self, key: &str) -> Result<Option<String>, EncryptionError> {
+        if let Some(encrypted) = self.encrypted_values.get(key) {
+            let decrypted = self.encryption_service.decrypt(encrypted)?;
+            Ok(Some(decrypted))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Check if encrypted value exists
+    pub fn has_encrypted(&self, key: &str) -> bool {
+        self.encrypted_values.contains_key(key)
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct JWTPayload {
-    pub sub: String,    // subject (user ID)
-    pub iss: String,    // issuer
-    pub aud: String,    // audience
-    pub iat: i64,       // issued at
-    pub exp: i64,       // expiration
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[derive(Debug, thiserror::Error)]
-pub enum JWTError {
-    #[error("Token generation failed")]
-    TokenGenerationFailed,
-    #[error("Token verification failed")]
-    TokenVerificationFailed,
+    #[test]
+    fn test_encryption_decryption() {
+        let key = EncryptionService::generate_key();
+        let encryption_service = EncryptionService::new(key);
+        
+        let plaintext = "sensitive data";
+        let encrypted = encryption_service.encrypt(plaintext).unwrap();
+        let decrypted = encryption_service.decrypt(&encrypted).unwrap();
+        
+        assert_eq!(plaintext, decrypted);
+    }
+
+    #[test]
+    fn test_password_hashing() {
+        let key = EncryptionService::generate_key();
+        let encryption_service = EncryptionService::new(key);
+        
+        let password = "test_password";
+        let hash = encryption_service.hash_password(password).unwrap();
+        let is_valid = encryption_service.verify_password(password, &hash).unwrap();
+        
+        assert!(is_valid);
+        
+        let is_invalid = encryption_service.verify_password("wrong_password", &hash).unwrap();
+        assert!(!is_invalid);
+    }
+
+    #[test]
+    fn test_secure_config() {
+        let key = EncryptionService::generate_key();
+        let mut config = SecureConfig::new(key);
+        
+        config.set_encrypted("api_key", "secret_api_key").unwrap();
+        let retrieved = config.get_encrypted("api_key").unwrap().unwrap();
+        
+        assert_eq!(retrieved, "secret_api_key");
+    }
 }

@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: guardian-backend
+  namespace: guardian-server-manager
+  labels:
+    app: guardian-backend
+    app.kubernetes.io/name: guardian-backend
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: guardian-backend
+  template:
+    metadata:
+      labels:
+        app: guardian-backend
+        app.kubernetes.io/name: guardian-backend
+        app.kubernetes.io/version: "1.0.0"
+    spec:
+      serviceAccountName: guardian-backend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      containers:
+      - name: guardian-backend
+        image: guardian/server-manager:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 52100
+          name: http
+        env:
+        - name: RUST_LOG
+          value: "info"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: guardian-secrets
+              key: database-url
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: guardian-secrets
+              key: jwt-secret
+        - name: ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: guardian-secrets
+              key: encryption-key
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /api/healthz
+            port: 52100
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/healthz
+            port: 52100
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: data-volume
+          mountPath: /app/data
+        - name: logs-volume
+          mountPath: /app/logs
+        - name: backups-volume
+          mountPath: /app/backups
+        - name: servers-volume
+          mountPath: /app/servers
+      volumes:
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: guardian-data-pvc
+      - name: logs-volume
+        persistentVolumeClaim:
+          claimName: guardian-logs-pvc
+      - name: backups-volume
+        persistentVolumeClaim:
+          claimName: guardian-backups-pvc
+      - name: servers-volume
+        persistentVolumeClaim:
+          claimName: guardian-servers-pvc
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+      - key: "node-role.kubernetes.io/master"
+        operator: "Exists"
+        effect: "NoSchedule"
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - guardian-backend
+              topologyKey: kubernetes.io/hostname

@@ -34,230 +34,38 @@ import { StatusPill } from '@/components/StatusPill';
 import { getVersionsForModpack } from '@/lib/constants/minecraft-versions';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
+import { ServerCreationWizard } from '@/components/ServerCreationWizard';
 
-// Add Server Wizard Component
+// Add Server Wizard Component - now using the comprehensive ServerCreationWizard
 const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const { createServer } = useServers();
-  const [formData, setFormData] = useState({
-    // Step 1: Basic Info
-    name: '',
-    type: 'vanilla' as 'vanilla' | 'forge' | 'fabric' | 'paper' | 'purpur' | 'spigot' | 'bukkit',
-    version: '1.21.1',
-    serverJarPath: '',
-    
-    // Step 2: Java Configuration
-    javaPath: '',
-    javaArgs: '-Xmx4G -Xms2G -XX:+UseG1GC',
-    memory: 4096,
-    
-    // Step 3: Network Configuration
-    serverPort: 25565,
-    rconPort: 25575,
-    rconPassword: '',
-    queryPort: 25565,
-    maxPlayers: 20,
-    
-    // Step 4: File Paths
-    paths: {
-      world: './world',
-      mods: './mods',
-      config: './config',
-      logs: './logs',
-      backups: './backups'
-    },
-    
-    // Step 5: Advanced Settings
-    settings: {
-      autoStart: false,
-      autoRestart: true,
-      maxRestarts: 3,
-      backupInterval: 24,
-      backupRetention: 7
-    }
-  });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [currentStep, setCurrentStep] = useState(1);
-  const [javaInstallations, setJavaInstallations] = useState<any[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [isDragOverJar, setIsDragOverJar] = useState(false);
+  const { fetchServers } = useServers();
+  const navigate = useNavigate();
 
-  // Tauri global file-drop listener; only accept when dragging over our dropzone
-  useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    listen<string[] | { paths: string[] }>('tauri://file-drop', (event: any) => {
-      if (!isDragOverJar) return;
-      const payload = event?.payload;
-      const paths: string[] = Array.isArray(payload)
-        ? payload as string[]
-        : Array.isArray(payload?.paths)
-          ? payload.paths
-          : [];
-      if (paths.length === 0) return;
-      const picked = paths.find(p => p.toLowerCase().endsWith('.jar')) || paths[0];
-      if (picked) {
-        setFormData(prev => ({ ...prev, serverJarPath: picked }));
-        const lower = picked.toLowerCase();
-        if (lower.includes('1.21')) {
-          setFormData(prev => ({ ...prev, version: '1.21.1' }));
-        } else if (lower.includes('1.20.6')) {
-          setFormData(prev => ({ ...prev, version: '1.20.6' }));
-        }
-        setIsDragOverJar(false);
-      }
-    }).then(fn => { unlisten = fn; });
-    return () => { if (unlisten) unlisten(); };
-  }, [isDragOverJar]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setError(null);
-    
+  const handleServerCreated = async (createdServer: any) => {
     try {
-      const success = await createServer({
-        name: formData.name,
-        loader: formData.type,
-        version: formData.version,
-        maxPlayers: formData.maxPlayers,
-        memory: formData.memory,
-        paths: formData.paths,
-        jarPath: formData.serverJarPath
-      });
-      if (success) {
-        console.log('Server created successfully:', formData);
-        onClose();
-      } else {
-        setError('Failed to create server. Please check the console for details.');
-        console.error('Failed to create server');
+      console.log('Server created successfully:', createdServer);
+      
+      // Refresh the servers list to show the new server
+      await fetchServers();
+      
+      // Close the wizard
+      onClose();
+      
+      // Navigate to the new server if it has an ID
+      if (createdServer?.id) {
+        navigate(`/servers/${createdServer.id}`);
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      setError(`Error creating server: ${errorMessage}`);
-      console.error('Error creating server:', error);
-    } finally {
-      setIsSubmitting(false);
+      console.error('Error handling server creation:', error);
+      alert(`Error handling server creation: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          {error}
-        </div>
-      )}
-      <div>
-        <label className="block text-sm font-medium mb-2">Server Name</label>
-        <Input
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          placeholder="My Server"
-          required
-        />
-      </div>
-      
-      <div>
-        <label className="block text-sm font-medium mb-2">Mod Manager</label>
-        <select
-          value={formData.type}
-          onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
-          className="w-full px-3 py-2 border border-border rounded-md bg-background"
-        >
-          <option value="vanilla">Vanilla</option>
-          <option value="forge">Forge</option>
-          <option value="neoforge">NeoForge</option>
-          <option value="fabric">Fabric</option>
-          <option value="quilt">Quilt</option>
-          <option value="paper">Paper</option>
-          <option value="purpur">Purpur</option>
-          <option value="spigot">Spigot</option>
-          <option value="bukkit">Bukkit</option>
-        </select>
-      </div>
-      
-      <div>
-        <label className="block text-sm font-medium mb-2">Minecraft Version</label>
-        <select
-          value={formData.version}
-          onChange={(e) => setFormData({ ...formData, version: e.target.value })}
-          className="w-full px-3 py-2 border border-border rounded-md bg-background"
-        >
-          {getVersionsForModpack('forge').map((version: any) => (
-            <option key={version.id} value={version.id}>
-              {version.name} {version.id === '1.21.7' ? '(Latest)' : ''}
-            </option>
-          ))}
-        </select>
-      </div>
-      
-      <div>
-        <label className="block text-sm font-medium mb-2">Server JAR File</label>
-        <div
-          className={`flex gap-2 rounded-md border ${isDragOverJar ? 'border-primary border-dashed bg-primary/5' : 'border-border'} p-2`}
-          onDragEnter={(e) => { e.preventDefault(); setIsDragOverJar(true); }}
-          onDragOver={(e) => { e.preventDefault(); setIsDragOverJar(true); }}
-          onDragLeave={() => setIsDragOverJar(false)}
-        >
-          <Input
-            value={formData.serverJarPath}
-            onChange={(e) => setFormData({ ...formData, serverJarPath: e.target.value })}
-            placeholder="Drag a server.jar here or Browse (optional for Vanilla)"
-            className="flex-1"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              (async () => {
-                try {
-                  const selected = await openDialog({
-                    multiple: false,
-                    filters: [
-                      { name: 'Java Archives', extensions: ['jar'] },
-                    ],
-                  });
-                  const path = Array.isArray(selected) ? selected[0] : selected;
-                  if (typeof path === 'string' && path.length > 0) {
-                    setFormData({ ...formData, serverJarPath: path });
-                    // Optional: naive version hint from filename
-                    const lower = path.toLowerCase();
-                    if (lower.includes('1.21')) {
-                      setFormData(prev => ({ ...prev, version: '1.21.1' }));
-                    } else if (lower.includes('1.20.6')) {
-                      setFormData(prev => ({ ...prev, version: '1.20.6' }));
-                    }
-                  }
-                } catch (e) {
-                  const fallback = prompt('Enter path to server.jar file:');
-                  if (fallback) {
-                    setFormData({ ...formData, serverJarPath: fallback });
-                  }
-                }
-              })();
-            }}
-          >
-            Browse
-          </Button>
-        </div>
-        {isDragOverJar && (
-          <p className="text-xs text-primary mt-1">Drop the .jar file to select it</p>
-        )}
-        <p className="text-xs text-muted-foreground mt-1">
-          {formData.type === 'vanilla'
-            ? 'Optional for Vanilla: If left empty, Guardian will automatically download the official Mojang server.jar for the selected version.'
-            : 'Provide the server.jar for this loader, or the installer-generated jar.'}
-        </p>
-      </div>
-      
-      <div className="flex gap-2 pt-4">
-        <Button type="submit" disabled={isSubmitting} className="flex-1">
-          {isSubmitting ? 'Creating...' : 'Create Server'}
-        </Button>
-        <Button type="button" variant="outline" onClick={onClose}>
-          Cancel
-        </Button>
-      </div>
-    </form>
+    <ServerCreationWizard 
+      onClose={onClose} 
+      onServerCreated={handleServerCreated} 
+    />
   );
 };
 
@@ -443,7 +251,7 @@ export const Sidebar: React.FC = () => {
                                   <div className="server-meta">
                                     <StatusPill status={server.status as "stopped" | "starting" | "running" | "stopping"} />
                                     <span className="text-xs text-muted-foreground font-medium">
-                                      {server.players_online} players
+                                      {server.playersOnline} players
                                     </span>
                                   </div>
                                 </div>
@@ -451,9 +259,9 @@ export const Sidebar: React.FC = () => {
                             </Link>
                      
                      <div className="flex items-center gap-1">
-                       {server.blue_green && (
+                        {server.blueGreen && (
                          <div className={`w-2 h-2 rounded-full ${
-                           server.blue_green.active === 'blue' ? 'bg-blue-500' : 'bg-green-500'
+                           server.blueGreen.active === 'blue' ? 'bg-blue-500' : 'bg-green-500'
                          }`} />
                        )}
                        
@@ -714,9 +522,9 @@ export const Sidebar: React.FC = () => {
               console.log('Testing API connection...');
               try {
                 const { api } = await import('../../lib/api');
-                const data = await api('/healthz') as { ok?: boolean; [key: string]: any };
-                console.log('API Health Check:', data);
-                alert(`API Status: ${data.ok ? 'OK' : 'Error'}\nData: ${JSON.stringify(data)}`);
+                const response = await api('/healthz') as { success: boolean; data: string; error?: string; timestamp: string };
+                console.log('API Health Check:', response);
+                alert(`API Status: ${response.success ? 'OK' : 'Error'}\nHealth: ${response.data}\nTimestamp: ${response.timestamp}`);
               } catch (error) {
                 console.error('API Test Failed:', error);
                 alert(`API Test Failed: ${error}`);

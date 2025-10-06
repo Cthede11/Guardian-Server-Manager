@@ -212,7 +212,7 @@ export const HASettings: React.FC = () => {
         ha: {
           ...currentServerSettings.ha,
           enabled: settings.enableHA,
-          blue_green: settings.blue_green,
+          blueGreen: settings.blue_green,
           healthCheckInterval: settings.healthCheckInterval || 5000,
           [key]: value
         }

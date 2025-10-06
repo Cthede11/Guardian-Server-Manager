@@ -151,16 +151,16 @@ export const GeneralSettings: React.FC = () => {
           ...prev,
           serverName: serverData.general?.name || prev.serverName,
           serverDescription: serverData.general?.description || prev.serverDescription,
-          max_players: serverData.general?.max_players || prev.max_players,
+          max_players: serverData.general?.maxPlayers || prev.max_players,
           motd: serverData.general?.motd || prev.motd,
           difficulty: (serverData.general?.difficulty as "normal" | "peaceful" | "easy" | "hard") || prev.difficulty,
           gamemode: (serverData.general?.gamemode as "survival" | "creative" | "adventure" | "spectator") || prev.gamemode,
           pvp: serverData.general?.pvp ?? prev.pvp,
-          online_mode: serverData.general?.online_mode ?? prev.online_mode,
+          online_mode: serverData.general?.onlineMode ?? prev.online_mode,
           whitelist: serverData.general?.whitelist ?? prev.whitelist,
-          enable_command_block: serverData.general?.enable_command_block ?? prev.enable_command_block,
-          view_distance: serverData.general?.view_distance || prev.view_distance,
-          simulation_distance: serverData.general?.simulation_distance || prev.simulation_distance,
+          enable_command_block: serverData.general?.enableCommandBlock ?? prev.enable_command_block,
+          view_distance: serverData.general?.viewDistance || prev.view_distance,
+          simulation_distance: serverData.general?.simulationDistance || prev.simulation_distance,
         }));
       }
     }
@@ -308,16 +308,16 @@ export const GeneralSettings: React.FC = () => {
           description: settings.serverDescription,
           version: currentServerSettings.general?.version || '1.20.1',
           modpack: currentServerSettings.general?.modpack,
-          max_players: settings.max_players,
+          maxPlayers: settings.max_players,
           motd: settings.motd,
           difficulty: settings.difficulty,
           gamemode: settings.gamemode,
           pvp: settings.pvp,
-          online_mode: settings.online_mode,
+          onlineMode: settings.online_mode,
           whitelist: settings.whitelist,
-          enable_command_block: settings.enable_command_block,
-          view_distance: settings.view_distance,
-          simulation_distance: settings.simulation_distance
+          enableCommandBlock: settings.enable_command_block,
+          viewDistance: settings.view_distance,
+          simulationDistance: settings.simulation_distance
         }
       });
     } catch (error) {

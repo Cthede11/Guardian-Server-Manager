@@ -46,11 +46,11 @@ toml = "0.8"
 argon2 = "0.5"
 fastrand = "2.0"
 base64 = "0.22"
+aes-gcm = "0.10"
 
 [dev-dependencies]
 tokio-test = "0.4"
 mockall = "0.12"
-tempfile = "3.0"
 hyper = { version = "0.14", features = ["full"] }
 tower = { version = "0.4", features = ["util"] }
 
@@ -65,3 +65,7 @@ path = "init_db.rs"
 [[bin]]
 name = "test_db"
 path = "test_db.rs"
+
+[[bin]]
+name = "create_db"
+path = "create_db.rs"

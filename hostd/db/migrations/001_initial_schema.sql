@@ -13,8 +13,8 @@ CREATE TABLE IF NOT EXISTS servers (
     query_port INTEGER NOT NULL,
     max_players INTEGER NOT NULL,
     memory INTEGER NOT NULL,
-    java_args TEXT NOT NULL, -- JSON string
-    server_args TEXT NOT NULL, -- JSON string
+    java_args TEXT NOT NULL,
+    server_args TEXT NOT NULL,
     auto_start BOOLEAN NOT NULL DEFAULT 0,
     auto_restart BOOLEAN NOT NULL DEFAULT 0,
     world_name TEXT NOT NULL,
@@ -24,9 +24,14 @@ CREATE TABLE IF NOT EXISTS servers (
     online_mode BOOLEAN NOT NULL DEFAULT 1,
     whitelist BOOLEAN NOT NULL DEFAULT 0,
     enable_command_block BOOLEAN NOT NULL DEFAULT 0,
-    view_distance INTEGER NOT NULL DEFAULT 10,
-    simulation_distance INTEGER NOT NULL DEFAULT 10,
+    view_distance INTEGER NOT NULL,
+    simulation_distance INTEGER NOT NULL,
     motd TEXT NOT NULL,
+    host TEXT NOT NULL,
+    java_path TEXT NOT NULL,
+    jvm_args TEXT NOT NULL,
+    server_jar TEXT NOT NULL,
+    rcon_password TEXT NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

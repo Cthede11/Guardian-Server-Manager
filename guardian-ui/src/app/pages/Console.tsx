@@ -87,35 +87,24 @@ export default function Console() {
     try {
       // Use the API client instead of direct fetch
       const { api } = await import('../../lib/api');
-      const data = await api('/healthz') as { ok: boolean; port?: number; pid?: number; error?: string };
-      console.log('API Health Check Response:', data);
+      const { isSuccessResponse, logApiError, getErrorMessageWithSuggestions } = await import('../../lib/api-response-handler');
       
-      if (data.ok) {
+      const response = await api('/healthz') as { success: boolean; data: string; error?: string; timestamp: string };
+      console.log('API Health Check Response:', response);
+      
+      if (isSuccessResponse(response)) {
         console.log('✅ API is working correctly');
-        console.log(`Backend running on port ${data.port} with PID ${data.pid}`);
+        console.log(`Backend health status: ${response.data}`);
+        console.log(`Response timestamp: ${response.timestamp}`);
       } else {
-        console.error('❌ API returned error:', data.error || 'Unknown error');
+        const errorMessage = getErrorMessageWithSuggestions(response);
+        console.error('❌ API Health Check Failed');
+        console.error(errorMessage);
       }
     } catch (error) {
-      console.error('❌ API Test Failed:', error);
-      
-      // Enhanced error logging
-      if (error instanceof Error) {
-        console.error('Error Type:', error.name);
-        console.error('Error Message:', error.message);
-        if (error.stack) {
-          console.error('Error Stack:', error.stack);
-        }
-      } else {
-        console.error('Unknown Error Type:', typeof error);
-        console.error('Error Value:', error);
-      }
-      
-      // Check if it's a network error
-      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        console.error('🔍 Network Error Detected - Backend may not be running or accessible');
-        console.error('💡 Troubleshooting: Check if hostd.exe is running on port 52100');
-      }
+      const { logApiError, getErrorMessageWithSuggestions } = await import('../../lib/api-response-handler');
+      logApiError('API Health Check Failed', error);
+      console.error(getErrorMessageWithSuggestions(error));
     }
   };
 
@@ -159,7 +148,20 @@ export default function Console() {
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ Server creation failed:', response.status, errorText);
+        console.error(`❌ Server creation failed with HTTP ${response.status} ${response.statusText}`);
+        console.error('Response body:', errorText);
+        
+        try {
+          const errorData = JSON.parse(errorText);
+          if (errorData.error) {
+            console.error('Error message:', errorData.error);
+          }
+          if (errorData.details) {
+            console.error('Error details:', errorData.details);
+          }
+        } catch (e) {
+          console.error('Could not parse error response as JSON');
+        }
         return;
       }
 
@@ -167,9 +169,17 @@ export default function Console() {
       console.log('Server creation response data:', data);
       
       if (data.success) {
-        console.log('✅ Server created successfully:', data.data);
+        console.log('✅ Server created successfully!');
+        console.log('Server ID:', data.data.id);
+        console.log('Server Name:', data.data.name);
+        console.log('Server Version:', data.data.version);
+        console.log('Server Status:', data.data.status);
       } else {
-        console.error('❌ Server creation failed:', data.error);
+        console.error('❌ Server creation failed');
+        console.error('Error:', data.error || 'Unknown error');
+        if (data.details) {
+          console.error('Details:', data.details);
+        }
       }
     } catch (error) {
       console.error('❌ Server creation error:', error);

@@ -17,8 +17,8 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ className = 
     setIsChecking(true);
     try {
       const response = await api.getServers();
-      // Check for both success property (from /api/servers) and ok property (from /healthz)
-      const isSuccess = response.success === true || response.ok === true;
+      // Check for success property from API response
+      const isSuccess = response.success === true;
       setIsConnected(isSuccess);
       setLastError(isSuccess ? null : response.error || 'Unknown error');
     } catch (error) {

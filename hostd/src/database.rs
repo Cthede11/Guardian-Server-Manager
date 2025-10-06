@@ -1009,28 +1009,44 @@ impl DatabaseManager {
         sqlx::query(
             r#"
             INSERT INTO servers (
-                id, name, host, port, rcon_port, rcon_password,
-                java_path, server_jar, jvm_args, server_args,
-                auto_start, auto_restart, max_players, minecraft_version,
+                id, name, minecraft_version, loader, loader_version, port, rcon_port, query_port,
+                max_players, memory, java_args, server_args, auto_start, auto_restart,
+                world_name, difficulty, gamemode, pvp, online_mode, whitelist,
+                enable_command_block, view_distance, simulation_distance, motd,
+                host, java_path, jvm_args, server_jar, rcon_password,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
         .bind(&config.id)
         .bind(&config.name)
-        .bind(&config.host)
+        .bind(&config.minecraft_version)
+        .bind(&config.loader)
+        .bind(&config.loader_version)
         .bind(config.port)
         .bind(config.rcon_port)
-        .bind(&config.rcon_password)
-        .bind(&config.java_path)
-        .bind(&config.server_jar)
-        .bind(&config.jvm_args)
+        .bind(config.query_port)
+        .bind(config.max_players)
+        .bind(config.memory)
+        .bind(&config.java_args)
         .bind(&config.server_args)
         .bind(config.auto_start)
         .bind(config.auto_restart)
-        .bind(config.max_players)
-        .bind(&config.minecraft_version)
-        // pregeneration_policy field removed
+        .bind(&config.world_name)
+        .bind(&config.difficulty)
+        .bind(&config.gamemode)
+        .bind(config.pvp)
+        .bind(config.online_mode)
+        .bind(config.whitelist)
+        .bind(config.enable_command_block)
+        .bind(config.view_distance)
+        .bind(config.simulation_distance)
+        .bind(&config.motd)
+        .bind(&config.host)
+        .bind(&config.java_path)
+        .bind(&config.jvm_args)
+        .bind(&config.server_jar)
+        .bind(&config.rcon_password)
         .bind(config.created_at)
         .bind(config.updated_at)
         .execute(&self.pool)
