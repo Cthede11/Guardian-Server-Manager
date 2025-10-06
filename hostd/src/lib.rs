@@ -10,6 +10,11 @@ pub mod pregeneration;
 pub mod hot_import;
 pub mod lighting;
 pub mod mod_management;
+pub mod external_apis;
+pub mod modpack_installer;
+pub mod gpu_manager;
+pub mod compatibility_analyzer;
+pub mod performance_telemetry;
 
 // Legacy modules (to be phased out)
 pub mod routes;

@@ -5,6 +5,8 @@ use uuid::Uuid;
 
 use crate::core::{
     config::Config,
+    resource_monitor::ResourceMonitor,
+    crash_watchdog::CrashWatchdog,
     error_handler::Result,
 };
 use crate::database::DatabaseManager;
@@ -18,6 +20,8 @@ pub struct AppState {
     pub database: Arc<DatabaseManager>,
     pub websocket: Arc<WebSocketManager>,
     pub auth: Arc<AuthManager>,
+    pub resource_monitor: Arc<ResourceMonitor>,
+    pub crash_watchdog: Arc<CrashWatchdog>,
     pub active_servers: Arc<RwLock<HashMap<Uuid, ActiveServer>>>,
 }
 
@@ -48,7 +52,7 @@ pub enum ServerStatus {
 }
 
 impl AppState {
-    pub async fn new(config: Config, auth: Arc<AuthManager>) -> Result<Self> {
+    pub async fn new(config: Config, auth: Arc<AuthManager>, resource_monitor: Arc<ResourceMonitor>, crash_watchdog: Arc<CrashWatchdog>) -> Result<Self> {
         // Initialize database
         let database = Arc::new(DatabaseManager::new("guardian.db").await?);
         
@@ -60,6 +64,8 @@ impl AppState {
             database,
             websocket,
             auth,
+            resource_monitor,
+            crash_watchdog,
             active_servers: Arc::new(RwLock::new(HashMap::new())),
         })
     }

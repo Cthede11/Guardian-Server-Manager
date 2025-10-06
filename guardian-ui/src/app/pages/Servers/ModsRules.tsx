@@ -26,6 +26,8 @@ import { useServers } from '@/store/servers-new';
 import { ModsTable } from '@/components/Tables/ModsTable';
 import { RulesTable } from '@/components/Tables/RulesTable';
 import { ConflictsList } from '@/components/ModsRules/ConflictsList';
+import { CompatibilityPage } from '@/components/Compatibility/CompatibilityPage';
+import { AnalyticsPage } from '@/components/Analytics/AnalyticsPage';
 import { ErrorEmptyState } from '@/components/ui/EmptyState';
 import { LiveRuleLab } from '@/components/ModsRules/LiveRuleLab';
 
@@ -266,89 +268,11 @@ export const ModsRules: React.FC<ModsRulesPageProps> = ({ className = '' }) => {
         </TabsContent>
 
         <TabsContent value="conflicts" className="space-y-4">
-          <ConflictsList
-            conflicts={conflicts}
-            onResolve={(conflictId) => {
-              setConflicts(prev => prev.filter(conflict => conflict.id !== conflictId));
-            }}
-            onIgnore={(conflictId) => {
-              setConflicts(prev => prev.map(conflict => 
-                conflict.id === conflictId 
-                  ? { ...conflict, ignored: true }
-                  : conflict
-              ));
-            }}
-          />
+          <CompatibilityPage serverId={serverId || ''} />
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Total Load Time</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {mods.reduce((sum, mod) => sum + mod.loadTime, 0)}ms
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Combined mod initialization time
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Memory Usage</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {mods.reduce((sum, mod) => sum + mod.memoryUsage, 0).toFixed(1)}MB
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Total mod memory footprint
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Active Rules</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {rules.filter(rule => rule.enabled).length}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Rules currently monitoring
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Rule Trigger History</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {rules.filter(rule => rule.triggerCount > 0).map(rule => (
-                  <div key={rule.id} className="flex items-center justify-between p-2 border rounded">
-                    <div>
-                      <span className="font-medium">{rule.name}</span>
-                      <p className="text-sm text-muted-foreground">{rule.description}</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-medium">{rule.triggerCount} triggers</div>
-                      <div className="text-sm text-muted-foreground">
-                        Last: {rule.lastTriggered ? new Date(rule.lastTriggered).toLocaleString() : 'Never'}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <AnalyticsPage serverId={serverId || ''} />
         </TabsContent>
       </Tabs>
 

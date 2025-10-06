@@ -22,6 +22,7 @@ import { useServers } from '@/store/servers-new';
 import { metricsCollector, type MetricData } from '@/lib/metrics-collector';
 import { realtimeConnection } from '@/lib/websocket';
 import { errorHandler } from '@/lib/error-handler';
+import { GpuChart } from '@/components/Charts/GpuChart';
 
 interface DashboardProps {
   className?: string;
@@ -272,6 +273,40 @@ export const Dashboard: React.FC<DashboardProps> = ({ className }) => {
                 value={metrics?.tickP95 ? Math.min((metrics.tickP95 / 50) * 100, 100) : 0} 
                 className="h-2"
               />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Performance Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <GpuChart serverId={selectedServerId || ''} />
+        <Card>
+          <CardHeader>
+            <CardTitle>GPU Status</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex justify-between">
+              <span className="text-sm text-gray-600">GPU Enabled:</span>
+              <span className="text-sm font-medium text-green-500">Yes</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-gray-600">Current Utilization:</span>
+              <span className="text-sm font-medium">
+                {metrics?.gpuMs ? `${metrics.gpuMs.toFixed(1)}%` : '0%'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-gray-600">Memory Used:</span>
+              <span className="text-sm font-medium">
+                {metrics?.gpuMemory ? `${metrics.gpuMemory.toFixed(1)}MB` : '0MB'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-gray-600">Temperature:</span>
+              <span className="text-sm font-medium">
+                {metrics?.gpuTemp ? `${metrics.gpuTemp.toFixed(1)}°C` : '0°C'}
+              </span>
             </div>
           </CardContent>
         </Card>

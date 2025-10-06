@@ -3,6 +3,10 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::{info, warn, error};
+use crate::external_apis::mod_provider::ModProvider;
+use crate::mod_manager::ModDependency;
+use crate::mod_manager::ModInfo;
+use chrono::Utc;
 
 /// CurseForge API client for fetching mod data
 #[derive(Clone)]
@@ -442,5 +446,158 @@ impl CurseForgeApiClient {
         // CurseForge doesn't have explicit client/server side info in the basic project data
         // We'll need to check the files for more detailed information
         "universal".to_string()
+    }
+}
+
+#[async_trait::async_trait]
+impl ModProvider for CurseForgeApiClient {
+    async fn search_mods(
+        &self,
+        query: &str,
+        minecraft_version: Option<&str>,
+        loader: Option<&str>,
+        limit: Option<usize>,
+    ) -> Result<Vec<ModInfo>, Box<dyn std::error::Error>> {
+        // CurseForge game ID for Minecraft is 432
+        let search_results = self.search_mods(
+            432, // Minecraft game ID
+            Some(query),
+            None, // category_id
+            minecraft_version,
+            None, // mod_loader_type
+            None, // sort_field
+            None, // sort_order
+            limit.map(|l| l as u32),
+            None, // index
+        ).await?;
+        
+        let mut mod_infos = Vec::new();
+        
+        for result in search_results.data {
+            if let Ok(mod_info) = self.get_mod(&result.id.to_string()).await {
+                mod_infos.push(mod_info);
+            }
+        }
+        
+        Ok(mod_infos)
+    }
+
+    async fn get_mod(&self, mod_id: &str) -> Result<ModInfo, Box<dyn std::error::Error>> {
+        let project_id = mod_id.parse::<u32>()
+            .map_err(|_| "Invalid CurseForge project ID")?;
+        
+        let project = self.get_project(project_id).await?;
+        let files = self.get_project_files(project_id, None, None, None, None, None).await?;
+        
+        if let Some(file) = files.first() {
+            Ok(ModInfo {
+                id: project.id.to_string(),
+                name: project.name,
+                description: project.summary,
+                author: project.authors.first().map(|a| a.name.clone()).unwrap_or_else(|| "Unknown".to_string()),
+                version: file.display_name.clone(),
+                minecraft_version: file.sortable_game_versions.first().map(|v| v.game_version.clone()).unwrap_or_else(|| "1.20.1".to_string()),
+                loader: "forge".to_string(), // CurseForge is primarily Forge
+                category: "misc".to_string(),
+                side: "both".to_string(),
+                download_url: Some(file.download_url.clone()),
+                file_size: Some(file.file_length),
+                sha1: file.hashes.iter().find(|h| h.algo == 1).map(|h| h.value.clone()),
+                dependencies: file.dependencies.iter().map(|d| ModDependency {
+                    mod_id: d.mod_id.to_string(),
+                    version_range: "any".to_string(),
+                    required: d.relation_type == 1,
+                }).collect(),
+                created_at: project.date_created.parse().unwrap_or_else(|_| Utc::now()),
+                updated_at: project.date_modified.parse().unwrap_or_else(|_| Utc::now()),
+            })
+        } else {
+            Err("No files found for the project".into())
+        }
+    }
+
+    async fn get_mod_version(
+        &self,
+        mod_id: &str,
+        version: &str,
+    ) -> Result<ModInfo, Box<dyn std::error::Error>> {
+        let project_id = mod_id.parse::<u32>()
+            .map_err(|_| "Invalid CurseForge project ID")?;
+        
+        let project = self.get_project(project_id).await?;
+        let files = self.get_project_files(project_id, Some(version), None, None, None, None).await?;
+        
+        if let Some(file) = files.first() {
+            Ok(ModInfo {
+                id: project.id.to_string(),
+                name: project.name,
+                description: project.summary,
+                author: project.authors.first().map(|a| a.name.clone()).unwrap_or_else(|| "Unknown".to_string()),
+                version: file.display_name.clone(),
+                minecraft_version: file.sortable_game_versions.first().map(|v| v.game_version.clone()).unwrap_or_else(|| "1.20.1".to_string()),
+                loader: "forge".to_string(),
+                category: "misc".to_string(),
+                side: "both".to_string(),
+                download_url: Some(file.download_url.clone()),
+                file_size: Some(file.file_length),
+                sha1: file.hashes.iter().find(|h| h.algo == 1).map(|h| h.value.clone()),
+                dependencies: file.dependencies.iter().map(|d| ModDependency {
+                    mod_id: d.mod_id.to_string(),
+                    version_range: "any".to_string(),
+                    required: d.relation_type == 1,
+                }).collect(),
+                created_at: project.date_created.parse().unwrap_or_else(|_| Utc::now()),
+                updated_at: project.date_modified.parse().unwrap_or_else(|_| Utc::now()),
+            })
+        } else {
+            Err("No files found for the specified version".into())
+        }
+    }
+
+    async fn download_mod(
+        &self,
+        mod_id: &str,
+        version: &str,
+        file_path: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mod_info = self.get_mod_version(mod_id, version).await?;
+        
+        if let Some(download_url) = mod_info.download_url {
+            let response = self.client.get(&download_url).send().await?;
+            let content = response.bytes().await?;
+            
+            std::fs::write(file_path, content)?;
+            Ok(())
+        } else {
+            Err("No download URL available".into())
+        }
+    }
+
+    async fn get_mod_dependencies(
+        &self,
+        mod_id: &str,
+        version: &str,
+    ) -> Result<Vec<ModDependency>, Box<dyn std::error::Error>> {
+        let mod_info = self.get_mod_version(mod_id, version).await?;
+        Ok(mod_info.dependencies)
+    }
+
+    async fn check_for_updates(
+        &self,
+        mod_id: &str,
+        current_version: &str,
+    ) -> Result<Option<String>, Box<dyn std::error::Error>> {
+        let project_id = mod_id.parse::<u32>()
+            .map_err(|_| "Invalid CurseForge project ID")?;
+        
+        let files = self.get_project_files(project_id, None, None, None, None, Some(1)).await?;
+        
+        if let Some(latest_file) = files.first() {
+            if latest_file.display_name != current_version {
+                return Ok(Some(latest_file.display_name.clone()));
+            }
+        }
+        
+        Ok(None)
     }
 }

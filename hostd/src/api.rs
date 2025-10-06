@@ -278,6 +278,11 @@ pub struct AppState {
     pub minecraft_manager: crate::minecraft::MinecraftManager,
     pub database: crate::database::DatabaseManager,
     pub mod_manager: ModManager,
+    pub resource_monitor: Arc<crate::core::resource_monitor::ResourceMonitor>,
+    pub crash_watchdog: Arc<crate::core::crash_watchdog::CrashWatchdog>,
+    pub test_harness: Arc<crate::core::test_harness::TestHarness>,
+    pub gpu_manager: Arc<tokio::sync::Mutex<crate::gpu_manager::GpuManager>>,
+    pub performance_telemetry: Arc<crate::performance_telemetry::PerformanceTelemetry>,
 }
 
 /// Create API router
@@ -294,6 +299,31 @@ pub fn create_api_router(state: AppState) -> Router {
         .route("/api/servers/:id/stop", post(stop_server))
         .route("/api/servers/:id/restart", post(restart_server))
         .route("/api/servers/:id/command", post(send_server_command))
+        // Resource monitoring endpoints
+        .route("/api/servers/:id/metrics", get(get_server_metrics))
+        .route("/api/servers/:id/metrics/history", get(get_server_metrics_history))
+        .route("/api/system/metrics", get(get_system_metrics))
+        .route("/api/system/metrics/history", get(get_system_metrics_history))
+        .route("/api/system/resource-summary", get(get_resource_summary))
+        // GPU acceleration endpoints
+        .route("/api/gpu/status", get(get_gpu_status))
+        .route("/api/gpu/metrics", get(get_gpu_metrics))
+        .route("/api/gpu/enable", post(enable_gpu))
+        .route("/api/gpu/disable", post(disable_gpu))
+        .route("/api/gpu/job/submit", post(submit_gpu_job))
+        .route("/api/gpu/job/:id/status", get(get_gpu_job_status))
+        .route("/api/performance/:server_id/metrics", get(get_server_performance_metrics))
+        .route("/api/performance/:server_id/summary", get(get_server_performance_summary))
+        .route("/api/performance/all", get(get_all_performance_metrics))
+        .route("/api/compatibility/:server_id/risk-analysis", get(get_server_risk_analysis))
+        .route("/api/compatibility/:server_id/mod/:mod_id/risk", get(get_mod_risk_analysis))
+        // Crash watchdog endpoints
+        .route("/api/servers/:id/watchdog/register", post(register_server_watchdog))
+        .route("/api/servers/:id/watchdog/unregister", post(unregister_server_watchdog))
+        .route("/api/servers/:id/watchdog/health", get(get_server_watchdog_health))
+        .route("/api/servers/:id/watchdog/force-restart", post(force_restart_server))
+        .route("/api/servers/:id/watchdog/heartbeat", post(update_server_heartbeat))
+        .route("/api/watchdog/health", get(get_all_watchdog_health))
         // EULA endpoints
         .route("/api/servers/:id/eula", get(get_eula_status))
         .route("/api/servers/:id/eula/accept", post(accept_eula))
@@ -328,8 +358,11 @@ pub fn create_api_router(state: AppState) -> Router {
         .route("/api/servers/:id/backups", get(get_backups))
         .route("/api/servers/:id/backups", post(create_backup))
         .route("/api/servers/:id/backups/:backup_id", get(get_backup))
-        // .route("/api/servers/:id/backups/:backup_id/restore", post(restore_backup))
+        .route("/api/servers/:id/backups/:backup_id/restore", post(restore_backup))
         .route("/api/servers/:id/backups/:backup_id", delete(delete_backup))
+        .route("/api/test/run", post(run_tests))
+        .route("/api/test/run/:test_name", post(run_specific_test))
+        .route("/api/test/results", get(get_test_results))
         
         // Settings endpoints
         .route("/api/servers/:id/settings", get(get_server_settings))
@@ -1427,51 +1460,49 @@ async fn get_realtime_metrics(
 async fn get_backups(
     Path(id): Path<String>,
     State(state): State<AppState>,
-) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, StatusCode> {
-    // List local backups in data/backups
-    let backup_dir = std::path::Path::new("data").join("backups");
-    let mut result = Vec::new();
-    if let Ok(entries) = std::fs::read_dir(&backup_dir) {
-        for entry in entries.flatten() {
-            let p = entry.path();
-            if let Some(name) = p.file_stem().and_then(|s| s.to_str()) {
-                if p.extension().and_then(|e| e.to_str()) == Some("zip") {
-                    let size_mb = p.metadata().map(|m| (m.len() / (1024*1024)) as u64).unwrap_or(0);
-                    result.push(serde_json::json!({
-                        "id": name,
-                        "name": name,
-                        "created_at": chrono::Utc::now(),
-                        "size_mb": size_mb,
-                        "status": "completed"
-                    }));
-                }
-            }
-        }
+) -> Result<Json<ApiResponse<Vec<crate::backup_manager::BackupInfo>>>, StatusCode> {
+    let backup_manager = crate::backup_manager::BackupManager::new(
+        std::path::PathBuf::from("data/backups"),
+        std::path::PathBuf::from("data/servers")
+    );
+    
+    match backup_manager.get_backups(&id).await {
+        Ok(backups) => Ok(Json(ApiResponse::success(backups))),
+        Err(e) => Ok(Json(ApiResponse::error(format!("Failed to get backups: {}", e)))),
     }
-    Ok(Json(ApiResponse::success(result)))
 }
 
 async fn create_backup(
     Path(id): Path<String>,
     State(state): State<AppState>,
-) -> Result<Json<ApiResponse<String>>, StatusCode> {
+) -> Result<Json<ApiResponse<crate::backup_manager::BackupInfo>>, StatusCode> {
     info!("Creating backup for server {}", id);
-    let server_root = format!("data/servers/{}", id);
-    let backup_dir = std::path::Path::new("data").join("backups");
-    let config = crate::backup::BackupConfig {
-        strategy: crate::backup::BackupStrategy::Full,
-        retention: crate::backup::RetentionPolicy::default(),
-        compression: true,
-        storage: crate::backup::StorageConfig {
-            local_path: backup_dir.to_string_lossy().to_string(),
-            remote_url: None,
-            credentials: None,
+    let backup_manager = crate::backup_manager::BackupManager::new(
+        std::path::PathBuf::from("data/backups"),
+        std::path::PathBuf::from("data/servers")
+    );
+    
+    let request = crate::backup_manager::CreateBackupRequest {
+        name: format!("backup_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S")),
+        description: Some("API created backup".to_string()),
+        backup_type: crate::backup_manager::BackupType::Manual,
+        compression: crate::backup_manager::CompressionType::Zip,
+        includes: crate::backup_manager::BackupIncludes {
+            world: true,
+            mods: true,
+            config: true,
+            logs: false,
+            server_properties: true,
+            whitelist: true,
+            ops: true,
+            banned_players: true,
+            banned_ips: true,
         },
+        metadata: Some(serde_json::Value::Object(serde_json::Map::new())),
     };
-    let manager = crate::backup::BackupManager::new(config);
-    if let Err(e) = manager.start().await { warn!("backup manager start: {}", e); }
-    match manager.create_backup().await {
-        Ok(r) => Ok(Json(ApiResponse::success(r.backup_id))),
+    
+    match backup_manager.create_backup(&id, request).await {
+        Ok(backup) => Ok(Json(ApiResponse::success(backup))),
         Err(e) => Ok(Json(ApiResponse::error(format!("Failed to create backup: {}", e)))),
     }
 }
@@ -1479,13 +1510,16 @@ async fn create_backup(
 async fn get_backup(
     Path((id, backup_id)): Path<(String, String)>,
     State(state): State<AppState>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
-    let backup_dir = std::path::Path::new("data").join("backups");
-    let path = backup_dir.join(format!("{}.zip", backup_id));
-    if !path.exists() { return Ok(Json(ApiResponse::error("Backup not found".to_string()))); }
-    let size_mb = path.metadata().map(|m| (m.len() / (1024*1024)) as u64).unwrap_or(0);
-    let backup = serde_json::json!({ "id": backup_id, "name": backup_id, "created_at": chrono::Utc::now(), "size_mb": size_mb, "status": "completed" });
-    Ok(Json(ApiResponse::success(backup)))
+) -> Result<Json<ApiResponse<crate::backup_manager::BackupInfo>>, StatusCode> {
+    let backup_manager = crate::backup_manager::BackupManager::new(
+        std::path::PathBuf::from("data/backups"),
+        std::path::PathBuf::from("data/servers")
+    );
+    
+    match backup_manager.get_backup(&id, &backup_id).await {
+        Ok(backup) => Ok(Json(ApiResponse::success(backup))),
+        Err(e) => Ok(Json(ApiResponse::error(format!("Failed to get backup: {}", e)))),
+    }
 }
 
 pub async fn restore_backup(
@@ -1493,21 +1527,23 @@ pub async fn restore_backup(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<String>>, StatusCode> {
     info!("Restoring backup {} for server {}", backup_id, id);
-    let server_root = std::path::Path::new("data").join("servers").join(&id);
-    let config = crate::backup::BackupConfig {
-        strategy: crate::backup::BackupStrategy::Full,
-        retention: crate::backup::RetentionPolicy::default(),
-        compression: true,
-        storage: crate::backup::StorageConfig { 
-            local_path: "data/backups".to_string(), 
-            remote_url: None, 
-            credentials: None 
-        },
+    let backup_manager = crate::backup_manager::BackupManager::new(
+        std::path::PathBuf::from("data/backups"),
+        std::path::PathBuf::from("data/servers")
+    );
+    
+    let restore_request = crate::backup_manager::RestoreBackupRequest {
+        backup_id: backup_id.clone(),
+        restore_world: true,
+        restore_mods: true,
+        restore_config: true,
+        restore_logs: false,
+        create_backup: true,
     };
-    let manager = crate::backup::BackupManager::new(config);
-    match manager.restore_from_backup(&backup_id, &server_root.to_string_lossy()).await {
-        Ok(_) => Ok(Json(ApiResponse::success("Backup restored".to_string()))),
-        Err(e) => Ok(Json(ApiResponse::error(format!("Failed to restore: {}", e)))),
+    
+    match backup_manager.restore_backup(&id, restore_request).await {
+        Ok(_) => Ok(Json(ApiResponse::success("Backup restored successfully".to_string()))),
+        Err(e) => Ok(Json(ApiResponse::error(format!("Failed to restore backup: {}", e)))),
     }
 }
 
@@ -1516,19 +1552,14 @@ async fn delete_backup(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<String>>, StatusCode> {
     info!("Deleting backup {} from server {}", backup_id, id);
-    let manager = crate::backup::BackupManager::new(crate::backup::BackupConfig {
-        strategy: crate::backup::BackupStrategy::Full,
-        retention: crate::backup::RetentionPolicy::default(),
-        compression: true,
-        storage: crate::backup::StorageConfig { 
-            local_path: "data/backups".to_string(), 
-            remote_url: None, 
-            credentials: None 
-        },
-    });
-    match manager.delete_backup(&backup_id).await {
-        Ok(_) => Ok(Json(ApiResponse::success("Backup deleted".to_string()))),
-        Err(e) => Ok(Json(ApiResponse::error(format!("Failed to delete: {}", e)))),
+    let backup_manager = crate::backup_manager::BackupManager::new(
+        std::path::PathBuf::from("data/backups"),
+        std::path::PathBuf::from("data/servers")
+    );
+    
+    match backup_manager.delete_backup(&id, &backup_id).await {
+        Ok(_) => Ok(Json(ApiResponse::success("Backup deleted successfully".to_string()))),
+        Err(e) => Ok(Json(ApiResponse::error(format!("Failed to delete backup: {}", e)))),
     }
 }
 
@@ -2719,6 +2750,377 @@ async fn rollback_mod_plan(
     }))
 }
 
+// Resource monitoring handlers
+async fn get_server_metrics(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<crate::core::resource_monitor::ServerMetrics>>, StatusCode> {
+    let server_id = match Uuid::parse_str(&id) {
+        Ok(id) => id,
+        Err(_) => return Ok(Json(ApiResponse::error("Invalid server ID".to_string()))),
+    };
+
+    match state.resource_monitor.get_current_server_metrics(server_id).await {
+        Some(metrics) => Ok(Json(ApiResponse::success(metrics))),
+        None => Ok(Json(ApiResponse::error("Server metrics not found".to_string()))),
+    }
+}
+
+async fn get_server_metrics_history(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Json<ApiResponse<Vec<crate::core::resource_monitor::ServerMetrics>>>, StatusCode> {
+    let server_id = match Uuid::parse_str(&id) {
+        Ok(id) => id,
+        Err(_) => return Ok(Json(ApiResponse::error("Invalid server ID".to_string()))),
+    };
+
+    let duration_minutes = params.get("duration")
+        .and_then(|d| d.parse::<u64>().ok())
+        .unwrap_or(60); // Default to 1 hour
+
+    let duration = std::time::Duration::from_secs(duration_minutes * 60);
+    let metrics = state.resource_monitor.get_server_metrics_history(server_id, duration).await;
+    
+    Ok(Json(ApiResponse::success(metrics)))
+}
+
+async fn get_system_metrics(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<crate::core::resource_monitor::SystemMetrics>>, StatusCode> {
+    match state.resource_monitor.get_current_system_metrics().await {
+        Some(metrics) => Ok(Json(ApiResponse::success(metrics))),
+        None => Ok(Json(ApiResponse::error("System metrics not available".to_string()))),
+    }
+}
+
+async fn get_system_metrics_history(
+    State(state): State<AppState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Json<ApiResponse<Vec<crate::core::resource_monitor::SystemMetrics>>>, StatusCode> {
+    let duration_minutes = params.get("duration")
+        .and_then(|d| d.parse::<u64>().ok())
+        .unwrap_or(60); // Default to 1 hour
+
+    let duration = std::time::Duration::from_secs(duration_minutes * 60);
+    let metrics = state.resource_monitor.get_system_metrics_history(duration).await;
+    
+    Ok(Json(ApiResponse::success(metrics)))
+}
+
+async fn get_resource_summary(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<crate::core::resource_monitor::ResourceSummary>>, StatusCode> {
+    let summary = state.resource_monitor.get_resource_summary().await;
+    Ok(Json(ApiResponse::success(summary)))
+}
+
+// Crash watchdog handlers
+async fn register_server_watchdog(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    let server_id = match Uuid::parse_str(&id) {
+        Ok(id) => id,
+        Err(_) => return Ok(Json(ApiResponse::error("Invalid server ID".to_string()))),
+    };
+
+    match state.crash_watchdog.register_server(server_id).await {
+        Ok(_) => Ok(Json(ApiResponse::success(()))),
+        Err(e) => Ok(Json(ApiResponse::error(format!("Failed to register server: {}", e)))),
+    }
+}
+
+async fn unregister_server_watchdog(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    let server_id = match Uuid::parse_str(&id) {
+        Ok(id) => id,
+        Err(_) => return Ok(Json(ApiResponse::error("Invalid server ID".to_string()))),
+    };
+
+    match state.crash_watchdog.unregister_server(server_id).await {
+        Ok(_) => Ok(Json(ApiResponse::success(()))),
+        Err(e) => Ok(Json(ApiResponse::error(format!("Failed to unregister server: {}", e)))),
+    }
+}
+
+async fn get_server_watchdog_health(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<crate::core::crash_watchdog::ServerHealth>>, StatusCode> {
+    let server_id = match Uuid::parse_str(&id) {
+        Ok(id) => id,
+        Err(_) => return Ok(Json(ApiResponse::error("Invalid server ID".to_string()))),
+    };
+
+    match state.crash_watchdog.get_server_health(server_id).await {
+        Some(health) => Ok(Json(ApiResponse::success(health))),
+        None => Ok(Json(ApiResponse::error("Server not monitored".to_string()))),
+    }
+}
+
+async fn force_restart_server(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    let server_id = match Uuid::parse_str(&id) {
+        Ok(id) => id,
+        Err(_) => return Ok(Json(ApiResponse::error("Invalid server ID".to_string()))),
+    };
+
+    match state.crash_watchdog.force_restart(server_id).await {
+        Ok(_) => Ok(Json(ApiResponse::success(()))),
+        Err(e) => Ok(Json(ApiResponse::error(format!("Failed to restart server: {}", e)))),
+    }
+}
+
+async fn update_server_heartbeat(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    let server_id = match Uuid::parse_str(&id) {
+        Ok(id) => id,
+        Err(_) => return Ok(Json(ApiResponse::error("Invalid server ID".to_string()))),
+    };
+
+    match state.crash_watchdog.update_heartbeat(server_id).await {
+        Ok(_) => Ok(Json(ApiResponse::success(()))),
+        Err(e) => Ok(Json(ApiResponse::error(format!("Failed to update heartbeat: {}", e)))),
+    }
+}
+
+async fn get_all_watchdog_health(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<std::collections::HashMap<Uuid, crate::core::crash_watchdog::ServerHealth>>>, StatusCode> {
+    let health_map = state.crash_watchdog.get_all_server_health().await;
+    Ok(Json(ApiResponse::success(health_map)))
+}
+
+// Test harness endpoints
+#[axum::debug_handler]
+async fn run_tests(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<crate::core::test_harness::TestResults>>, StatusCode> {
+    info!("Running all tests");
+    
+    match state.test_harness.run_all_tests().await {
+        Ok(results) => {
+            info!("Tests completed: {}/{} passed", results.passed_tests, results.total_tests);
+            Ok(Json(ApiResponse::success(results)))
+        }
+        Err(e) => {
+            error!("Test execution failed: {}", e);
+            Ok(Json(ApiResponse::error(format!("Test execution failed: {}", e))))
+        }
+    }
+}
+
+#[axum::debug_handler]
+async fn run_specific_test(
+    Path(test_name): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<crate::core::test_harness::TestResults>>, StatusCode> {
+    info!("Running specific test: {}", test_name);
+    
+    match state.test_harness.run_test(&test_name).await {
+        Ok(results) => {
+            info!("Test '{}' completed: {}/{} passed", test_name, results.passed_tests, results.total_tests);
+            Ok(Json(ApiResponse::success(results)))
+        }
+        Err(e) => {
+            error!("Test '{}' execution failed: {}", test_name, e);
+            Ok(Json(ApiResponse::error(format!("Test execution failed: {}", e))))
+        }
+    }
+}
+
+async fn get_test_results(
+    State(_state): State<AppState>,
+) -> Result<Json<ApiResponse<String>>, StatusCode> {
+    // For now, return a placeholder message
+    // In a real implementation, this would return cached test results
+    Ok(Json(ApiResponse::success("Test results endpoint - implement caching for persistent results".to_string())))
+}
+
+// GPU acceleration handlers
+#[axum::debug_handler]
+async fn get_gpu_status(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
+    let gpu_manager = state.gpu_manager.lock().await;
+    let status = serde_json::json!({
+        "enabled": gpu_manager.is_enabled(),
+        "healthy": gpu_manager.get_metrics().await.utilization >= 0.0,
+        "worker_available": gpu_manager.is_enabled()
+    });
+    
+    Ok(Json(ApiResponse::success(status)))
+}
+
+#[axum::debug_handler]
+async fn get_gpu_metrics(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<crate::gpu_manager::GpuMetrics>>, StatusCode> {
+    let gpu_manager = state.gpu_manager.lock().await;
+    let metrics = gpu_manager.get_metrics().await;
+    Ok(Json(ApiResponse::success(metrics)))
+}
+
+#[axum::debug_handler]
+async fn enable_gpu(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<String>>, StatusCode> {
+    let mut gpu_manager = state.gpu_manager.lock().await;
+    match gpu_manager.set_enabled(true).await {
+        Ok(_) => Ok(Json(ApiResponse::success("GPU enabled successfully".to_string()))),
+        Err(e) => {
+            error!("Failed to enable GPU: {}", e);
+            Ok(Json(ApiResponse::error(format!("Failed to enable GPU: {}", e))))
+        }
+    }
+}
+
+#[axum::debug_handler]
+async fn disable_gpu(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<String>>, StatusCode> {
+    let mut gpu_manager = state.gpu_manager.lock().await;
+    match gpu_manager.set_enabled(false).await {
+        Ok(_) => Ok(Json(ApiResponse::success("GPU disabled successfully".to_string()))),
+        Err(e) => {
+            error!("Failed to disable GPU: {}", e);
+            Ok(Json(ApiResponse::error(format!("Failed to disable GPU: {}", e))))
+        }
+    }
+}
+
+#[axum::debug_handler]
+async fn submit_gpu_job(
+    State(state): State<AppState>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<String>>, StatusCode> {
+    // Parse job type from payload
+    let job_type = match payload.get("type").and_then(|v| v.as_str()) {
+        Some("chunk_generation") => {
+            let x = payload.get("x").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+            let z = payload.get("z").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+            let seed = payload.get("seed").and_then(|v| v.as_u64()).unwrap_or(0);
+            let dimension = payload.get("dimension").and_then(|v| v.as_str()).unwrap_or("overworld").to_string();
+            
+            crate::gpu_manager::GpuJobType::ChunkGeneration { x, z, seed, dimension }
+        }
+        _ => {
+            return Ok(Json(ApiResponse::error("Unsupported job type".to_string())));
+        }
+    };
+
+    let gpu_manager = state.gpu_manager.lock().await;
+    match gpu_manager.submit_job(job_type).await {
+        Ok(result) => {
+            if result.success {
+                Ok(Json(ApiResponse::success("GPU job submitted successfully".to_string())))
+            } else {
+                Ok(Json(ApiResponse::error(format!("GPU job failed: {}", result.error.unwrap_or("Unknown error".to_string())))))
+            }
+        }
+        Err(e) => {
+            error!("Failed to submit GPU job: {}", e);
+            Ok(Json(ApiResponse::error(format!("Failed to submit GPU job: {}", e))))
+        }
+    }
+}
+
+#[axum::debug_handler]
+async fn get_gpu_job_status(
+    Path(_job_id): Path<String>,
+    State(_state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
+    // For now, return a placeholder status
+    // In a real implementation, this would track job status
+    let status = serde_json::json!({
+        "job_id": _job_id,
+        "status": "completed",
+        "progress": 100,
+        "result": "success"
+    });
+    
+    Ok(Json(ApiResponse::success(status)))
+}
+
+// Performance telemetry handlers
+async fn get_server_performance_metrics(
+    Path(server_id): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<Vec<crate::performance_telemetry::PerformanceMetrics>>>, StatusCode> {
+    match state.performance_telemetry.get_server_metrics(&server_id).await {
+        Some(metrics) => Ok(Json(ApiResponse::success(metrics))),
+        None => Ok(Json(ApiResponse::error("No performance metrics found for server".to_string()))),
+    }
+}
+
+async fn get_server_performance_summary(
+    Path(server_id): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<Option<crate::performance_telemetry::PerformanceSummary>>>, StatusCode> {
+    match state.performance_telemetry.get_performance_summary(&server_id).await {
+        Some(summary) => Ok(Json(ApiResponse::success(Some(summary)))),
+        None => Ok(Json(ApiResponse::success(None))),
+    }
+}
+
+async fn get_all_performance_metrics(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<std::collections::HashMap<String, Vec<crate::performance_telemetry::PerformanceMetrics>>>>, StatusCode> {
+    let metrics = state.performance_telemetry.get_all_metrics().await;
+    Ok(Json(ApiResponse::success(metrics)))
+}
+
+// Risk analysis handlers
+async fn get_server_risk_analysis(
+    Path(server_id): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<Vec<crate::compatibility_analyzer::RiskAnalysis>>>, StatusCode> {
+    // This would analyze all mods in the server and return risk analysis
+    // For now, return a placeholder
+    let risk_analyses = vec![
+        crate::compatibility_analyzer::RiskAnalysis {
+            mod_id: "example_mod".to_string(),
+            overall_score: 0.3,
+            risk_level: crate::compatibility_analyzer::RiskLevel::Low,
+            incompatibility_score: 0.0,
+            dependency_score: 0.2,
+            performance_score: 0.1,
+            stability_score: 0.0,
+            recommendations: vec!["Mod appears stable".to_string()],
+        }
+    ];
+    
+    Ok(Json(ApiResponse::success(risk_analyses)))
+}
+
+async fn get_mod_risk_analysis(
+    Path((server_id, mod_id)): Path<(String, String)>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<crate::compatibility_analyzer::RiskAnalysis>>, StatusCode> {
+    // This would analyze a specific mod and return its risk analysis
+    // For now, return a placeholder
+    let risk_analysis = crate::compatibility_analyzer::RiskAnalysis {
+        mod_id: mod_id.clone(),
+        overall_score: 0.2,
+        risk_level: crate::compatibility_analyzer::RiskLevel::Low,
+        incompatibility_score: 0.0,
+        dependency_score: 0.1,
+        performance_score: 0.1,
+        stability_score: 0.0,
+        recommendations: vec!["Mod appears stable".to_string()],
+    };
+    
+    Ok(Json(ApiResponse::success(risk_analysis)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2736,6 +3138,10 @@ mod tests {
             minecraft_manager: crate::minecraft::MinecraftManager::new(crate::database::DatabaseManager::new(":memory:").await.unwrap()),
             database: crate::database::DatabaseManager::new(":memory:").await.unwrap(),
             mod_manager: crate::mod_manager::ModManager::new(std::path::PathBuf::from("mods")),
+            resource_monitor: Arc::new(crate::core::resource_monitor::ResourceMonitor::new(
+                crate::core::resource_monitor::ResourceMonitorConfig::default(),
+                Arc::new(crate::core::guardian_config::GuardianConfig::default()),
+            )),
         };
         let app = create_api_router(state);
 

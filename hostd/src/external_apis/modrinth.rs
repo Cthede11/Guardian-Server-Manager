@@ -3,6 +3,10 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::{info, warn, error};
+use crate::external_apis::mod_provider::ModProvider;
+use crate::mod_manager::ModDependency;
+use crate::mod_manager::ModInfo;
+use chrono::Utc;
 
 /// Modrinth API client for fetching mod data
 #[derive(Clone)]
@@ -391,5 +395,161 @@ impl ModrinthApiClient {
 impl Default for ModrinthApiClient {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[async_trait::async_trait]
+impl ModProvider for ModrinthApiClient {
+    async fn search_mods(
+        &self,
+        query: &str,
+        minecraft_version: Option<&str>,
+        loader: Option<&str>,
+        limit: Option<usize>,
+    ) -> Result<Vec<ModInfo>, Box<dyn std::error::Error>> {
+        let search_results = self.search_mods(
+            query,
+            minecraft_version,
+            loader,
+            None, // category
+            limit.map(|l| l as u32),
+            None, // offset
+        ).await?;
+        
+        let mut mod_infos = Vec::new();
+        
+        for result in search_results.hits {
+            if let Ok(mod_info) = self.get_mod(&result.id).await {
+                mod_infos.push(mod_info);
+            }
+        }
+        
+        Ok(mod_infos)
+    }
+
+    async fn get_mod(&self, mod_id: &str) -> Result<ModInfo, Box<dyn std::error::Error>> {
+        let project = self.get_project(mod_id).await?;
+        let versions = self.get_project_versions(mod_id, None, None).await?;
+        
+        if let Some(version_info) = versions.first() {
+            Ok(ModInfo {
+                id: project.id,
+                name: project.title,
+                description: project.description,
+                author: "Unknown".to_string(), // Modrinth doesn't provide author in project response
+                version: version_info.version_number.clone(),
+                minecraft_version: version_info.game_versions.first().cloned().unwrap_or_else(|| "1.20.1".to_string()),
+                loader: version_info.loaders.first().cloned().unwrap_or_else(|| "fabric".to_string()),
+                category: project.categories.first().cloned().unwrap_or_else(|| "misc".to_string()),
+                side: if project.client_side == "required" && project.server_side == "required" {
+                    "both".to_string()
+                } else if project.client_side == "required" {
+                    "client".to_string()
+                } else if project.server_side == "required" {
+                    "server".to_string()
+                } else {
+                    "both".to_string()
+                },
+                download_url: version_info.files.first().map(|f| f.url.clone()),
+                file_size: version_info.files.first().map(|f| f.size),
+                sha1: version_info.files.first().and_then(|f| f.hashes.get("sha1").cloned()),
+                dependencies: version_info.dependencies.iter().map(|d| ModDependency {
+                    mod_id: d.project_id.clone().unwrap_or_else(|| "unknown".to_string()),
+                    version_range: "any".to_string(),
+                    required: d.dependency_type == "required",
+                }).collect(),
+                created_at: project.published.parse().unwrap_or_else(|_| Utc::now()),
+                updated_at: project.updated.parse().unwrap_or_else(|_| Utc::now()),
+            })
+        } else {
+            Err("No versions found for the project".into())
+        }
+    }
+
+    async fn get_mod_version(
+        &self,
+        mod_id: &str,
+        version: &str,
+    ) -> Result<ModInfo, Box<dyn std::error::Error>> {
+        let project = self.get_project(mod_id).await?;
+        let versions = self.get_project_versions(mod_id, Some(vec![version]), None).await?;
+        
+        if let Some(version_info) = versions.first() {
+            Ok(ModInfo {
+                id: project.id,
+                name: project.title,
+                description: project.description,
+                author: "Unknown".to_string(),
+                version: version_info.version_number.clone(),
+                minecraft_version: version_info.game_versions.first().cloned().unwrap_or_else(|| "1.20.1".to_string()),
+                loader: version_info.loaders.first().cloned().unwrap_or_else(|| "fabric".to_string()),
+                category: project.categories.first().cloned().unwrap_or_else(|| "misc".to_string()),
+                side: if project.client_side == "required" && project.server_side == "required" {
+                    "both".to_string()
+                } else if project.client_side == "required" {
+                    "client".to_string()
+                } else if project.server_side == "required" {
+                    "server".to_string()
+                } else {
+                    "both".to_string()
+                },
+                download_url: version_info.files.first().map(|f| f.url.clone()),
+                file_size: version_info.files.first().map(|f| f.size),
+                sha1: version_info.files.first().and_then(|f| f.hashes.get("sha1").cloned()),
+                dependencies: version_info.dependencies.iter().map(|d| ModDependency {
+                    mod_id: d.project_id.clone().unwrap_or_else(|| "unknown".to_string()),
+                    version_range: "any".to_string(),
+                    required: d.dependency_type == "required",
+                }).collect(),
+                created_at: project.published.parse().unwrap_or_else(|_| Utc::now()),
+                updated_at: project.updated.parse().unwrap_or_else(|_| Utc::now()),
+            })
+        } else {
+            Err("No versions found for the specified version".into())
+        }
+    }
+
+    async fn download_mod(
+        &self,
+        mod_id: &str,
+        version: &str,
+        file_path: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mod_info = self.get_mod_version(mod_id, version).await?;
+        
+        if let Some(download_url) = mod_info.download_url {
+            let response = self.client.get(&download_url).send().await?;
+            let content = response.bytes().await?;
+            
+            std::fs::write(file_path, content)?;
+            Ok(())
+        } else {
+            Err("No download URL available".into())
+        }
+    }
+
+    async fn get_mod_dependencies(
+        &self,
+        mod_id: &str,
+        version: &str,
+    ) -> Result<Vec<ModDependency>, Box<dyn std::error::Error>> {
+        let mod_info = self.get_mod_version(mod_id, version).await?;
+        Ok(mod_info.dependencies)
+    }
+
+    async fn check_for_updates(
+        &self,
+        mod_id: &str,
+        current_version: &str,
+    ) -> Result<Option<String>, Box<dyn std::error::Error>> {
+        let versions = self.get_project_versions(mod_id, None, None).await?;
+        
+        if let Some(latest_version) = versions.first() {
+            if latest_version.version_number != current_version {
+                return Ok(Some(latest_version.version_number.clone()));
+            }
+        }
+        
+        Ok(None)
     }
 }

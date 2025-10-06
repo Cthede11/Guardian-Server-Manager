@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 use reqwest::Client;
+use crate::external_apis::{CurseForgeApiClient, ModrinthApiClient};
 
 /// Mod information
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,6 +86,10 @@ pub struct ModManager {
     mods_base_dir: PathBuf,
     /// HTTP client for downloading mods
     http_client: Client,
+    /// CurseForge API client
+    curseforge_client: Option<CurseForgeApiClient>,
+    /// Modrinth API client
+    modrinth_client: ModrinthApiClient,
 }
 
 impl ModManager {
@@ -94,7 +99,14 @@ impl ModManager {
             mod_cache: Arc::new(RwLock::new(HashMap::new())),
             mods_base_dir,
             http_client: Client::new(),
+            curseforge_client: None,
+            modrinth_client: ModrinthApiClient::new(),
         }
+    }
+
+    pub fn with_curseforge_api_key(mut self, api_key: String) -> Self {
+        self.curseforge_client = Some(CurseForgeApiClient::new(api_key));
+        self
     }
 
     /// Install a mod to a server
@@ -285,25 +297,45 @@ impl ModManager {
         mod_id: &str,
         version: &str,
     ) -> Result<ModInfo, Box<dyn std::error::Error>> {
-        // In a real implementation, this would call the CurseForge API
-        // For now, return placeholder data
-        Ok(ModInfo {
-            id: mod_id.to_string(),
-            name: format!("Mod {}", mod_id),
-            description: "A placeholder mod description".to_string(),
-            author: "Unknown".to_string(),
-            version: version.to_string(),
-            minecraft_version: "1.20.1".to_string(),
-            loader: "forge".to_string(),
-            category: "misc".to_string(),
-            side: "both".to_string(),
-            download_url: Some(format!("https://example.com/mods/{}/{}.jar", mod_id, version)),
-            file_size: Some(1024 * 1024), // 1MB
-            sha1: Some("placeholder_sha1".to_string()),
-            dependencies: vec![],
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-        })
+        if let Some(ref client) = self.curseforge_client {
+            // Parse mod_id as u32 for CurseForge
+            let project_id = mod_id.parse::<u32>()
+                .map_err(|_| "Invalid CurseForge project ID")?;
+            
+            // Get project details
+            let project = client.get_project(project_id).await?;
+            
+            // Get project files to find the specific version
+            let files = client.get_project_files(project_id, Some(version), None, None, None, None).await?;
+            
+            if let Some(file) = files.first() {
+                Ok(ModInfo {
+                    id: project.id.to_string(),
+                    name: project.name,
+                    description: project.summary,
+                    author: project.authors.first().map(|a| a.name.clone()).unwrap_or_else(|| "Unknown".to_string()),
+                    version: file.display_name.clone(),
+                    minecraft_version: file.sortable_game_versions.first().map(|v| v.game_version.clone()).unwrap_or_else(|| "1.20.1".to_string()),
+                    loader: "forge".to_string(), // CurseForge is primarily Forge
+                    category: "misc".to_string(),
+                    side: "both".to_string(),
+                    download_url: Some(file.download_url.clone()),
+                    file_size: Some(file.file_length),
+                    sha1: file.hashes.iter().find(|h| h.algo == 1).map(|h| h.value.clone()),
+                    dependencies: file.dependencies.iter().map(|d| ModDependency {
+                        mod_id: d.mod_id.to_string(),
+                        version_range: "any".to_string(),
+                        required: d.relation_type == 1,
+                    }).collect(),
+                    created_at: project.date_created.parse().unwrap_or_else(|_| Utc::now()),
+                    updated_at: project.date_modified.parse().unwrap_or_else(|_| Utc::now()),
+                })
+            } else {
+                Err("No files found for the specified version".into())
+            }
+        } else {
+            Err("CurseForge API client not initialized".into())
+        }
     }
 
     /// Fetch mod info from Modrinth
@@ -312,25 +344,45 @@ impl ModManager {
         mod_id: &str,
         version: &str,
     ) -> Result<ModInfo, Box<dyn std::error::Error>> {
-        // In a real implementation, this would call the Modrinth API
-        // For now, return placeholder data
-        Ok(ModInfo {
-            id: mod_id.to_string(),
-            name: format!("Mod {}", mod_id),
-            description: "A placeholder mod description".to_string(),
-            author: "Unknown".to_string(),
-            version: version.to_string(),
-            minecraft_version: "1.20.1".to_string(),
-            loader: "fabric".to_string(),
-            category: "misc".to_string(),
-            side: "both".to_string(),
-            download_url: Some(format!("https://example.com/mods/{}/{}.jar", mod_id, version)),
-            file_size: Some(1024 * 1024), // 1MB
-            sha1: Some("placeholder_sha1".to_string()),
-            dependencies: vec![],
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-        })
+        // Get project details
+        let project = self.modrinth_client.get_project(mod_id).await?;
+        
+        // Get project versions to find the specific version
+        let versions = self.modrinth_client.get_project_versions(mod_id, Some(vec![version]), None).await?;
+        
+        if let Some(version_info) = versions.first() {
+            Ok(ModInfo {
+                id: project.id,
+                name: project.title,
+                description: project.description,
+                author: "Unknown".to_string(), // Modrinth doesn't provide author in project response
+                version: version_info.version_number.clone(),
+                minecraft_version: version_info.game_versions.first().cloned().unwrap_or_else(|| "1.20.1".to_string()),
+                loader: version_info.loaders.first().cloned().unwrap_or_else(|| "fabric".to_string()),
+                category: project.categories.first().cloned().unwrap_or_else(|| "misc".to_string()),
+                side: if project.client_side == "required" && project.server_side == "required" {
+                    "both".to_string()
+                } else if project.client_side == "required" {
+                    "client".to_string()
+                } else if project.server_side == "required" {
+                    "server".to_string()
+                } else {
+                    "both".to_string()
+                },
+                download_url: version_info.files.first().map(|f| f.url.clone()),
+                file_size: version_info.files.first().map(|f| f.size),
+                sha1: version_info.files.first().and_then(|f| f.hashes.get("sha1").cloned()),
+                dependencies: version_info.dependencies.iter().map(|d| ModDependency {
+                    mod_id: d.project_id.clone().unwrap_or_else(|| "unknown".to_string()),
+                    version_range: "any".to_string(),
+                    required: d.dependency_type == "required",
+                }).collect(),
+                created_at: project.published.parse().unwrap_or_else(|_| Utc::now()),
+                updated_at: project.updated.parse().unwrap_or_else(|_| Utc::now()),
+            })
+        } else {
+            Err("No versions found for the specified version".into())
+        }
     }
 
     /// Fetch mod info directly

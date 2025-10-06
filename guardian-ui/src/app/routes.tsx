@@ -4,6 +4,7 @@ import AppShell from './layout/AppShell';
 import { ServersPages, WorkspacePages } from './pages';
 import Console from './pages/Console';
 import ModpackBrowser from '../components/Modpack/ModpackBrowser';
+import { ServerListDashboard } from '../components/Dashboard/ServerListDashboard';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 
 export const router = createBrowserRouter([
@@ -20,10 +21,7 @@ export const router = createBrowserRouter([
         children: [
           {
             index: true,
-            element: <div className="p-6 text-center">
-              <h2 className="text-2xl font-bold mb-4">Welcome to Guardian</h2>
-              <p className="text-muted-foreground">Select a server from the sidebar to get started</p>
-            </div>,
+            element: <ServerListDashboard />,
           },
           {
             path: ':id',

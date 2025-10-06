@@ -9,6 +9,10 @@ use std::sync::Arc;
 use hostd::core::{
     app_state::AppState,
     config::Config,
+    guardian_config::GuardianConfig,
+    resource_monitor::ResourceMonitor,
+    crash_watchdog::{CrashWatchdog, WatchdogConfig},
+    monitoring::MonitoringManager,
     auth::AuthManager,
     error_handler::{AppError, Result},
     logging::{initialize_logging, LogConfig, LogFormat, LogOutput},
@@ -18,6 +22,7 @@ use hostd::core::{
 use hostd::api::{create_api_router, AppState as ApiAppState};
 use hostd::routes::auth::auth_routes;
 use hostd::websocket_manager::WebSocketManager;
+use hostd::gpu_manager::GpuManager;
 use axum::{
     extract::{
         ws::WebSocketUpgrade,
@@ -35,9 +40,25 @@ async fn handle_websocket(
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Load Guardian configuration
+    let guardian_config = GuardianConfig::load()
+        .map_err(|e| AppError::ConfigurationError {
+            message: format!("Failed to load configuration: {}", e),
+            config_key: "guardian_config".to_string(),
+            expected_type: "GuardianConfig".to_string(),
+        })?;
+    
+    // Validate configuration
+    guardian_config.validate()
+        .map_err(|e| AppError::ConfigurationError {
+            message: format!("Configuration validation failed: {}", e),
+            config_key: "guardian_config".to_string(),
+            expected_type: "GuardianConfig".to_string(),
+        })?;
+
     // Initialize comprehensive logging system
     let log_config = LogConfig {
-        level: "info".to_string(),
+        level: guardian_config.log_level.clone(),
         format: LogFormat::Pretty,
         output: LogOutput::Both,
         file_path: Some("logs/guardian.log".to_string()),
@@ -57,6 +78,7 @@ async fn main() -> Result<()> {
         })?;
 
     tracing::info!("Starting Guardian Server Manager...");
+    tracing::info!("Configuration loaded: {:?}", guardian_config);
 
     // Initialize performance monitoring
     let performance_thresholds = PerformanceThresholds::default();
@@ -86,6 +108,85 @@ async fn main() -> Result<()> {
 
     tracing::info!("Performance monitoring and caching initialized");
 
+    // Initialize resource monitor
+    let resource_monitor_config = hostd::core::resource_monitor::ResourceMonitorConfig::default();
+    let resource_monitor = Arc::new(ResourceMonitor::new(resource_monitor_config, Arc::new(guardian_config.clone())));
+    
+    // Start resource monitoring in background
+    let resource_monitor_clone = resource_monitor.clone();
+    tokio::spawn(async move {
+        if let Err(e) = resource_monitor_clone.start().await {
+            tracing::error!("Resource monitor error: {}", e);
+        }
+    });
+
+    tracing::info!("Resource monitor initialized");
+
+    // Initialize GPU manager
+    let gpu_manager = Arc::new(tokio::sync::Mutex::new(GpuManager::new(guardian_config.clone()).await.map_err(|e| AppError::InternalError { message: e, component: "gpu_manager".to_string(), details: None })?));
+    tracing::info!("GPU manager initialized");
+
+    // Initialize performance telemetry
+    let performance_telemetry = Arc::new(hostd::performance_telemetry::PerformanceTelemetry::new(
+        std::time::Duration::from_secs(30) // Collect metrics every 30 seconds
+    ));
+    tracing::info!("Performance telemetry initialized");
+
+    // Start performance telemetry collection
+    {
+        let performance_telemetry_clone = performance_telemetry.clone();
+        let servers_path = std::path::PathBuf::from("servers");
+        tokio::spawn(async move {
+            if let Err(e) = performance_telemetry_clone.start_collection(&servers_path).await {
+                tracing::error!("Failed to start performance telemetry collection: {}", e);
+            }
+        });
+    }
+    
+    // Start periodic GPU metrics logging
+    {
+        let gpu_manager_clone = gpu_manager.clone();
+        let gpu_manager_guard = gpu_manager_clone.lock().await;
+        gpu_manager_guard.start_metrics_logging().await;
+    }
+    tracing::info!("GPU metrics logging started");
+
+    // Create the database manager first
+    let database = hostd::database::DatabaseManager::new("data/guardian.db").await?;
+
+    // Initialize monitoring manager
+    let monitoring_config = hostd::core::config::MonitoringConfig {
+        enable_metrics: true,
+        metrics_port: 9090,
+        log_level: "info".to_string(),
+        log_file: std::path::PathBuf::from("guardian.log"),
+        enable_health_checks: true,
+    };
+    let monitoring_manager = Arc::new(MonitoringManager::new(&monitoring_config)?);
+
+    // Initialize WebSocket manager
+    let websocket_manager = Arc::new(hostd::core::websocket::WebSocketManager::new());
+
+    // Initialize crash watchdog
+    let watchdog_config = WatchdogConfig::default();
+    let process_manager = Arc::new(hostd::core::process_manager::ProcessManager::new(websocket_manager.clone()));
+    let crash_watchdog = Arc::new(CrashWatchdog::new(
+        watchdog_config,
+        process_manager,
+        monitoring_manager,
+        Arc::new(database.clone()),
+    ));
+
+    // Start crash watchdog in background
+    let crash_watchdog_clone = crash_watchdog.clone();
+    tokio::spawn(async move {
+        if let Err(e) = crash_watchdog_clone.start().await {
+            tracing::error!("Crash watchdog error: {}", e);
+        }
+    });
+
+    tracing::info!("Crash watchdog initialized");
+
     // Load configuration
     let config = Config::load()
         .map_err(|e| AppError::ConfigurationError {
@@ -104,31 +205,70 @@ async fn main() -> Result<()> {
         })?;
 
     // Create application state
-    let app_state = Arc::new(AppState::new(config, auth_manager.clone()).await?);
+    let app_state = Arc::new(AppState::new(config, auth_manager.clone(), resource_monitor.clone(), crash_watchdog.clone()).await?);
 
     // Start the application
     app_state.start().await?;
+    
+    // Create MinecraftConfig for FileManager
+    let minecraft_config = hostd::core::config::MinecraftConfig {
+        server_jar_directory: std::path::PathBuf::from("data/server_jars"),
+        world_directory: std::path::PathBuf::from("data/worlds"),
+        mods_directory: std::path::PathBuf::from("data/mods"),
+        config_directory: std::path::PathBuf::from("data/configs"),
+        logs_directory: std::path::PathBuf::from("data/logs"),
+        backups_directory: std::path::PathBuf::from("data/backups"),
+        java_executable: std::path::PathBuf::from("java"),
+        default_memory: 2048,
+        default_max_players: 20,
+        default_port: 25565,
+    };
 
-    // Create the database manager
-    let database = hostd::database::DatabaseManager::new("data/guardian.db").await?;
+    // Create FileManager
+    let file_manager = Arc::new(hostd::core::file_manager::FileManager::new(&minecraft_config).await?);
+
+    // Create test harness
+    let test_harness = Arc::new(hostd::core::test_harness::TestHarness::new(
+        resource_monitor.clone(),
+        crash_watchdog.clone(),
+        Arc::new(hostd::core::scheduler::TaskScheduler::new(
+            hostd::core::scheduler::SchedulerConfig::default(),
+            Arc::new(hostd::core::server_manager::ServerManager::new(
+                Arc::new(database.clone()),
+                file_manager.clone(),
+                Arc::new(hostd::core::process_manager::ProcessManager::new(websocket_manager.clone())),
+            )),
+        )),
+        Arc::new(hostd::backup_manager::BackupManager::new(
+            std::path::PathBuf::from("data/backups"),
+            std::path::PathBuf::from("data/servers")
+        )),
+        Arc::new(database.clone()),
+    ));
     
     // Create the API app state for the comprehensive router
+    let api_websocket_manager = Arc::new(WebSocketManager::new());
     let api_app_state = ApiAppState {
-        websocket_manager: app_state.websocket.clone(),
+        websocket_manager: api_websocket_manager,
         minecraft_manager: hostd::minecraft::MinecraftManager::new(database.clone()),
         database: database.clone(),
         mod_manager: hostd::mod_manager::ModManager::new(std::path::PathBuf::from("mods")),
+        resource_monitor: resource_monitor.clone(),
+        crash_watchdog: crash_watchdog.clone(),
+        test_harness: test_harness.clone(),
+        gpu_manager: gpu_manager.clone(),
+        performance_telemetry: performance_telemetry.clone(),
     };
     
     // Create the main router with auth routes
     let auth_router = auth_routes().with_state(app_state.clone());
-    let api_router = create_api_router(api_app_state);
+    let api_router = create_api_router(api_app_state.clone());
     
     let app = Router::new()
         .route("/", get(|| async { "Guardian Server Manager API" }))
         .merge(api_router)
         .nest("/api/auth", auth_router)
-        .route("/ws", get(handle_websocket).with_state(app_state.websocket.clone()))
+        .route("/ws", get(handle_websocket).with_state(api_app_state.websocket_manager.clone()))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
@@ -137,15 +277,15 @@ async fn main() -> Result<()> {
         );
 
     // Get the server address
-    let addr = app_state.config.server_addr();
+    let addr = guardian_config.server_address();
     
     tracing::info!("Guardian Server Manager listening on {}", addr);
 
     // Start the server
-    let listener = tokio::net::TcpListener::bind(addr).await
+    let listener = tokio::net::TcpListener::bind(&addr).await
         .map_err(|e| AppError::NetworkError {
             message: format!("Failed to bind to address: {}", e),
-            endpoint: addr.to_string(),
+            endpoint: addr.clone(),
             status_code: None,
         })?;
 

@@ -1,0 +1,385 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2024-01-15",
+  "incompatibilities": [
+    {
+      "mod_id": "optifine",
+      "incompatible_with": [
+        {
+          "mod_id": "sodium",
+          "reason": "Both mods modify rendering pipeline",
+          "severity": "critical",
+          "fix_type": "remove_one"
+        },
+        {
+          "mod_id": "iris",
+          "reason": "Iris requires Sodium, which conflicts with OptiFine",
+          "severity": "critical",
+          "fix_type": "remove_one"
+        },
+        {
+          "mod_id": "lithium",
+          "reason": "Lithium optimizes similar systems to OptiFine",
+          "severity": "high",
+          "fix_type": "remove_one"
+        },
+        {
+          "mod_id": "phosphor",
+          "reason": "Phosphor optimizes lighting, conflicts with OptiFine",
+          "severity": "high",
+          "fix_type": "remove_one"
+        }
+      ]
+    },
+    {
+      "mod_id": "sodium",
+      "incompatible_with": [
+        {
+          "mod_id": "optifine",
+          "reason": "Both mods modify rendering pipeline",
+          "severity": "critical",
+          "fix_type": "remove_one"
+        }
+      ]
+    },
+    {
+      "mod_id": "iris",
+      "incompatible_with": [
+        {
+          "mod_id": "optifine",
+          "reason": "Iris requires Sodium, which conflicts with OptiFine",
+          "severity": "critical",
+          "fix_type": "remove_one"
+        }
+      ]
+    },
+    {
+      "mod_id": "lithium",
+      "incompatible_with": [
+        {
+          "mod_id": "optifine",
+          "reason": "Lithium optimizes similar systems to OptiFine",
+          "severity": "high",
+          "fix_type": "remove_one"
+        }
+      ]
+    },
+    {
+      "mod_id": "phosphor",
+      "incompatible_with": [
+        {
+          "mod_id": "optifine",
+          "reason": "Phosphor optimizes lighting, conflicts with OptiFine",
+          "severity": "high",
+          "fix_type": "remove_one"
+        }
+      ]
+    },
+    {
+      "mod_id": "create",
+      "incompatible_with": [
+        {
+          "mod_id": "create_fabric",
+          "reason": "Different versions for different mod loaders",
+          "severity": "critical",
+          "fix_type": "remove_one"
+        }
+      ]
+    },
+    {
+      "mod_id": "create_fabric",
+      "incompatible_with": [
+        {
+          "mod_id": "create",
+          "reason": "Different versions for different mod loaders",
+          "severity": "critical",
+          "fix_type": "remove_one"
+        }
+      ]
+    },
+    {
+      "mod_id": "jei",
+      "incompatible_with": [
+        {
+          "mod_id": "jei_fabric",
+          "reason": "Different versions for different mod loaders",
+          "severity": "critical",
+          "fix_type": "remove_one"
+        },
+        {
+          "mod_id": "roughly_enough_items",
+          "reason": "Both provide item browsing functionality",
+          "severity": "medium",
+          "fix_type": "remove_one"
+        }
+      ]
+    },
+    {
+      "mod_id": "jei_fabric",
+      "incompatible_with": [
+        {
+          "mod_id": "jei",
+          "reason": "Different versions for different mod loaders",
+          "severity": "critical",
+          "fix_type": "remove_one"
+        },
+        {
+          "mod_id": "roughly_enough_items",
+          "reason": "Both provide item browsing functionality",
+          "severity": "medium",
+          "fix_type": "remove_one"
+        }
+      ]
+    },
+    {
+      "mod_id": "roughly_enough_items",
+      "incompatible_with": [
+        {
+          "mod_id": "jei",
+          "reason": "Both provide item browsing functionality",
+          "severity": "medium",
+          "fix_type": "remove_one"
+        },
+        {
+          "mod_id": "jei_fabric",
+          "reason": "Both provide item browsing functionality",
+          "severity": "medium",
+          "fix_type": "remove_one"
+        }
+      ]
+    },
+    {
+      "mod_id": "appliedenergistics2",
+      "incompatible_with": [
+        {
+          "mod_id": "appliedenergistics2_fabric",
+          "reason": "Different versions for different mod loaders",
+          "severity": "critical",
+          "fix_type": "remove_one"
+        }
+      ]
+    },
+    {
+      "mod_id": "appliedenergistics2_fabric",
+      "incompatible_with": [
+        {
+          "mod_id": "appliedenergistics2",
+          "reason": "Different versions for different mod loaders",
+          "severity": "critical",
+          "fix_type": "remove_one"
+        }
+      ]
+    },
+    {
+      "mod_id": "thermal_expansion",
+      "incompatible_with": [
+        {
+          "mod_id": "thermal_foundation",
+          "reason": "Thermal Foundation is required for Thermal Expansion",
+          "severity": "critical",
+          "fix_type": "install_dependency"
+        }
+      ]
+    },
+    {
+      "mod_id": "thermal_dynamics",
+      "incompatible_with": [
+        {
+          "mod_id": "thermal_foundation",
+          "reason": "Thermal Foundation is required for Thermal Dynamics",
+          "severity": "critical",
+          "fix_type": "install_dependency"
+        },
+        {
+          "mod_id": "thermal_expansion",
+          "reason": "Thermal Expansion is required for Thermal Dynamics",
+          "severity": "critical",
+          "fix_type": "install_dependency"
+        }
+      ]
+    },
+    {
+      "mod_id": "industrial_foregoing",
+      "incompatible_with": [
+        {
+          "mod_id": "minefactory_reloaded",
+          "reason": "Both provide similar industrial functionality",
+          "severity": "high",
+          "fix_type": "remove_one"
+        }
+      ]
+    },
+    {
+      "mod_id": "minefactory_reloaded",
+      "incompatible_with": [
+        {
+          "mod_id": "industrial_foregoing",
+          "reason": "Both provide similar industrial functionality",
+          "severity": "high",
+          "fix_type": "remove_one"
+        }
+      ]
+    },
+    {
+      "mod_id": "thaumcraft",
+      "incompatible_with": [
+        {
+          "mod_id": "thaumcraft_fabric",
+          "reason": "Different versions for different mod loaders",
+          "severity": "critical",
+          "fix_type": "remove_one"
+        }
+      ]
+    },
+    {
+      "mod_id": "thaumcraft_fabric",
+      "incompatible_with": [
+        {
+          "mod_id": "thaumcraft",
+          "reason": "Different versions for different mod loaders",
+          "severity": "critical",
+          "fix_type": "remove_one"
+        }
+      ]
+    },
+    {
+      "mod_id": "botania",
+      "incompatible_with": [
+        {
+          "mod_id": "botania_fabric",
+          "reason": "Different versions for different mod loaders",
+          "severity": "critical",
+          "fix_type": "remove_one"
+        }
+      ]
+    },
+    {
+      "mod_id": "botania_fabric",
+      "incompatible_with": [
+        {
+          "mod_id": "botania",
+          "reason": "Different versions for different mod loaders",
+          "severity": "critical",
+          "fix_type": "remove_one"
+        }
+      ]
+    },
+    {
+      "mod_id": "twilight_forest",
+      "incompatible_with": [
+        {
+          "mod_id": "twilight_forest_fabric",
+          "reason": "Different versions for different mod loaders",
+          "severity": "critical",
+          "fix_type": "remove_one"
+        }
+      ]
+    },
+    {
+      "mod_id": "twilight_forest_fabric",
+      "incompatible_with": [
+        {
+          "mod_id": "twilight_forest",
+          "reason": "Different versions for different mod loaders",
+          "severity": "critical",
+          "fix_type": "remove_one"
+        }
+      ]
+    }
+  ],
+  "performance_impact": [
+    {
+      "mod_id": "optifine",
+      "impact_score": 0.3,
+      "description": "Moderate performance impact, can cause issues with other mods"
+    },
+    {
+      "mod_id": "sodium",
+      "impact_score": 0.1,
+      "description": "Low performance impact, generally beneficial"
+    },
+    {
+      "mod_id": "iris",
+      "impact_score": 0.2,
+      "description": "Moderate performance impact for shader support"
+    },
+    {
+      "mod_id": "lithium",
+      "impact_score": 0.05,
+      "description": "Very low performance impact, generally beneficial"
+    },
+    {
+      "mod_id": "phosphor",
+      "impact_score": 0.05,
+      "description": "Very low performance impact, generally beneficial"
+    },
+    {
+      "mod_id": "create",
+      "impact_score": 0.4,
+      "description": "High performance impact due to complex contraptions"
+    },
+    {
+      "mod_id": "appliedenergistics2",
+      "impact_score": 0.3,
+      "description": "Moderate performance impact for complex storage systems"
+    },
+    {
+      "mod_id": "industrial_foregoing",
+      "impact_score": 0.35,
+      "description": "High performance impact for industrial machines"
+    },
+    {
+      "mod_id": "thaumcraft",
+      "impact_score": 0.25,
+      "description": "Moderate performance impact for magic systems"
+    },
+    {
+      "mod_id": "botania",
+      "impact_score": 0.2,
+      "description": "Moderate performance impact for flower systems"
+    },
+    {
+      "mod_id": "twilight_forest",
+      "impact_score": 0.3,
+      "description": "Moderate performance impact for dimension generation"
+    }
+  ],
+  "version_conflicts": [
+    {
+      "mod_id": "minecraft",
+      "version_range": "1.20.1",
+      "incompatible_mods": [
+        {
+          "mod_id": "optifine",
+          "reason": "OptiFine version not compatible with Minecraft 1.20.1",
+          "severity": "critical",
+          "fix_type": "update_mod"
+        }
+      ]
+    }
+  ],
+  "loader_conflicts": [
+    {
+      "mod_id": "forge",
+      "incompatible_with": [
+        {
+          "mod_id": "fabric",
+          "reason": "Forge and Fabric are incompatible mod loaders",
+          "severity": "critical",
+          "fix_type": "choose_loader"
+        }
+      ]
+    },
+    {
+      "mod_id": "fabric",
+      "incompatible_with": [
+        {
+          "mod_id": "forge",
+          "reason": "Fabric and Forge are incompatible mod loaders",
+          "severity": "critical",
+          "fix_type": "choose_loader"
+        }
+      ]
+    }
+  ]
+}

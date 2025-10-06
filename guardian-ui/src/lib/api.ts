@@ -234,6 +234,25 @@ export const apiClient = {
     return apiCall(`/api/servers/${serverId}/conflicts`);
   },
 
+  // Compatibility & Risk Analysis
+  async getCompatibilityIssues(serverId: string): Promise<any> {
+    return apiCall(`/api/compatibility/${serverId}/issues`);
+  },
+  async getCompatibilityRecommendations(serverId: string): Promise<any> {
+    return apiCall(`/api/compatibility/${serverId}/recommendations`);
+  },
+  async applyCompatibilityFix(serverId: string, fixId: string): Promise<any> {
+    return apiCall(`/api/compatibility/${serverId}/fixes/${fixId}`, {
+      method: 'POST'
+    });
+  },
+  async getServerRiskAnalysis(serverId: string): Promise<any> {
+    return apiCall(`/api/compatibility/${serverId}/risk-analysis`);
+  },
+  async getModRiskAnalysis(serverId: string, modId: string): Promise<any> {
+    return apiCall(`/api/compatibility/${serverId}/mod/${modId}/risk`);
+  },
+
   // Settings
   async getServerSettings(serverId: string): Promise<any> {
     return apiCall(`/api/servers/${serverId}/settings`);

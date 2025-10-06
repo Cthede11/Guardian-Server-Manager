@@ -413,7 +413,7 @@ impl BackupManager {
     }
 
     /// Get backup by ID
-    async fn get_backup(&self, server_id: &str, backup_id: &str) -> Result<BackupInfo, Box<dyn std::error::Error>> {
+    pub async fn get_backup(&self, server_id: &str, backup_id: &str) -> Result<BackupInfo, Box<dyn std::error::Error>> {
         let backups = self.backups.read().await;
         if let Some(server_backups) = backups.get(server_id) {
             server_backups.iter()

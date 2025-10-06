@@ -1,6 +1,11 @@
 // Core application modules
 pub mod app_state;
 pub mod config;
+pub mod guardian_config;
+pub mod crash_watchdog;
+pub mod scheduler;
+pub mod resource_monitor;
+pub mod test_harness;
 pub mod server_manager;
 pub mod process_manager;
 pub mod file_manager;
