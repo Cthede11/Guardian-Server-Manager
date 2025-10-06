@@ -14,21 +14,21 @@ export function useServerStreams(serverId?: string) {
   useEffect(() => {
     if (!serverId) return;
 
-    let unsubs: Array<() => void> = [];
+    const unsubs: Array<() => void> = [];
 
     const setupSubscriptions = async () => {
       try {
         // Console stream
         unsubs.push(
           await events.subscribeToConsole(serverId, (payload: ConsoleLines) => {
-            appendConsole(serverId, payload as any);
+            appendConsole(serverId, payload);
           })
         );
 
         // Metrics stream
         unsubs.push(
           await events.subscribeToMetrics(serverId, (payload: Metrics) => {
-            applyMetrics(serverId, payload as any);
+            applyMetrics(serverId, payload);
           })
         );
 

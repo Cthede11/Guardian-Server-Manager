@@ -13,7 +13,7 @@ export default function ConsoleNew() {
   const [command, setCommand] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const selectedServer = useSelectedServer();
-  const consoleLines = useConsoleStream(selectedServer?.id || '');
+  // const consoleLines = useConsoleStream(selectedServer?.id || '');
   const clearConsole = useLive((state) => state.clearConsole);
 
   // Attach streams for the selected server
