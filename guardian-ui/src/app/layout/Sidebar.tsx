@@ -59,8 +59,8 @@ const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
   return (
     <ServerCreationWizard 
-      open={showCreateWizard}
-      onOpenChange={setShowCreateWizard}
+      open={true}
+      onOpenChange={() => onClose()}
       onClose={onClose} 
       onServerCreated={handleServerCreated} 
     />
@@ -257,7 +257,7 @@ export const Sidebar: React.FC = () => {
                             </Link>
                      
                      <div className="flex items-center gap-1">
-                        {server.blue_green && (
+                        {server.blueGreen && (
                          <div className={`w-2 h-2 rounded-full ${
                            server.blue_green.active === 'blue' ? 'bg-blue-500' : 'bg-green-500'
                          }`} />

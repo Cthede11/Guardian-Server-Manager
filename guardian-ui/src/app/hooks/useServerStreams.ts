@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { events } from "@/lib/client";
 import { useLive } from "@/store/live-new";
-import type { ConsoleLines, Metrics, Player, FreezeTicket, PregenJob, ServerHealth } from "@/lib/types.gen";
+import type { ConsoleLines, Metrics, Player, FreezeTicket, PregenJob, ServerHealth, Line } from "@/lib/types.gen";
 
 export function useServerStreams(serverId?: string) {
   const appendConsole = useLive((state) => state.appendConsole);
