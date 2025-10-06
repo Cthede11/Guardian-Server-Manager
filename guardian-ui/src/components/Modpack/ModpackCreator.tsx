@@ -8,7 +8,7 @@ export const ModpackCreator: React.FC = () => {
     name: '',
     description: '',
     minecraft_version: '1.21.1',
-    loader: 'forge',
+    loader: { type: 'forge', version: '1.20.1' },
     client_mods: [],
     server_mods: [],
   });
@@ -73,10 +73,10 @@ export const ModpackCreator: React.FC = () => {
                 Mod Loader
               </label>
               <select
-                value={modpack.loader || 'forge'}
+                value={modpack.loader?.type || 'forge'}
                 onChange={(e) => setModpack({ 
                   ...modpack, 
-                  loader: e.target.value as any
+                  loader: { type: e.target.value as any, version: '1.20.1' }
                 })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >

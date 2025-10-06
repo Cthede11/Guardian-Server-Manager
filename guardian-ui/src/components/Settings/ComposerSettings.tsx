@@ -135,7 +135,7 @@ export const ComposerSettings: React.FC = () => {
       if (serverData.composer) {
         setSettings(prev => ({
           ...prev,
-          composerMode: (serverData.composer.profile as 'development' | 'production' | 'testing') || prev.composerMode,
+          composerMode: (serverData.composer?.composerMode as 'development' | 'production' | 'testing') || prev.composerMode,
         }));
       }
     }
@@ -152,7 +152,10 @@ export const ComposerSettings: React.FC = () => {
       await updateSettings(serverId, {
         ...currentServerSettings,
         composer: {
-          profile: settings.composerMode,
+          enabled: true,
+          auto_update: true,
+          update_interval: 24,
+          composerMode: settings.composerMode,
           [key]: value
         }
       });

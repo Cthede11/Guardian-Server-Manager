@@ -144,10 +144,10 @@ export const FirstRunWizard: React.FC<FirstRunWizardProps> = ({
       const currentSettings = getAppSettings();
       setSettings(prev => ({ 
         ...prev, 
-        theme: currentSettings.theme,
-        language: currentSettings.language,
-        autoStart: currentSettings.autoStart,
-        notifications: currentSettings.notifications.enabled
+        theme: currentSettings.general.theme,
+        language: currentSettings.general.language,
+        autoStart: currentSettings.general.autoStart,
+        notifications: currentSettings.general.autoStart
       }));
     } catch (error) {
       console.error('Failed to load current settings:', error);
@@ -210,14 +210,11 @@ export const FirstRunWizard: React.FC<FirstRunWizardProps> = ({
     setIsLoading(true);
     try {
       await updateAppSettings({
-        theme: settings.theme,
-        language: settings.language,
-        autoStart: settings.autoStart,
-        notifications: {
-          enabled: settings.notifications,
-          serverStatus: true,
-          errors: true,
-          updates: true
+        general: {
+          ...getAppSettings().general,
+          theme: settings.theme,
+          language: settings.language,
+          autoStart: settings.autoStart
         }
       });
       onComplete();

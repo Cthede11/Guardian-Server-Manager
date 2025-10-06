@@ -40,6 +40,15 @@ try {
   const gpuDestCompat = path.join(uiDir, 'gpu-worker.exe');
   copyIfExists(gpuSrc, gpuDestCompat);
 
+  // init_db.exe - copy with target triple name for Tauri
+  const initDbSrc = path.join(repoRoot, 'hostd', 'target', 'release', 'init_db.exe');
+  const initDbDest = path.join(uiDir, 'init_db-x86_64-pc-windows-msvc.exe');
+  copyIfExists(initDbSrc, initDbDest);
+  
+  // Also copy as init_db.exe for compatibility
+  const initDbDestCompat = path.join(uiDir, 'init_db.exe');
+  copyIfExists(initDbSrc, initDbDestCompat);
+
   // configs
   const configsSrc = path.join(repoRoot, 'configs');
   const configsDest = path.join(uiDir, 'configs');

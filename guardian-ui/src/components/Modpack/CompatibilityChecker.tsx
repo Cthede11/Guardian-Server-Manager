@@ -14,22 +14,22 @@ export const CompatibilityChecker: React.FC = () => {
       const sampleModpack: Modpack = {
         id: 'sample',
         name: 'Sample Modpack',
-        version: '1.0.0',
+        // version: '1.0.0',
         description: 'Sample modpack for compatibility testing',
-        author: 'Test Author',
+        // author: 'Test Author',
         minecraft_version: '1.21.1',
-        mod_loader: 'forge',
-        loader: 'forge',
-        mods: [],
+        // mod_loader: 'forge',
+        loader: { type: 'forge', version: '1.20.1' },
+        // mods: [],
         client_mods: [],
         server_mods: [],
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        downloads: 0,
-        rating: 0,
-        tags: [],
-        size: 0,
-        status: 'draft'
+        // downloads: 0,
+        // rating: 0,
+        // tags: [],
+        // size: 0,
+        // status: 'draft'
       };
       const result = await checkCompatibility(sampleModpack);
       setCompatibility(result);
@@ -41,9 +41,8 @@ export const CompatibilityChecker: React.FC = () => {
   const getSeverityColor = (severity: CompatibilityIssue['severity']) => {
     switch (severity) {
       case 'critical': return 'text-red-600 bg-red-50 border-red-200';
-      case 'high': return 'text-orange-600 bg-orange-50 border-orange-200';
-      case 'medium': return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-      case 'low': return 'text-blue-600 bg-blue-50 border-blue-200';
+      case 'warning': return 'text-orange-600 bg-orange-50 border-orange-200';
+      case 'info': return 'text-blue-600 bg-blue-50 border-blue-200';
       default: return 'text-gray-600 bg-gray-50 border-gray-200';
     }
   };
@@ -51,9 +50,8 @@ export const CompatibilityChecker: React.FC = () => {
   const getSeverityIcon = (severity: CompatibilityIssue['severity']) => {
     switch (severity) {
       case 'critical': return '🚫';
-      case 'high': return '⚠️';
-      case 'medium': return 'ℹ️';
-      case 'low': return 'ℹ️';
+      case 'warning': return '⚠️';
+      case 'info': return 'ℹ️';
       default: return '❓';
     }
   };
@@ -104,7 +102,7 @@ export const CompatibilityChecker: React.FC = () => {
             }`}>
               <div className="flex items-center">
                 <div className="flex-shrink-0">
-                  {compatibility.compatible ? (
+                  {compatibility.report.is_compatible ? (
                     <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                     </svg>
@@ -116,15 +114,15 @@ export const CompatibilityChecker: React.FC = () => {
                 </div>
                 <div className="ml-3">
                   <h3 className={`text-sm font-medium ${
-                    compatibility.compatible ? 'text-green-800' : 'text-red-800'
+                    compatibility.report.is_compatible ? 'text-green-800' : 'text-red-800'
                   }`}>
-                    {compatibility.compatible ? 'Compatible' : 'Incompatible'}
+                    {compatibility.report.is_compatible ? 'Compatible' : 'Incompatible'}
                   </h3>
                   <div className={`mt-2 text-sm ${
-                    compatibility.compatible ? 'text-green-700' : 'text-red-700'
+                    compatibility.report.is_compatible ? 'text-green-700' : 'text-red-700'
                   }`}>
                     <p>
-                      {compatibility.compatible 
+                      {compatibility.report.is_compatible 
                         ? 'Your modpack is compatible and ready to use!'
                         : `Found ${compatibility.report.issues.length} compatibility issues that need to be resolved.`
                       }

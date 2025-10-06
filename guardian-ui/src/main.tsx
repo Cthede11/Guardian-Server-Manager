@@ -37,7 +37,7 @@ async function initializeApp() {
     await settingsManager.initialize();
     
     // Initialize backup manager
-    await backupManager.initialize();
+    // await backupManager.initialize();
     
     // Initialize stores with empty state for real backend connection
     initializeStores();

@@ -17,7 +17,7 @@ export const ModFilterPanel: React.FC<ModFilterPanelProps> = ({
   onClearFilters
 }) => {
   // Use local versions as fallback if API versions are empty
-  const versions = minecraftVersions.length > 0 ? minecraftVersions : getVersionsForModpack('forge');
+  const versions = minecraftVersions.length > 0 ? minecraftVersions : getVersionsForModpack();
   const handleVersionChange = (version: string) => {
     onFiltersChange({ minecraft_version: version });
   };
@@ -101,8 +101,8 @@ export const ModFilterPanel: React.FC<ModFilterPanelProps> = ({
               id="loader-forge"
               name="loader"
               value="forge"
-              checked={filters.loader === 'forge'}
-              onChange={() => handleLoaderChange('forge')}
+              checked={filters.loader.type === 'forge'}
+              onChange={() => handleLoaderChange({ type: 'forge', version: '1.20.1' })}
               className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
             />
             <label htmlFor="loader-forge" className="ml-2 text-sm text-gray-700">
@@ -115,8 +115,8 @@ export const ModFilterPanel: React.FC<ModFilterPanelProps> = ({
               id="loader-fabric"
               name="loader"
               value="fabric"
-              checked={filters.loader === 'fabric'}
-              onChange={() => handleLoaderChange('fabric')}
+              checked={filters.loader.type === 'fabric'}
+              onChange={() => handleLoaderChange({ type: 'fabric', version: '1.20.1' })}
               className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
             />
             <label htmlFor="loader-fabric" className="ml-2 text-sm text-gray-700">
@@ -129,8 +129,8 @@ export const ModFilterPanel: React.FC<ModFilterPanelProps> = ({
               id="loader-quilt"
               name="loader"
               value="quilt"
-              checked={filters.loader === 'quilt'}
-              onChange={() => handleLoaderChange('quilt')}
+              checked={filters.loader.type === 'quilt'}
+              onChange={() => handleLoaderChange({ type: 'quilt', version: '1.20.1' })}
               className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
             />
             <label htmlFor="loader-quilt" className="ml-2 text-sm text-gray-700">
@@ -143,8 +143,8 @@ export const ModFilterPanel: React.FC<ModFilterPanelProps> = ({
               id="loader-neoforge"
               name="loader"
               value="neoforge"
-              checked={filters.loader === 'neoforge'}
-              onChange={() => handleLoaderChange('neoforge')}
+              checked={filters.loader.type === 'neoforge'}
+              onChange={() => handleLoaderChange({ type: 'neoforge', version: '1.20.1' })}
               className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
             />
             <label htmlFor="loader-neoforge" className="ml-2 text-sm text-gray-700">

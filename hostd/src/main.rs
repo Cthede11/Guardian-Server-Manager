@@ -152,7 +152,7 @@ async fn main() -> Result<()> {
     tracing::info!("GPU metrics logging started");
 
     // Create the database manager first
-    let database = hostd::database::DatabaseManager::new("data/guardian.db").await?;
+    let database = hostd::database::DatabaseManager::new("guardian.db").await?;
 
     // Initialize monitoring manager
     let monitoring_config = hostd::core::config::MonitoringConfig {

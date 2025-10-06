@@ -34,7 +34,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
-    "externalBin": ["hostd", "gpu-worker"],
+    "externalBin": ["hostd", "gpu-worker", "init_db"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -50,6 +50,7 @@
     "resources": [
       "hostd.exe",
       "gpu-worker.exe",
+      "init_db.exe",
       "configs/hostd.yaml",
       "configs/server.yaml",
       "configs/rules.yaml",

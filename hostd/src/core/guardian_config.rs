@@ -40,9 +40,9 @@ impl Default for GuardianConfig {
         Self {
             curseforge_api_key: None,
             modrinth_api_key: None,
-            guardian_port: 8080,
+            guardian_port: 52100,
             guardian_host: "127.0.0.1".to_string(),
-            database_url: "sqlite:data/guardian.db".to_string(),
+            database_url: "sqlite:guardian.db".to_string(),
             rust_log: "info".to_string(),
             log_level: "info".to_string(),
             gpu_enabled: true,

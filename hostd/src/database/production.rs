@@ -24,7 +24,7 @@ pub struct DatabaseConfig {
 impl Default for DatabaseConfig {
     fn default() -> Self {
         Self {
-            url: "sqlite:data/guardian.db".to_string(),
+            url: "sqlite:guardian.db".to_string(),
             max_connections: 10,
             min_connections: 1,
             acquire_timeout: 30,
@@ -40,7 +40,7 @@ impl DatabaseConfig {
     /// Load configuration from environment variables
     pub fn from_env() -> Result<Self> {
         let url = env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "sqlite:data/guardian.db".to_string());
+            .unwrap_or_else(|_| "sqlite:guardian.db".to_string());
         
         let max_connections = env::var("DATABASE_MAX_CONNECTIONS")
             .unwrap_or_else(|_| "10".to_string())

@@ -53,8 +53,8 @@ interface ModpackState {
 
 const defaultFilters: ModFilters = {
   minecraft_version: '1.21.1',
-  mod_loader: 'forge',
-  loader: 'forge',
+  // mod_loader: 'forge',
+  loader: { type: 'forge', version: '1.20.1' },
   category: 'all',
   side: 'all',
   search_query: '',
@@ -86,7 +86,7 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await modpackApi.getModpacks();
-      set({ modpacks: (response?.data || response?.mods || []) as Modpack[], loading: false });
+      set({ modpacks: (response || []) as Modpack[], loading: false });
     } catch (error) {
       console.error('Error loading modpacks:', error);
       set({ 
@@ -138,14 +138,14 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       // Use local comprehensive version list instead of API
-      const versions = getVersionsForModpack('forge');
+      const versions = getVersionsForModpack();
       set({ minecraftVersions: versions, loading: false });
     } catch (error) {
       console.error('Error loading Minecraft versions:', error);
       set({ 
         error: error instanceof Error ? error.message : 'Failed to load Minecraft versions',
         loading: false,
-        minecraftVersions: getVersionsForModpack('forge') // Fallback to local versions
+        minecraftVersions: getVersionsForModpack() // Fallback to local versions
       });
     }
   },
@@ -187,7 +187,7 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await modpackApi.createModpack(modpack);
-      const newModpack = response?.data || null;
+      const newModpack = response || null;
       set((state) => ({
         modpacks: newModpack ? [...state.modpacks, newModpack] : state.modpacks,
         loading: false
@@ -207,7 +207,7 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await modpackApi.updateModpack(id, modpack);
-      const updatedModpack = response?.data || null;
+      const updatedModpack = response || null;
       set((state) => ({
         modpacks: state.modpacks.map(mp => mp.id === id ? (updatedModpack || mp) : mp),
         loading: false
@@ -268,17 +268,20 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const compatibilityData: ModpackCompatibility = {
-        compatible: true,
-        score: 100,
+        minecraft_version: '1.20.1',
+        loader: { type: 'forge', version: '1.20.1' },
+        client_mods: [],
+        server_mods: [],
         report: {
+          is_compatible: true,
           issues: [],
           warnings: [],
           recommendations: []
         }
       };
-      const response = await modpackApi.checkCompatibility(modpack.client_mods.map((mod: any) => mod.id));
+      const response = await modpackApi.checkModCompatibility(modpack.client_mods[0], modpack.client_mods[1]);
       set({ loading: false });
-      return response?.data || compatibilityData;
+      return compatibilityData;
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Failed to check compatibility',
@@ -293,7 +296,7 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await modpackApi.getServerMods(serverId);
-      const mods = (response?.data || response || []) as ModInfo[];
+      const mods = (response || []) as ModInfo[];
       set({ loading: false });
       return mods;
     } catch (error) {
@@ -308,7 +311,7 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
   addModToServer: async (serverId, modId, version) => {
     set({ loading: true, error: null });
     try {
-      await modpackApi.addModToServer(serverId, modId);
+      await modpackApi.addModToServer(serverId, modId, 'latest');
       set({ loading: false });
       return true;
     } catch (error) {

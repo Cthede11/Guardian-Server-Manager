@@ -99,6 +99,32 @@ try {
     Set-Location $ProjectRoot
 }
 
+# 1.1. Initialize database
+Write-Log "Initializing database..." "BUILD"
+Set-Location "$ProjectRoot"
+try {
+    # Create data directory if it doesn't exist
+    if (!(Test-Path "data")) {
+        Write-Log "Creating data directory..." "BUILD"
+        New-Item -Path "data" -ItemType Directory -Force | Out-Null
+    }
+    
+    # Set database URL and initialize
+    $env:DATABASE_URL = "sqlite:data/guardian.db"
+    Set-Location "$ProjectRoot\hostd"
+    & cargo run --release --bin init_db
+    if ($LASTEXITCODE -ne 0) {
+        throw "Database initialization failed with exit code $LASTEXITCODE"
+    }
+    
+    Write-Log "Database initialized successfully" "SUCCESS"
+} catch {
+    Write-Log "Failed to initialize database: $($_.Exception.Message)" "ERROR"
+    Write-Log "Continuing without database initialization..." "WARN"
+} finally {
+    Set-Location $ProjectRoot
+}
+
 # 2. Build GPU worker
 Write-Log "Building GPU worker..." "BUILD"
 Set-Location "$ProjectRoot\gpu-worker"

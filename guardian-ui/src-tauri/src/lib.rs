@@ -6,6 +6,9 @@ use std::sync::{Mutex, Once};
 use std::path::PathBuf;
 use tokio::time::sleep;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
 // Import our modules
 mod dto;
 mod commands;
@@ -71,6 +74,78 @@ async fn start_backend() -> Result<String, String> {
     result
 }
 
+// Initialize database function synchronously
+fn initialize_database_sync(hostd_path: &PathBuf, data_dir: &PathBuf) -> Result<(), String> {
+    log_debug("Initializing database synchronously...");
+    
+    // Get init_db path
+    let init_db_path = get_init_db_path_for_backend()
+        .map_err(|e| format!("Failed to find init_db.exe: {}", e))?;
+    
+    // Create init_db command
+    let mut init_cmd = Command::new(init_db_path);
+    init_cmd.current_dir(data_dir);
+    init_cmd.env("DATABASE_URL", "sqlite:guardian.db");
+    
+    // Set up process with no console window
+    init_cmd.stdin(Stdio::null())
+           .stdout(Stdio::null())
+           .stderr(Stdio::null());
+
+    #[cfg(target_os = "windows")]
+    {
+        init_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+
+    let result = init_cmd.spawn()
+        .map_err(|e| format!("Failed to spawn init_db: {}", e))?
+        .wait()
+        .map_err(|e| format!("Failed to wait for init_db: {}", e))?;
+
+    if result.success() {
+        log_debug("Database initialization completed successfully");
+        Ok(())
+    } else {
+        Err(format!("Database initialization failed with exit code: {:?}", result.code()))
+    }
+}
+
+// Initialize database function
+async fn initialize_database(hostd_path: &PathBuf, data_dir: &PathBuf) -> Result<(), String> {
+    log_debug("Initializing database...");
+    
+    // Get init_db path
+    let init_db_path = get_init_db_path_for_backend()
+        .map_err(|e| format!("Failed to find init_db.exe: {}", e))?;
+    
+    // Create init_db command
+    let mut init_cmd = Command::new(init_db_path);
+    init_cmd.current_dir(data_dir);
+    init_cmd.env("DATABASE_URL", "sqlite:guardian.db");
+    
+    // Set up process with no console window
+    init_cmd.stdin(Stdio::null())
+           .stdout(Stdio::null())
+           .stderr(Stdio::null());
+
+    #[cfg(target_os = "windows")]
+    {
+        init_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+
+    let result = init_cmd.spawn()
+        .map_err(|e| format!("Failed to spawn init_db: {}", e))?
+        .wait()
+        .map_err(|e| format!("Failed to wait for init_db: {}", e))?;
+
+    if result.success() {
+        log_debug("Database initialization completed successfully");
+        Ok(())
+    } else {
+        Err(format!("Database initialization failed with exit code: {:?}", result.code()))
+    }
+}
+
 // Internal backend startup function
 async fn start_backend_internal() -> Result<String, String> {
     // 1) Try existing healthy backend (probe 52100–52150 /healthz)
@@ -106,6 +181,19 @@ async fn start_backend_internal() -> Result<String, String> {
     // Set the working directory to the data directory so hostd can find the database
     let data_dir = dirs::data_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join("Guardian").join("data");
     fs::create_dir_all(&data_dir).map_err(|e| format!("Failed to create data directory: {}", e))?;
+    
+    // Initialize database if it doesn't exist
+    let db_path = data_dir.join("guardian.db");
+    if !db_path.exists() {
+        log_debug("Database not found, initializing...");
+        let init_result = initialize_database(&hostd_path, &data_dir).await;
+        if let Err(e) = init_result {
+            log_debug(&format!("Failed to initialize database: {}", e));
+            return Err(format!("Failed to initialize database: {}", e));
+        }
+        log_debug("Database initialized successfully");
+    }
+    
     cmd.current_dir(&data_dir);
     
     // CRITICAL: Use this pattern for ALL process spawning
@@ -115,7 +203,6 @@ async fn start_backend_internal() -> Result<String, String> {
 
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
     }
 
@@ -163,8 +250,69 @@ async fn ensure_backend<R: tauri::Runtime>(handle: tauri::AppHandle<R>) -> Resul
     start_backend().await
 }
 
+// Start the hostd service synchronously
+fn start_hostd_service_sync<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> Result<(), Box<dyn std::error::Error>> {
+    log_debug("Starting hostd service synchronously...");
+    
+    // Use enhanced resource path resolution
+    let hostd_path = match get_resource_path(handle, "hostd.exe") {
+        Ok(path) => path,
+        Err(e) => {
+            log_debug(&format!("Failed to find hostd.exe: {}", e));
+            return Err(format!("Failed to find hostd.exe: {}", e).into());
+        }
+    };
+    
+    log_debug(&format!("Found hostd.exe at: {:?}", hostd_path));
+    
+    // Create data directories
+    let data_dir = dirs::data_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join("Guardian").join("data");
+    fs::create_dir_all(&data_dir).map_err(|e| format!("Failed to create data directory: {}", e))?;
+    log_debug(&format!("Created data directories: {:?}", data_dir));
+    
+    // Initialize database if it doesn't exist
+    let db_path = data_dir.join("guardian.db");
+    if !db_path.exists() {
+        log_debug("Database not found, initializing...");
+        // Initialize database synchronously
+        let init_result = initialize_database_sync(&hostd_path, &data_dir);
+        if let Err(e) = init_result {
+            log_debug(&format!("Failed to initialize database: {}", e));
+            return Err(format!("Failed to initialize database: {}", e).into());
+        }
+        log_debug("Database initialized successfully");
+    }
+
+    // Start hostd process
+    let mut hostd_cmd = Command::new(&hostd_path);
+    // Set the working directory to the data directory so hostd can find guardian.db
+    hostd_cmd.current_dir(&data_dir);
+    // hostd doesn't use command line arguments - it has its own configuration logic
+    
+    // Set environment variables
+    // Since we're running from the data directory, use relative path
+    hostd_cmd.env("DATABASE_URL", "sqlite:guardian.db");
+    hostd_cmd.env("RUST_LOG", "info");
+    
+    // CRITICAL: Use this pattern for ALL process spawning
+    hostd_cmd.stdin(Stdio::null())
+           .stdout(Stdio::null())
+           .stderr(Stdio::null());
+
+    #[cfg(target_os = "windows")]
+    {
+        hostd_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+
+    let _child = hostd_cmd.spawn()
+        .map_err(|e| format!("failed to spawn hostd: {e}"))?;
+
+    log_debug("Hostd service started successfully");
+    Ok(())
+}
+
 // Start the hostd service
-fn start_hostd_service<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> Result<(), Box<dyn std::error::Error>> {
+async fn start_hostd_service<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> Result<(), Box<dyn std::error::Error>> {
     log_debug("Starting hostd service...");
     
     // Use enhanced resource path resolution
@@ -189,6 +337,18 @@ fn start_hostd_service<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> Resul
     let data_dir = dirs::data_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join("Guardian").join("data");
     fs::create_dir_all(&data_dir).map_err(|e| format!("Failed to create data directory: {}", e))?;
     log_debug(&format!("Created data directories: {:?}", data_dir));
+    
+    // Initialize database if it doesn't exist
+    let db_path = data_dir.join("guardian.db");
+    if !db_path.exists() {
+        log_debug("Database not found, initializing...");
+        let init_result = initialize_database(&hostd_path, &data_dir).await;
+        if let Err(e) = init_result {
+            log_debug(&format!("Failed to initialize database: {}", e));
+            return Err(format!("Failed to initialize database: {}", e).into());
+        }
+        log_debug("Database initialized successfully");
+    }
 
     // Start hostd process
     let mut hostd_cmd = Command::new(&hostd_path);
@@ -209,7 +369,6 @@ fn start_hostd_service<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> Resul
 
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
         hostd_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
     }
 
@@ -267,7 +426,6 @@ fn start_gpu_worker_service<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> 
 
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
         gpu_worker_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
     }
 
@@ -330,6 +488,30 @@ fn get_resource_path_for_backend() -> Result<PathBuf, Box<dyn std::error::Error>
     Err("hostd.exe not found in any expected location".into())
 }
 
+// Resource path resolution for init_db (without Tauri handle)
+fn get_init_db_path_for_backend() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    // Try to find init_db.exe in common locations
+    let possible_paths = vec![
+        // In the same directory as the executable
+        std::env::current_exe()?.parent().unwrap().join("init_db.exe"),
+        // In a resources subdirectory
+        std::env::current_exe()?.parent().unwrap().join("resources").join("init_db.exe"),
+        // In the current working directory
+        std::env::current_dir()?.join("init_db.exe"),
+        // In a build directory
+        std::env::current_dir()?.join("build").join("executables").join("init_db.exe"),
+    ];
+    
+    for path in possible_paths {
+        if path.exists() {
+            log_debug(&format!("Found init_db.exe at: {:?}", path));
+            return Ok(path);
+        }
+    }
+    
+    Err("init_db.exe not found in any expected location".into())
+}
+
 // Open server folder command
 #[tauri::command]
 async fn open_server_folder(server_id: String) -> Result<(), String> {
@@ -356,11 +538,10 @@ async fn open_server_folder(server_id: String) -> Result<(), String> {
            .stdout(Stdio::null())
            .stderr(Stdio::null());
 
-        #[cfg(target_os = "windows")]
-        {
-            use std::os::windows::process::CommandExt;
-            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
-        }
+    #[cfg(target_os = "windows")]
+    {
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
         
         let result = cmd.spawn();
         
@@ -592,7 +773,8 @@ pub fn run() {
             
             // Try to start hostd service
             log_debug("Attempting to start hostd service...");
-            if let Err(e) = start_hostd_service(app.handle()) {
+            // Start hostd service synchronously to avoid panic
+            if let Err(e) = start_hostd_service_sync(app.handle()) {
                 log_debug(&format!("Failed to start hostd service: {}", e));
                 // Don't fail the entire app startup, just log the error
             }
