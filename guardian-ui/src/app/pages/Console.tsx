@@ -103,7 +103,7 @@ export default function Console() {
       }
     } catch (error) {
       const { logApiError, getErrorMessageWithSuggestions } = await import('../../lib/api-response-handler');
-      logApiError(error, 'API Health Check Failed');
+      logApiError(error);
       console.error(getErrorMessageWithSuggestions(error));
     }
   };

@@ -69,7 +69,7 @@ export const ServerListDashboard: React.FC<ServerListDashboardProps> = ({ classN
 
   useEffect(() => {
     // Connect to real-time updates
-    realtimeConnection.connect('').then(() => {
+    realtimeConnection.connect().then(() => {
       setIsConnected(true);
     }).catch((error: any) => {
       errorHandler.handleError(error, 'WebSocket Connection');

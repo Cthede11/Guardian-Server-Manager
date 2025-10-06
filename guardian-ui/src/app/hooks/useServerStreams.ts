@@ -21,7 +21,7 @@ export function useServerStreams(serverId?: string) {
         // Console stream
         unsubs.push(
           await events.subscribeToConsole(serverId, (payload: ConsoleLines) => {
-            appendConsole(serverId, payload);
+            appendConsole(serverId, payload.lines);
           })
         );
 

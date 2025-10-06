@@ -7,7 +7,7 @@ import type {
   MinecraftVersion, 
   ModpackCompatibility, 
   ModFilters, 
-  ModSearchResult 
+  ModpackSearchResult 
 } from '../lib/types/modpack';
 
 interface ModpackState {
@@ -15,7 +15,7 @@ interface ModpackState {
   modpacks: Modpack[];
   mods: ModInfo[];
   minecraftVersions: MinecraftVersion[];
-  searchResults: ModSearchResult | null;
+  searchResults: ModpackSearchResult | null;
   
   // UI State
   loading: boolean;

@@ -115,7 +115,7 @@ export const Diagnostics: React.FC = () => {
 
   const getHealthStatus = () => {
     // Convert systemHealth number to health status
-    return healthStatus(stats.systemHealth);
+    return healthStatus(stats.systemHealth.toString());
   };
 
   const currentHealthStatus = getHealthStatus();

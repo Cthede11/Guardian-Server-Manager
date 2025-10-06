@@ -219,7 +219,7 @@ export const Sharding: React.FC = () => {
           <CardContent>
             <div className="text-2xl font-bold">{stats.averageLoad.toFixed(1)}%</div>
             <p className="text-xs text-muted-foreground">
-              Last updated: {safeTimeString(stats.lastHealthCheck)}
+              Last updated: {safeTimeString(Number(stats.lastHealthCheck))}
             </p>
           </CardContent>
         </Card>

@@ -59,6 +59,8 @@ const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
   return (
     <ServerCreationWizard 
+      open={showCreateWizard}
+      onOpenChange={setShowCreateWizard}
       onClose={onClose} 
       onServerCreated={handleServerCreated} 
     />

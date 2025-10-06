@@ -40,10 +40,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ className }) => {
   useEffect(() => {
     if (selectedServerId) {
       // Start metrics collection
-      metricsCollector.startCollection(selectedServer?.id || '');
+      metricsCollector.startCollection();
       
       // Connect to real-time updates
-      realtimeConnection.connect(selectedServer?.id || '').then(() => {
+      realtimeConnection.connect().then(() => {
         setIsConnected(true);
       }).catch((error: any) => {
         errorHandler.handleError(error, 'WebSocket Connection');
