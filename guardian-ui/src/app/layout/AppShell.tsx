@@ -4,11 +4,11 @@ import { Sidebar } from './Sidebar';
 import { ServerHeader, ServerTabs } from './ServerHeader';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { Toaster } from '@/components/ui/toaster';
-import { realtimeProvider } from '@/lib/realtime-provider';
+// import { realtimeProvider } from '@/lib/realtime-provider';
 import { ConnectionStatus } from '@/components/ConnectionStatus';
 
 export const AppShell: React.FC = () => {
-  const { id: serverId } = useParams<{ id: string }>();
+  // const { id: serverId } = useParams<{ id: string }>();
 
   // Start/stop real-time monitoring based on server selection
   // Real-time monitoring is handled by individual components

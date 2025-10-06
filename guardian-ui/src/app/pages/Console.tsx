@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 // import { ScrollArea } from '@/components/ui/scroll-area';
-import { Trash2, Play, Square, RefreshCw } from 'lucide-react';
+import { Trash2, Play } from 'lucide-react';
 
 interface LogEntry {
   id: string;
@@ -15,7 +15,7 @@ interface LogEntry {
 
 export default function Console() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [isRunning, setIsRunning] = useState(false);
+  // const [isRunning] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const logIdRef = useRef(0);
 
