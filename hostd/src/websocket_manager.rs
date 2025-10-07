@@ -81,6 +81,41 @@ pub enum WebSocketMessage {
         message: String,
         timestamp: DateTime<Utc>,
     },
+    /// Job started event
+    JobStarted {
+        server_id: Option<String>,
+        job_id: String,
+        job_type: String,
+        total_steps: u32,
+        timestamp: DateTime<Utc>,
+    },
+    /// Job progress event
+    JobProgress {
+        server_id: Option<String>,
+        job_id: String,
+        job_type: String,
+        step: u32,
+        total_steps: u32,
+        progress: f32,
+        message: String,
+        timestamp: DateTime<Utc>,
+    },
+    /// Job completed event
+    JobCompleted {
+        server_id: Option<String>,
+        job_id: String,
+        job_type: String,
+        result: Option<String>,
+        timestamp: DateTime<Utc>,
+    },
+    /// Job failed event
+    JobFailed {
+        server_id: Option<String>,
+        job_id: String,
+        job_type: String,
+        error: String,
+        timestamp: DateTime<Utc>,
+    },
 }
 
 /// WebSocket connection information
@@ -283,6 +318,10 @@ impl WebSocketManager {
             WebSocketMessage::PregenProgress { .. } => "pregen",
             WebSocketMessage::Ping { .. } | WebSocketMessage::Pong { .. } => "ping",
             WebSocketMessage::Error { .. } => "error",
+            WebSocketMessage::JobStarted { .. } => "jobs",
+            WebSocketMessage::JobProgress { .. } => "jobs",
+            WebSocketMessage::JobCompleted { .. } => "jobs",
+            WebSocketMessage::JobFailed { .. } => "jobs",
         };
 
         connection.subscribed_events.contains(&event_type.to_string())
@@ -404,6 +443,84 @@ impl WebSocketManager {
     /// Send server status update (alias for compatibility)
     pub async fn send_server_status_update(&self, server_id: Uuid, status: &str) -> Result<(), Box<dyn std::error::Error>> {
         self.send_server_status(server_id, status.to_string()).await
+    }
+
+    /// Send job started event
+    pub async fn send_job_started(
+        &self,
+        server_id: Option<&str>,
+        job_id: &str,
+        job_type: &str,
+        total_steps: u32,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let message = WebSocketMessage::JobStarted {
+            server_id: server_id.map(|s| s.to_string()),
+            job_id: job_id.to_string(),
+            job_type: job_type.to_string(),
+            total_steps,
+            timestamp: chrono::Utc::now(),
+        };
+        self.broadcast(message).await
+    }
+
+    /// Send job progress event
+    pub async fn send_job_progress(
+        &self,
+        server_id: Option<&str>,
+        job_id: &str,
+        job_type: &str,
+        step: u32,
+        total_steps: u32,
+        progress: f32,
+        message: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let ws_message = WebSocketMessage::JobProgress {
+            server_id: server_id.map(|s| s.to_string()),
+            job_id: job_id.to_string(),
+            job_type: job_type.to_string(),
+            step,
+            total_steps,
+            progress,
+            message: message.to_string(),
+            timestamp: chrono::Utc::now(),
+        };
+        self.broadcast(ws_message).await
+    }
+
+    /// Send job completed event
+    pub async fn send_job_completed(
+        &self,
+        server_id: Option<&str>,
+        job_id: &str,
+        job_type: &str,
+        result: Option<&str>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let message = WebSocketMessage::JobCompleted {
+            server_id: server_id.map(|s| s.to_string()),
+            job_id: job_id.to_string(),
+            job_type: job_type.to_string(),
+            result: result.map(|s| s.to_string()),
+            timestamp: chrono::Utc::now(),
+        };
+        self.broadcast(message).await
+    }
+
+    /// Send job failed event
+    pub async fn send_job_failed(
+        &self,
+        server_id: Option<&str>,
+        job_id: &str,
+        job_type: &str,
+        error: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let message = WebSocketMessage::JobFailed {
+            server_id: server_id.map(|s| s.to_string()),
+            job_id: job_id.to_string(),
+            job_type: job_type.to_string(),
+            error: error.to_string(),
+            timestamp: chrono::Utc::now(),
+        };
+        self.broadcast(message).await
     }
 }
 

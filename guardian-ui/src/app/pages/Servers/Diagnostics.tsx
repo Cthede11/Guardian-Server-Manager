@@ -32,7 +32,8 @@ import {
 import { CrashSignaturesTable } from '@/components/Diagnostics/CrashSignaturesTable';
 import { CreateBundleModal } from '@/components/Diagnostics/CreateBundleModal';
 import { SystemHealth } from '@/components/Diagnostics/SystemHealth';
-import { ErrorEmptyState } from '@/components/ui/EmptyState';
+import { ErrorEmptyState, NoDiagnosticsEmptyState } from '@/components/ui/EmptyState';
+import { StatsGridLoading, ChartsLoading } from '@/components/ui/LoadingStates';
 
 interface DiagnosticStats {
   totalCrashes: number;
@@ -142,6 +143,70 @@ export const Diagnostics: React.FC = () => {
         <ErrorEmptyState
           title="No server selected"
           description="Please select a server from the sidebar to view its diagnostics."
+        />
+      </div>
+    );
+  }
+
+  if (isLoading && stats.totalCrashes === 0) {
+    return (
+      <div className="h-full flex flex-col space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Diagnostics</h1>
+            <p className="text-muted-foreground">
+              Monitor system health, crash analysis, and performance diagnostics
+            </p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={true}
+            >
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              Loading...
+            </Button>
+          </div>
+        </div>
+
+        {/* Loading Stats Cards */}
+        <StatsGridLoading count={4} />
+
+        {/* Loading Charts */}
+        <ChartsLoading count={2} />
+      </div>
+    );
+  }
+
+  if (stats.totalCrashes === 0 && stats.systemHealth === 0 && !isLoading) {
+    return (
+      <div className="h-full flex flex-col space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Diagnostics</h1>
+            <p className="text-muted-foreground">
+              Monitor system health, crash analysis, and performance diagnostics
+            </p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+            <CreateBundleModal />
+          </div>
+        </div>
+
+        <NoDiagnosticsEmptyState 
+          onRefresh={handleRefresh}
+          serverStatus={server?.status}
         />
       </div>
     );

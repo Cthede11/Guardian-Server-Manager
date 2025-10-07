@@ -10,7 +10,8 @@ import { RefreshCw, AlertTriangle, CheckCircle, XCircle, Plus, Settings } from '
 import { ShardingTopology } from '@/components/Sharding/ShardingTopology';
 import { ShardingAssignment } from '@/components/Sharding/ShardingAssignment';
 import { ShardingWarnings } from '@/components/Sharding/ShardingWarnings';
-import { ErrorEmptyState } from '@/components/ui/EmptyState';
+import { ErrorEmptyState, NoShardingEmptyState } from '@/components/ui/EmptyState';
+import { StatsGridLoading, ChartsLoading } from '@/components/ui/LoadingStates';
 import { apiClient as api } from '@/lib/api';
 import { safeTimeString } from '@/lib/formatters';
 
@@ -119,6 +120,72 @@ export const Sharding: React.FC = () => {
         <ErrorEmptyState
           title="No server selected"
           description="Please select a server from the sidebar to view its sharding configuration."
+        />
+      </div>
+    );
+  }
+
+  if (isLoading && stats.totalShards === 0) {
+    return (
+      <div className="p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Sharding</h1>
+            <p className="text-muted-foreground">
+              Manage server sharding configuration and monitor shard health
+            </p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={true}
+            >
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              Loading...
+            </Button>
+          </div>
+        </div>
+
+        {/* Loading Stats Cards */}
+        <StatsGridLoading count={4} />
+
+        {/* Loading Charts */}
+        <ChartsLoading count={2} />
+      </div>
+    );
+  }
+
+  if (stats.totalShards === 0 && !isLoading) {
+    return (
+      <div className="p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Sharding</h1>
+            <p className="text-muted-foreground">
+              Manage server sharding configuration and monitor shard health
+            </p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
+        </div>
+
+        <NoShardingEmptyState 
+          onRefresh={handleRefresh}
+          onConfigure={() => {
+            // TODO: Open sharding configuration modal
+            console.log('Configure sharding');
+          }}
         />
       </div>
     );

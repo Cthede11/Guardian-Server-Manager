@@ -4,6 +4,7 @@ import AppShell from './layout/AppShell';
 import { ServersPages, WorkspacePages } from './pages';
 import Console from './pages/Console';
 import ModpackBrowser from '../components/Modpack/ModpackBrowser';
+import ModBrowser from './pages/ModBrowser';
 import { ServerListDashboard } from '../components/Dashboard/ServerListDashboard';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 
@@ -124,6 +125,14 @@ export const router = createBrowserRouter([
         element: (
           <ErrorBoundary>
             <ModpackBrowser />
+          </ErrorBoundary>
+        ),
+      },
+      {
+        path: 'mod-browser',
+        element: (
+          <ErrorBoundary>
+            <ModBrowser />
           </ErrorBoundary>
         ),
       },

@@ -28,7 +28,8 @@ import { RulesTable } from '@/components/Tables/RulesTable';
 import { ConflictsList } from '@/components/ModsRules/ConflictsList';
 import { CompatibilityPage } from '@/components/Compatibility/CompatibilityPage';
 import { AnalyticsPage } from '@/components/Analytics/AnalyticsPage';
-import { ErrorEmptyState } from '@/components/ui/EmptyState';
+import { ErrorEmptyState, NoModsEmptyState, NoRulesEmptyState, NoConflictsEmptyState } from '@/components/ui/EmptyState';
+import { ModsTableLoading, TableLoading } from '@/components/ui/LoadingStates';
 import { LiveRuleLab } from '@/components/ModsRules/LiveRuleLab';
 
 interface ModsRulesPageProps {
@@ -129,6 +130,47 @@ export const ModsRules: React.FC<ModsRulesPageProps> = ({ className = '' }) => {
           title="No server selected"
           description="Please select a server from the sidebar to view its mods and rules."
         />
+      </div>
+    );
+  }
+
+  if (isLoading && mods.length === 0) {
+    return (
+      <div className={`p-6 space-y-6 ${className}`}>
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <h2 className="text-2xl font-bold">Mods & Rules</h2>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="flex items-center gap-1">
+                <Package className="h-3 w-3" />
+                Loading...
+              </Badge>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={true}
+            >
+              <TestTube className="h-4 w-4 mr-2" />
+              Live Rule Lab
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={true}
+            >
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              Loading...
+            </Button>
+          </div>
+        </div>
+
+        {/* Loading Content */}
+        <ModsTableLoading count={5} />
       </div>
     );
   }

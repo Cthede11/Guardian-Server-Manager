@@ -296,6 +296,54 @@ impl AppError {
             _ => false,
         }
     }
+
+    /// Get a safe error code for client responses (no sensitive info)
+    pub fn error_code(&self) -> String {
+        match self {
+            AppError::DatabaseError { .. } => "DATABASE_ERROR".to_string(),
+            AppError::AuthenticationError { reason, .. } => match reason {
+                AuthErrorReason::InvalidCredentials => "INVALID_CREDENTIALS".to_string(),
+                AuthErrorReason::TokenExpired => "TOKEN_EXPIRED".to_string(),
+                AuthErrorReason::TokenInvalid => "TOKEN_INVALID".to_string(),
+                AuthErrorReason::UserNotFound => "USER_NOT_FOUND".to_string(),
+                AuthErrorReason::UserInactive => "USER_INACTIVE".to_string(),
+                AuthErrorReason::InsufficientPermissions => "INSUFFICIENT_PERMISSIONS".to_string(),
+                AuthErrorReason::SessionExpired => "SESSION_EXPIRED".to_string(),
+                AuthErrorReason::RateLimitExceeded => "RATE_LIMIT_EXCEEDED".to_string(),
+            },
+            AppError::AuthorizationError { .. } => "AUTHORIZATION_ERROR".to_string(),
+            AppError::ServerError { .. } => "SERVER_ERROR".to_string(),
+            AppError::FileSystemError { .. } => "FILESYSTEM_ERROR".to_string(),
+            AppError::NetworkError { .. } => "NETWORK_ERROR".to_string(),
+            AppError::ConfigurationError { .. } => "CONFIGURATION_ERROR".to_string(),
+            AppError::ValidationError { .. } => "VALIDATION_ERROR".to_string(),
+            AppError::ProcessError { .. } => "PROCESS_ERROR".to_string(),
+            AppError::WebSocketError { .. } => "WEBSOCKET_ERROR".to_string(),
+            AppError::BackupError { .. } => "BACKUP_ERROR".to_string(),
+            AppError::ModpackError { .. } => "MODPACK_ERROR".to_string(),
+            AppError::InternalError { .. } => "INTERNAL_ERROR".to_string(),
+            AppError::ExternalServiceError { .. } => "EXTERNAL_SERVICE_ERROR".to_string(),
+        }
+    }
+
+    /// Get safe details for client responses (no sensitive info)
+    pub fn safe_details(&self) -> Option<String> {
+        match self {
+            AppError::ValidationError { field, constraint, .. } => {
+                Some(format!("Field '{}' failed validation: {}", field, constraint))
+            }
+            AppError::ServerError { server_id, operation, .. } => {
+                Some(format!("Server '{}' operation '{}' failed", server_id, operation))
+            }
+            AppError::FileSystemError { path, operation, .. } => {
+                Some(format!("File operation '{}' failed on path", operation))
+            }
+            AppError::NetworkError { endpoint, .. } => {
+                Some(format!("Network request to '{}' failed", endpoint))
+            }
+            _ => None, // Don't expose internal details for other error types
+        }
+    }
     
     /// Get the retry delay in milliseconds
     pub fn retry_delay_ms(&self) -> u64 {
@@ -325,23 +373,26 @@ impl StdError for AppError {
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let status = self.status_code();
+        
+        // Create sanitized error response for client
         let error_response = ErrorResponse {
             success: false,
             error: self.user_message(),
-            error_code: format!("{:?}", self),
+            error_code: self.error_code(),
             category: self.category().to_string(),
             timestamp: chrono::Utc::now(),
-            details: Some(self.detailed_message()),
+            details: self.safe_details(),
         };
         
-        // Log the error
+        // Log the full error details server-side only
         match status {
-            StatusCode::INTERNAL_SERVER_ERROR => error!("{}", self.detailed_message()),
-            StatusCode::BAD_GATEWAY => error!("{}", self.detailed_message()),
-            StatusCode::UNAUTHORIZED => warn!("{}", self.detailed_message()),
-            StatusCode::FORBIDDEN => warn!("{}", self.detailed_message()),
-            StatusCode::TOO_MANY_REQUESTS => warn!("{}", self.detailed_message()),
-            _ => info!("{}", self.detailed_message()),
+            StatusCode::INTERNAL_SERVER_ERROR => error!("Internal server error: {}", self.detailed_message()),
+            StatusCode::BAD_GATEWAY => error!("Bad gateway: {}", self.detailed_message()),
+            StatusCode::UNAUTHORIZED => warn!("Authentication error: {}", self.detailed_message()),
+            StatusCode::FORBIDDEN => warn!("Authorization error: {}", self.detailed_message()),
+            StatusCode::TOO_MANY_REQUESTS => warn!("Rate limit exceeded: {}", self.detailed_message()),
+            StatusCode::BAD_REQUEST => info!("Bad request: {}", self.detailed_message()),
+            _ => info!("API error: {}", self.detailed_message()),
         }
         
         (status, Json(error_response)).into_response()

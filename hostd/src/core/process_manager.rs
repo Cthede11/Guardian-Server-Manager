@@ -629,34 +629,67 @@ simulation-distance={}
         Ok(())
     }
     
-    async fn download_forge_server_jar(&self, _version: &str, _loader_version: &str, _dest_path: &std::path::Path) -> Result<()> {
-        // TODO: Implement Forge server JAR download
-        Err(AppError::ValidationError {
-            message: "Forge server download not yet implemented".to_string(),
-            field: "loader".to_string(),
-            value: "forge".to_string(),
-            constraint: "not supported yet".to_string(),
-        })
+    async fn download_forge_server_jar(&self, version: &str, loader_version: &str, dest_path: &std::path::Path) -> Result<()> {
+        use crate::loaders::LoaderInstaller;
+        
+        // Detect Java installation
+        let java_path = LoaderInstaller::detect_java().await?;
+        let installer = LoaderInstaller::new(java_path);
+        
+        // Get server directory
+        let server_dir = dest_path.parent().ok_or_else(|| AppError::ValidationError {
+            message: "Invalid destination path".to_string(),
+            field: "dest_path".to_string(),
+            value: dest_path.to_string_lossy().to_string(),
+            constraint: "must have parent directory".to_string(),
+        })?;
+        
+        // Install Forge server
+        let _server_jar = installer.install_forge_server(version, loader_version, server_dir).await?;
+        
+        Ok(())
     }
     
-    async fn download_fabric_server_jar(&self, _version: &str, _loader_version: &str, _dest_path: &std::path::Path) -> Result<()> {
-        // TODO: Implement Fabric server JAR download
-        Err(AppError::ValidationError {
-            message: "Fabric server download not yet implemented".to_string(),
-            field: "loader".to_string(),
-            value: "fabric".to_string(),
-            constraint: "not supported yet".to_string(),
-        })
+    async fn download_fabric_server_jar(&self, version: &str, loader_version: &str, dest_path: &std::path::Path) -> Result<()> {
+        use crate::loaders::LoaderInstaller;
+        
+        // Detect Java installation
+        let java_path = LoaderInstaller::detect_java().await?;
+        let installer = LoaderInstaller::new(java_path);
+        
+        // Get server directory
+        let server_dir = dest_path.parent().ok_or_else(|| AppError::ValidationError {
+            message: "Invalid destination path".to_string(),
+            field: "dest_path".to_string(),
+            value: dest_path.to_string_lossy().to_string(),
+            constraint: "must have parent directory".to_string(),
+        })?;
+        
+        // Install Fabric server
+        let _server_jar = installer.install_fabric_server(version, loader_version, server_dir).await?;
+        
+        Ok(())
     }
     
-    async fn download_quilt_server_jar(&self, _version: &str, _loader_version: &str, _dest_path: &std::path::Path) -> Result<()> {
-        // TODO: Implement Quilt server JAR download
-        Err(AppError::ValidationError {
-            message: "Quilt server download not yet implemented".to_string(),
-            field: "loader".to_string(),
-            value: "quilt".to_string(),
-            constraint: "not supported yet".to_string(),
-        })
+    async fn download_quilt_server_jar(&self, version: &str, loader_version: &str, dest_path: &std::path::Path) -> Result<()> {
+        use crate::loaders::LoaderInstaller;
+        
+        // Detect Java installation
+        let java_path = LoaderInstaller::detect_java().await?;
+        let installer = LoaderInstaller::new(java_path);
+        
+        // Get server directory
+        let server_dir = dest_path.parent().ok_or_else(|| AppError::ValidationError {
+            message: "Invalid destination path".to_string(),
+            field: "dest_path".to_string(),
+            value: dest_path.to_string_lossy().to_string(),
+            constraint: "must have parent directory".to_string(),
+        })?;
+        
+        // Install Quilt server
+        let _server_jar = installer.install_quilt_server(version, loader_version, server_dir).await?;
+        
+        Ok(())
     }
 }
 

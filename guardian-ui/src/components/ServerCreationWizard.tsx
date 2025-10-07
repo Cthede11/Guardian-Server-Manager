@@ -7,6 +7,12 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 import { apiClient as api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import { 
+  serverFormSchema, 
+  validateStep, 
+  formatValidationErrors,
+  type ServerFormData 
+} from '@/lib/validation/server-schema';
 
 // Import wizard steps
 import { StepBasics } from './wizard/StepBasics';
@@ -49,75 +55,24 @@ interface ServerCreationWizardProps {
   onClose?: () => void;
 }
 
-interface ServerFormData {
-  name: string;
-  edition: 'Vanilla' | 'Fabric' | 'Forge';
-  version: string;
-  installPath: string;
-  memory: { min: number; max: number };
-  maxPlayers: number;
-  port: number;
-  motd: string;
-  difficulty: 'easy' | 'normal' | 'hard' | 'peaceful';
-  gamemode: 'survival' | 'creative' | 'adventure' | 'spectator';
-  pvp: boolean;
-  allowFlight: boolean;
-  allowNether: boolean;
-  allowEnd: boolean;
-  spawnProtection: number;
-  viewDistance: number;
-  simulationDistance: number;
-  hardcore: boolean;
-  onlineMode: boolean;
-  whiteList: boolean;
-  enableCommandBlock: boolean;
-  spawnAnimals: boolean;
-  spawnMonsters: boolean;
-  spawnNpcs: boolean;
-  generateStructures: boolean;
-  allowCheats: boolean;
-  levelType: string;
-  levelSeed: string;
-  generatorSettings: string;
-  levelName: string;
-  javaPath?: string;
-  serverProperties: Record<string, string>;
-  modpack?: {
-    source: string;
-    packId: string;
-    packVersionId: string;
-    serverOnly: boolean;
-  };
-  individualMods: Array<{
-    provider: string;
-    modId: string;
-    fileId: string;
-  }>;
-  worldType: string;
-  renderDistance: number;
-  gpuPregeneration: {
-    enabled: boolean;
-    radius: number;
-    concurrency: number;
-    deferUntilStart: boolean;
-  };
-  crashIsolation: {
-    tickTimeout: number;
-    quarantineBehavior: string;
-  };
-}
+// ServerFormData is now imported from the validation schema
 
 const initialFormData: ServerFormData = {
   name: '',
   edition: 'Vanilla',
   version: '',
   installPath: '',
+  javaPath: '',
   memory: { min: 2, max: 4 },
   maxPlayers: 20,
   port: 25565,
   motd: 'A Minecraft Server',
   difficulty: 'normal',
   gamemode: 'survival',
+  levelType: 'default',
+  levelSeed: '',
+  levelName: 'world',
+  worldType: 'default',
   pvp: true,
   allowFlight: false,
   allowNether: true,
@@ -125,6 +80,7 @@ const initialFormData: ServerFormData = {
   spawnProtection: 16,
   viewDistance: 10,
   simulationDistance: 10,
+  renderDistance: 10,
   hardcore: false,
   onlineMode: true,
   whiteList: false,
@@ -134,25 +90,20 @@ const initialFormData: ServerFormData = {
   spawnNpcs: true,
   generateStructures: true,
   allowCheats: false,
-  levelType: 'default',
-  levelSeed: '',
-  generatorSettings: '',
-  levelName: 'world',
-  javaPath: '',
-  serverProperties: {},
+  modpack: undefined,
   individualMods: [],
-  worldType: 'default',
-  renderDistance: 10,
   gpuPregeneration: {
     enabled: false,
     radius: 1000,
     concurrency: 4,
-    deferUntilStart: true
+    deferUntilStart: false
   },
   crashIsolation: {
     tickTimeout: 60000,
     quarantineBehavior: 'pause_entity'
-  }
+  },
+  serverProperties: {},
+  generatorSettings: ''
 };
 
 export function ServerCreationWizard({ open, onOpenChange, onServerCreated, onClose }: ServerCreationWizardProps) {
@@ -218,7 +169,7 @@ export function ServerCreationWizard({ open, onOpenChange, onServerCreated, onCl
     }
   };
 
-  const updateFormData = (updates: Partial<FormData>) => {
+  const updateFormData = (updates: Partial<ServerFormData>) => {
     setFormData(prev => ({ ...prev, ...updates }));
     // Clear related errors when updating
     const newErrors = { ...errors };
@@ -228,58 +179,27 @@ export function ServerCreationWizard({ open, onOpenChange, onServerCreated, onCl
     setErrors(newErrors);
   };
 
-  const validateStep = (stepIndex: number): boolean => {
-    const newErrors: Record<string, string> = {};
-
-    switch (stepIndex) {
-      case 0: // Basics
-        if (!formData.name.trim()) {
-          newErrors.name = 'Server name is required';
-        }
-        if (!formData.version) {
-          newErrors.version = 'Version is required';
-        }
-        if (!formData.installPath.trim()) {
-          newErrors.installPath = 'Install path is required';
-        }
-        if (!formData.javaPath?.trim()) {
-          newErrors.javaPath = 'Java path is required';
-        }
-        if (formData.memory.min >= formData.memory.max) {
-          newErrors.memory = 'Minimum memory must be less than maximum memory';
-        }
-        break;
-      case 1: // Mods (optional)
-        // No validation required for mods step
-        break;
-      case 2: // World & Performance
-        if (formData.renderDistance < 2 || formData.renderDistance > 32) {
-          newErrors.renderDistance = 'Render distance must be between 2 and 32';
-        }
-        if (formData.gpuPregeneration.enabled) {
-          if (formData.gpuPregeneration.radius < 100 || formData.gpuPregeneration.radius > 10000) {
-            newErrors.gpuRadius = 'GPU radius must be between 100 and 10000';
-          }
-          if (formData.gpuPregeneration.concurrency < 1 || formData.gpuPregeneration.concurrency > 16) {
-            newErrors.gpuConcurrency = 'GPU concurrency must be between 1 and 16';
-          }
-        }
-        break;
-      case 3: // Review
-        // Final validation - check all required fields
-        if (!formData.name.trim()) newErrors.name = 'Server name is required';
-        if (!formData.version) newErrors.version = 'Version is required';
-        if (!formData.installPath.trim()) newErrors.installPath = 'Install path is required';
-        if (!formData.javaPath?.trim()) newErrors.javaPath = 'Java path is required';
-        break;
+  const validateCurrentStep = (stepIndex: number): boolean => {
+    try {
+      const result = validateStep(stepIndex, formData);
+      
+      if (result.success) {
+        setErrors({});
+        return true;
+      } else {
+        const formattedErrors = formatValidationErrors(result.error);
+        setErrors(formattedErrors);
+        return false;
+      }
+    } catch (error) {
+      console.error('Validation error:', error);
+      setErrors({ general: 'Validation failed' });
+      return false;
     }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
   };
 
   const handleNext = () => {
-    if (validateStep(currentStep)) {
+    if (validateCurrentStep(currentStep)) {
       setCurrentStep(prev => Math.min(prev + 1, steps.length - 1));
     }
   };
@@ -289,7 +209,7 @@ export function ServerCreationWizard({ open, onOpenChange, onServerCreated, onCl
   };
 
   const handleCreate = async () => {
-    if (!validateStep(currentStep)) {
+    if (!validateCurrentStep(currentStep)) {
       toast({
         title: "Validation Error",
         description: "Please fix the errors before creating the server",
@@ -465,26 +385,42 @@ export function ServerCreationWizard({ open, onOpenChange, onServerCreated, onCl
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Create New Server</DialogTitle>
+      <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
+        <DialogHeader className="space-y-4">
+          <DialogTitle className="text-2xl font-bold text-center">Create New Server</DialogTitle>
+          <p className="text-muted-foreground text-center">
+            Set up your Minecraft server with our guided wizard
+          </p>
         </DialogHeader>
 
-        {/* Progress indicator */}
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span>Step {currentStep + 1} of {steps.length}</span>
-            <span>{Math.round(((currentStep + 1) / steps.length) * 100)}%</span>
+        {/* Enhanced Progress indicator */}
+        <div className="space-y-4">
+          <div className="flex justify-between items-center text-sm">
+            <span className="font-medium">Step {currentStep + 1} of {steps.length}</span>
+            <span className="text-muted-foreground">{Math.round(((currentStep + 1) / steps.length) * 100)}% Complete</span>
           </div>
-          <Progress value={((currentStep + 1) / steps.length) * 100} className="h-2" />
-          <div className="flex justify-between text-xs text-muted-foreground">
+          <Progress value={((currentStep + 1) / steps.length) * 100} className="h-3" />
+          <div className="flex justify-between text-sm">
             {steps.map((step, index) => (
-              <span
+              <div
                 key={step.id}
-                className={index <= currentStep ? 'text-primary font-medium' : ''}
+                className={`flex flex-col items-center space-y-1 ${
+                  index <= currentStep 
+                    ? 'text-primary font-medium' 
+                    : 'text-muted-foreground'
+                }`}
               >
-                {step.title}
-              </span>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                  index < currentStep 
+                    ? 'bg-primary text-primary-foreground' 
+                    : index === currentStep
+                    ? 'bg-primary/20 text-primary border-2 border-primary'
+                    : 'bg-muted text-muted-foreground'
+                }`}>
+                  {index < currentStep ? <CheckCircle className="w-4 h-4" /> : index + 1}
+                </div>
+                <span className="text-xs text-center max-w-20">{step.title}</span>
+              </div>
             ))}
           </div>
         </div>
@@ -497,34 +433,63 @@ export function ServerCreationWizard({ open, onOpenChange, onServerCreated, onCl
             errors={errors}
             versions={versions}
             isLoadingVersions={isLoadingVersions}
-            onValidate={() => validateStep(currentStep)}
+            onValidate={() => validateCurrentStep(currentStep)}
           />
         </div>
 
-        {/* Navigation buttons */}
-        <div className="flex justify-between">
-          <Button
-            variant="outline"
-            onClick={handlePrevious}
+        {/* Enhanced Navigation */}
+        <div className="flex justify-between items-center pt-6 border-t bg-muted/30 -mx-6 -mb-6 px-6 py-4 rounded-b-lg">
+          <Button 
+            variant="outline" 
+            onClick={handlePrevious} 
             disabled={currentStep === 0}
+            className="min-w-24"
           >
-            Previous
+            ← Previous
           </Button>
           
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleClose}>
-              Cancel
-            </Button>
-            {currentStep === steps.length - 1 ? (
-              <Button onClick={handleCreate} disabled={Object.keys(errors).length > 0}>
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Create Server
-              </Button>
-            ) : (
-              <Button onClick={handleNext}>
-                Next
-              </Button>
+          <div className="flex items-center space-x-4">
+            {Object.keys(errors).length > 0 && (
+              <div className="flex items-center space-x-2 text-sm text-destructive">
+                <AlertTriangle className="w-4 h-4" />
+                <span>{Object.keys(errors).length} error{Object.keys(errors).length > 1 ? 's' : ''} found</span>
+              </div>
             )}
+            
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleClose}>
+                Cancel
+              </Button>
+              {currentStep === steps.length - 1 ? (
+                <Button 
+                  onClick={handleCreate} 
+                  disabled={Object.keys(errors).length > 0 || isCreating}
+                  className="bg-green-600 hover:bg-green-700 min-w-32"
+                  size="lg"
+                >
+                  {isCreating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Create Server
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <Button 
+                  onClick={handleNext}
+                  disabled={Object.keys(errors).length > 0}
+                  className="min-w-24"
+                  size="lg"
+                >
+                  Next →
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 

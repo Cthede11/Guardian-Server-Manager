@@ -19,41 +19,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { apiClient as api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
-
-interface ServerFormData {
-  name: string;
-  edition: 'Vanilla' | 'Fabric' | 'Forge';
-  version: string;
-  installPath: string;
-  memory: { min: number; max: number };
-  maxPlayers: number;
-  port: number;
-  motd: string;
-  difficulty: 'easy' | 'normal' | 'hard' | 'peaceful';
-  gamemode: 'survival' | 'creative' | 'adventure' | 'spectator';
-  pvp: boolean;
-  allowFlight: boolean;
-  allowNether: boolean;
-  allowEnd: boolean;
-  spawnProtection: number;
-  viewDistance: number;
-  simulationDistance: number;
-  hardcore: boolean;
-  onlineMode: boolean;
-  whiteList: boolean;
-  enableCommandBlock: boolean;
-  spawnAnimals: boolean;
-  spawnMonsters: boolean;
-  spawnNpcs: boolean;
-  generateStructures: boolean;
-  allowCheats: boolean;
-  levelType: string;
-  levelSeed: string;
-  generatorSettings: string;
-  levelName: string;
-  javaPath?: string;
-  serverProperties: Record<string, string>;
-}
+import { type ServerFormData } from '@/lib/validation/server-schema';
 
 interface StepBasicsProps {
   formData: ServerFormData;

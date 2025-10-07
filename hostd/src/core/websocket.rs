@@ -26,6 +26,31 @@ pub struct WebSocketMessage {
     pub timestamp: chrono::DateTime<chrono::Utc>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProgressEvent {
+    pub job_id: String,
+    pub job_type: String, // "modpack_install", "mod_install", "server_creation", etc.
+    pub status: String,   // "started", "in_progress", "completed", "failed"
+    pub progress: f32,    // 0.0 to 1.0
+    pub current_step: String,
+    pub total_steps: u32,
+    pub current_step_progress: f32, // 0.0 to 1.0 for current step
+    pub message: Option<String>,
+    pub error: Option<String>,
+    pub estimated_remaining_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobStatus {
+    pub job_id: String,
+    pub job_type: String,
+    pub status: String,
+    pub progress: f32,
+    pub started_at: chrono::DateTime<chrono::Utc>,
+    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub error: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct WebSocketConnection {
     pub id: String,
@@ -345,5 +370,96 @@ impl WebSocketManager {
         } else {
             self.broadcast(message).await
         }
+    }
+    
+    // Progress event methods
+    pub async fn send_progress_event(&self, server_id: Option<&str>, progress: ProgressEvent) -> Result<()> {
+        let message = WebSocketMessage {
+            id: Uuid::new_v4().to_string(),
+            server_id: server_id.map(|s| s.to_string()),
+            event_type: "progress".to_string(),
+            data: serde_json::to_value(progress).unwrap_or(serde_json::Value::Null),
+            timestamp: chrono::Utc::now(),
+        };
+        
+        if let Some(server_id) = server_id {
+            self.send_to_server(server_id, message).await
+        } else {
+            self.broadcast(message).await
+        }
+    }
+    
+    pub async fn send_job_started(&self, server_id: Option<&str>, job_id: &str, job_type: &str, total_steps: u32) -> Result<()> {
+        let progress = ProgressEvent {
+            job_id: job_id.to_string(),
+            job_type: job_type.to_string(),
+            status: "started".to_string(),
+            progress: 0.0,
+            current_step: "Initializing".to_string(),
+            total_steps,
+            current_step_progress: 0.0,
+            message: Some(format!("Starting {} job", job_type)),
+            error: None,
+            estimated_remaining_ms: None,
+        };
+        
+        self.send_progress_event(server_id, progress).await
+    }
+    
+    pub async fn send_job_progress(&self, server_id: Option<&str>, job_id: &str, job_type: &str, 
+                                 current_step: &str, step_progress: f32, total_steps: u32, 
+                                 message: Option<&str>) -> Result<()> {
+        let overall_progress = (total_steps as f32 - 1.0 + step_progress) / total_steps as f32;
+        
+        let progress = ProgressEvent {
+            job_id: job_id.to_string(),
+            job_type: job_type.to_string(),
+            status: "in_progress".to_string(),
+            progress: overall_progress.min(1.0),
+            current_step: current_step.to_string(),
+            total_steps,
+            current_step_progress: step_progress,
+            message: message.map(|s| s.to_string()),
+            error: None,
+            estimated_remaining_ms: None,
+        };
+        
+        self.send_progress_event(server_id, progress).await
+    }
+    
+    pub async fn send_job_completed(&self, server_id: Option<&str>, job_id: &str, job_type: &str, 
+                                  message: Option<&str>) -> Result<()> {
+        let progress = ProgressEvent {
+            job_id: job_id.to_string(),
+            job_type: job_type.to_string(),
+            status: "completed".to_string(),
+            progress: 1.0,
+            current_step: "Completed".to_string(),
+            total_steps: 1,
+            current_step_progress: 1.0,
+            message: message.map(|s| s.to_string()),
+            error: None,
+            estimated_remaining_ms: Some(0),
+        };
+        
+        self.send_progress_event(server_id, progress).await
+    }
+    
+    pub async fn send_job_failed(&self, server_id: Option<&str>, job_id: &str, job_type: &str, 
+                                error: &str) -> Result<()> {
+        let progress = ProgressEvent {
+            job_id: job_id.to_string(),
+            job_type: job_type.to_string(),
+            status: "failed".to_string(),
+            progress: 0.0,
+            current_step: "Failed".to_string(),
+            total_steps: 1,
+            current_step_progress: 0.0,
+            message: Some("Job failed".to_string()),
+            error: Some(error.to_string()),
+            estimated_remaining_ms: None,
+        };
+        
+        self.send_progress_event(server_id, progress).await
     }
 }

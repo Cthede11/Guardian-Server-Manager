@@ -31,7 +31,7 @@ import { HASettings } from '@/components/Settings/HASettings';
 import { PathsSettings } from '@/components/Settings/PathsSettings';
 import { ComposerSettings } from '@/components/Settings/ComposerSettings';
 import { TokensSettings } from '@/components/Settings/TokensSettings';
-import { APISettings } from '../Settings/APISettings';
+import { APISettings } from './Settings/APISettings';
 
 interface SettingsStats {
   totalSettings: number;

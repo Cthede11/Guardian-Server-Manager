@@ -235,6 +235,55 @@ impl AdvancedRateLimiter {
             }),
         );
         
+        // Modpack and mod endpoints - more restrictive due to external API calls
+        endpoint_limiters.insert(
+            "/api/modpacks".to_string(),
+            RateLimiter::new(RateLimitConfig {
+                requests_per_minute: 20,
+                burst_limit: 3,
+                window_size: Duration::from_secs(60),
+            }),
+        );
+        
+        endpoint_limiters.insert(
+            "/api/mods".to_string(),
+            RateLimiter::new(RateLimitConfig {
+                requests_per_minute: 20,
+                burst_limit: 3,
+                window_size: Duration::from_secs(60),
+            }),
+        );
+        
+        // Search endpoints - more restrictive to prevent abuse
+        endpoint_limiters.insert(
+            "/api/search".to_string(),
+            RateLimiter::new(RateLimitConfig {
+                requests_per_minute: 15,
+                burst_limit: 2,
+                window_size: Duration::from_secs(60),
+            }),
+        );
+        
+        // Download endpoints - very restrictive to prevent abuse
+        endpoint_limiters.insert(
+            "/api/download".to_string(),
+            RateLimiter::new(RateLimitConfig {
+                requests_per_minute: 10,
+                burst_limit: 2,
+                window_size: Duration::from_secs(60),
+            }),
+        );
+        
+        // Health check - very permissive
+        endpoint_limiters.insert(
+            "/api/health".to_string(),
+            RateLimiter::new(RateLimitConfig {
+                requests_per_minute: 120,
+                burst_limit: 20,
+                window_size: Duration::from_secs(60),
+            }),
+        );
+        
         Self {
             global_limiter: RateLimiter::new(RateLimitConfig::default()),
             endpoint_limiters,

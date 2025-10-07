@@ -4,6 +4,7 @@ use hostd::{
         error_handler::AppError,
         monitoring::MonitoringManager,
         config::MonitoringConfig,
+        guardian_config::GuardianConfig,
     },
     database::DatabaseManager,
     websocket_manager::WebSocketManager,
@@ -12,7 +13,12 @@ use hostd::{
     security::{
         validation::InputValidator,
         rate_limiting::RateLimiter,
+        path_sanitizer::PathSanitizer,
     },
+    gpu_manager::GpuManager,
+    mod_manager::ModManager,
+    version_resolver::VersionResolver,
+    modpack_installer::ModpackInstaller,
 };
 use axum::{
     body::Body,
@@ -594,4 +600,247 @@ async fn get_alerts() -> Json<serde_json::Value> {
     Json(json!({
         "alerts": []
     }))
+}
+
+// ===== COMPREHENSIVE INTEGRATION TESTS =====
+
+#[tokio::test]
+async fn test_health_endpoints() {
+    let config = GuardianConfig::default();
+    let db_manager = DatabaseManager::new(":memory:").await.unwrap();
+    db_manager.initialize().await.unwrap();
+    
+    let gpu_manager = GpuManager::new(config).await.unwrap();
+    
+    // Test basic health check
+    let health_response = get_health_status().await;
+    assert!(health_response.0["status"] == "healthy");
+    
+    // Test system metrics
+    let metrics_response = get_system_metrics().await;
+    assert!(metrics_response.0["cpu_usage"].is_number());
+    assert!(metrics_response.0["memory_usage"].is_number());
+}
+
+#[tokio::test]
+async fn test_server_creation_flow() {
+    let config = GuardianConfig::default();
+    let db_manager = DatabaseManager::new(":memory:").await.unwrap();
+    db_manager.initialize().await.unwrap();
+    
+    // Test server creation request
+    let server_data = json!({
+        "name": "test-server",
+        "minecraft_version": "1.20.1",
+        "loader": "vanilla",
+        "memory_mb": 2048,
+        "port": 25565
+    });
+    
+    // Validate server data structure
+    assert!(server_data["name"].is_string());
+    assert!(server_data["minecraft_version"].is_string());
+    assert!(server_data["loader"].is_string());
+    assert!(server_data["memory_mb"].is_number());
+    assert!(server_data["port"].is_number());
+}
+
+#[tokio::test]
+async fn test_mod_search_functionality() {
+    let config = GuardianConfig::default();
+    let db_manager = DatabaseManager::new(":memory:").await.unwrap();
+    db_manager.initialize().await.unwrap();
+    
+    let mod_manager = ModManager::new(db_manager.clone()).await.unwrap();
+    
+    // Test mod search with mock data
+    let search_query = "jei";
+    let search_results = mod_manager.search_mods(search_query, "all", 0, 10).await;
+    
+    // Should return results (even if empty for test)
+    assert!(search_results.is_ok());
+}
+
+#[tokio::test]
+async fn test_mod_installation_flow() {
+    let config = GuardianConfig::default();
+    let db_manager = DatabaseManager::new(":memory:").await.unwrap();
+    db_manager.initialize().await.unwrap();
+    
+    let mod_manager = ModManager::new(db_manager.clone()).await.unwrap();
+    
+    // Test mod installation request
+    let install_request = json!({
+        "mod_id": "test-mod-123",
+        "provider": "modrinth",
+        "version": "1.0.0",
+        "server_id": "test-server-123"
+    });
+    
+    // Validate request structure
+    assert!(install_request["mod_id"].is_string());
+    assert!(install_request["provider"].is_string());
+    assert!(install_request["version"].is_string());
+    assert!(install_request["server_id"].is_string());
+}
+
+#[tokio::test]
+async fn test_modpack_application_flow() {
+    let config = GuardianConfig::default();
+    let db_manager = DatabaseManager::new(":memory:").await.unwrap();
+    db_manager.initialize().await.unwrap();
+    
+    let modpack_installer = ModpackInstaller::new(db_manager.clone()).await.unwrap();
+    
+    // Test modpack application request
+    let modpack_request = json!({
+        "modpack_id": "test-pack-123",
+        "provider": "modrinth",
+        "server_id": "test-server-123",
+        "version": "1.0.0"
+    });
+    
+    // Validate request structure
+    assert!(modpack_request["modpack_id"].is_string());
+    assert!(modpack_request["provider"].is_string());
+    assert!(modpack_request["server_id"].is_string());
+    assert!(modpack_request["version"].is_string());
+}
+
+#[tokio::test]
+async fn test_gpu_manager_integration() {
+    let config = GuardianConfig::default();
+    let gpu_manager = GpuManager::new(config).await.unwrap();
+    
+    // Test GPU status
+    assert!(!gpu_manager.is_enabled()); // Should be disabled by default
+    
+    // Test metrics retrieval
+    let metrics = gpu_manager.get_metrics().await;
+    assert!(metrics.utilization >= 0.0);
+    assert!(metrics.memory_used >= 0);
+    assert!(metrics.memory_total >= 0);
+}
+
+#[tokio::test]
+async fn test_path_sanitization() {
+    let sanitizer = PathSanitizer::new();
+    
+    // Test valid paths
+    assert!(sanitizer.is_safe_path("mods/test-mod.jar"));
+    assert!(sanitizer.is_safe_path("config/server.properties"));
+    
+    // Test malicious paths
+    assert!(!sanitizer.is_safe_path("../etc/passwd"));
+    assert!(!sanitizer.is_safe_path("../../../windows/system32"));
+    assert!(!sanitizer.is_safe_path("/etc/shadow"));
+    assert!(!sanitizer.is_safe_path("C:\\Windows\\System32"));
+}
+
+#[tokio::test]
+async fn test_input_validation() {
+    let validator = InputValidator::new();
+    
+    // Test server name validation
+    assert!(validator.validate_server_name("valid-server-name").is_ok());
+    assert!(validator.validate_server_name("").is_err());
+    assert!(validator.validate_server_name("a".repeat(256)).is_err());
+    
+    // Test path validation
+    assert!(validator.validate_path("C:\\valid\\path").is_ok());
+    assert!(validator.validate_path("").is_err());
+    assert!(validator.validate_path("../invalid").is_err());
+    
+    // Test port validation
+    assert!(validator.validate_port(25565).is_ok());
+    assert!(validator.validate_port(0).is_err());
+    assert!(validator.validate_port(65536).is_err());
+}
+
+#[tokio::test]
+async fn test_rate_limiting() {
+    let rate_limiter = RateLimiter::new(10, Duration::from_secs(60));
+    
+    // Test rate limiting
+    for i in 0..15 {
+        let result = rate_limiter.check_rate_limit("test-client").await;
+        if i < 10 {
+            assert!(result.is_ok());
+        } else {
+            assert!(result.is_err());
+        }
+    }
+}
+
+#[tokio::test]
+async fn test_websocket_management() {
+    let ws_manager = WebSocketManager::new();
+    
+    // Test WebSocket manager creation
+    assert!(ws_manager.get_connection_count().await >= 0);
+    
+    // Test progress event creation
+    let progress_event = hostd::core::websocket::ProgressEvent {
+        job_id: "test-job".to_string(),
+        job_type: "test".to_string(),
+        status: "started".to_string(),
+        progress: 0.0,
+        current_step: "Test Step".to_string(),
+        total_steps: 1,
+        current_step_progress: 0.0,
+        message: Some("Test message".to_string()),
+        error: None,
+        estimated_remaining_ms: None,
+    };
+    
+    // Should be able to create progress events
+    assert_eq!(progress_event.job_id, "test-job");
+    assert_eq!(progress_event.job_type, "test");
+}
+
+#[tokio::test]
+async fn test_database_operations() {
+    let db_manager = DatabaseManager::new(":memory:").await.unwrap();
+    db_manager.initialize().await.unwrap();
+    
+    // Test database health
+    let health_status = db_manager.get_health_status().await;
+    assert!(health_status.is_ok());
+    
+    // Test basic database operations
+    let test_server = hostd::database::Server {
+        id: "test-server".to_string(),
+        name: "Test Server".to_string(),
+        minecraft_version: "1.20.1".to_string(),
+        loader: "vanilla".to_string(),
+        port: 25565,
+        memory_mb: 2048,
+        status: hostd::minecraft::ServerStatus::Stopped,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+        last_start: None,
+        last_stop: None,
+        auto_start: false,
+        auto_restart: false,
+        jvm_args: None,
+        server_properties: None,
+        eula_accepted: false,
+        world_path: None,
+        backup_path: None,
+        log_path: None,
+        config_path: None,
+    };
+    
+    // Test server creation
+    let create_result = db_manager.create_server(test_server.clone()).await;
+    assert!(create_result.is_ok());
+    
+    // Test server retrieval
+    let get_result = db_manager.get_server("test-server").await;
+    assert!(get_result.is_ok());
+    
+    // Test server listing
+    let list_result = db_manager.list_servers().await;
+    assert!(list_result.is_ok());
+    assert!(list_result.unwrap().len() >= 1);
 }

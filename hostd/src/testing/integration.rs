@@ -55,6 +55,23 @@ impl IntegrationTestSuite {
             minecraft_manager: crate::minecraft::MinecraftManager::new(database.clone()),
             database: database.clone(),
             mod_manager: crate::mod_manager::ModManager::new(std::path::PathBuf::from("mods")),
+            resource_monitor: Arc::new(crate::core::resource_monitor::ResourceMonitor::new(
+                crate::core::resource_monitor::ResourceMonitorConfig::default(),
+                Arc::new(crate::core::guardian_config::GuardianConfig::default()),
+            )),
+            server_manager: Arc::new(crate::core::server_manager::ServerManager::new(
+                database.clone(),
+                Arc::new(crate::core::file_manager::FileManager::new(std::path::PathBuf::from("./")).expect("Failed to create file manager")),
+                Arc::new(crate::core::process_manager::ProcessManager::new()),
+            )),
+            crash_watchdog: Arc::new(crate::core::crash_watchdog::CrashWatchdog::new()),
+            process_manager: Arc::new(crate::core::process_manager::ProcessManager::new()),
+            gpu_manager: Arc::new(tokio::sync::Mutex::new(crate::gpu_manager::GpuManager::new(database.clone()).await.expect("Failed to create GPU manager"))),
+            performance_telemetry: Arc::new(crate::performance_telemetry::PerformanceTelemetry::new(database.clone())),
+            secret_storage: Arc::new(crate::security::secret_storage::SecretStorage::new("test_key".to_string(), std::path::PathBuf::from("test_secrets.db"))),
+            rate_limiter: Arc::new(crate::security::rate_limiting::RateLimiter::new()),
+            test_harness: Arc::new(crate::core::test_harness::TestHarness::new()),
+            sse_sender: None,
         };
         
         let app = create_api_router(app_state);

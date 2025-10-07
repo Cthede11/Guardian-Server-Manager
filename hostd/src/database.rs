@@ -132,6 +132,68 @@ pub struct Mod {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// Enhanced mod metadata structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModMetadata {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub author: String,
+    pub provider: String, // 'curseforge', 'modrinth'
+    pub project_id: String,
+    pub slug: Option<String>,
+    pub category: String,
+    pub side: String, // 'client', 'server', 'both'
+    pub website_url: Option<String>,
+    pub source_url: Option<String>,
+    pub issues_url: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Mod version information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModVersion {
+    pub id: String,
+    pub mod_metadata_id: String,
+    pub version: String,
+    pub minecraft_version: String,
+    pub loader: String,
+    pub filename: String,
+    pub file_size: u64,
+    pub sha1: Option<String>,
+    pub sha256: Option<String>,
+    pub sha512: Option<String>,
+    pub download_url: String,
+    pub release_type: String, // 'release', 'beta', 'alpha'
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Installed mod with full metadata
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InstalledModWithMetadata {
+    pub id: String,
+    pub server_id: String,
+    pub mod_metadata: ModMetadata,
+    pub mod_version: ModVersion,
+    pub file_path: String,
+    pub enabled: bool,
+    pub installed_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Mod dependency
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModDependency {
+    pub id: String,
+    pub mod_metadata_id: String,
+    pub dependency_mod_id: String,
+    pub version_range: String,
+    pub required: bool,
+    pub side: String, // 'client', 'server', 'both'
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
 /// Health status for database
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HealthStatus {
@@ -221,30 +283,6 @@ pub struct ModInfo {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
-/// Mod version information
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModVersion {
-    pub id: i64,
-    pub mod_id: String,
-    pub version: String,
-    pub minecraft_versions: String, // JSON array
-    pub loader_versions: String,    // JSON object
-    pub download_url: String,
-    pub file_size: u64,
-    pub sha256: String,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-}
-
-/// Mod dependency information
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModDependency {
-    pub id: i64,
-    pub mod_version_id: i64,
-    pub dependency_mod_id: String,
-    pub version_range: String,
-    pub side: String,
-    pub required: bool,
-}
 
 /// Mod conflict information
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1942,14 +1980,19 @@ impl DatabaseManager {
             .into_iter()
             .map(|row| ModVersion {
                 id: row.get("id"),
-                mod_id: row.get("mod_id"),
+                mod_metadata_id: row.get("mod_metadata_id"),
                 version: row.get("version"),
-                minecraft_versions: row.get("minecraft_versions"),
-                loader_versions: row.get("loader_versions"),
-                download_url: row.get("download_url"),
+                minecraft_version: row.get("minecraft_version"),
+                loader: row.get("loader"),
+                filename: row.get("filename"),
                 file_size: row.get::<i64, _>("file_size") as u64,
+                sha1: row.get("sha1"),
                 sha256: row.get("sha256"),
+                sha512: row.get("sha512"),
+                download_url: row.get("download_url"),
+                release_type: row.get("release_type"),
                 created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
             })
             .collect();
 
@@ -2129,6 +2172,342 @@ impl DatabaseManager {
             timestamp: chrono::Utc::now(),
             details: Some(format!("Servers: {}, Logs: {}", server_count, log_count)),
         })
+    }
+
+    // Enhanced mod metadata methods
+    pub async fn create_mod_metadata(&self, metadata: &ModMetadata) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO mod_metadata (
+                id, name, description, author, provider, project_id, slug,
+                category, side, website_url, source_url, issues_url,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(&metadata.id)
+        .bind(&metadata.name)
+        .bind(&metadata.description)
+        .bind(&metadata.author)
+        .bind(&metadata.provider)
+        .bind(&metadata.project_id)
+        .bind(&metadata.slug)
+        .bind(&metadata.category)
+        .bind(&metadata.side)
+        .bind(&metadata.website_url)
+        .bind(&metadata.source_url)
+        .bind(&metadata.issues_url)
+        .bind(metadata.created_at)
+        .bind(metadata.updated_at)
+        .execute(&self.pool)
+        .await?;
+
+        info!("Created mod metadata: {}", metadata.id);
+        Ok(())
+    }
+
+    pub async fn get_mod_metadata(&self, id: &str) -> Result<Option<ModMetadata>> {
+        let row = sqlx::query(
+            r#"
+            SELECT id, name, description, author, provider, project_id, slug,
+                   category, side, website_url, source_url, issues_url,
+                   created_at, updated_at
+            FROM mod_metadata WHERE id = ?
+            "#,
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            Ok(Some(ModMetadata {
+                id: row.get("id"),
+                name: row.get("name"),
+                description: row.get("description"),
+                author: row.get("author"),
+                provider: row.get("provider"),
+                project_id: row.get("project_id"),
+                slug: row.get("slug"),
+                category: row.get("category"),
+                side: row.get("side"),
+                website_url: row.get("website_url"),
+                source_url: row.get("source_url"),
+                issues_url: row.get("issues_url"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn create_mod_version(&self, version: &ModVersion) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO mod_versions (
+                id, mod_metadata_id, version, minecraft_version, loader,
+                filename, file_size, sha1, sha512, download_url, release_type,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(&version.id)
+        .bind(&version.mod_metadata_id)
+        .bind(&version.version)
+        .bind(&version.minecraft_version)
+        .bind(&version.loader)
+        .bind(&version.filename)
+        .bind(version.file_size as i64)
+        .bind(&version.sha1)
+        .bind(&version.sha512)
+        .bind(&version.download_url)
+        .bind(&version.release_type)
+        .bind(version.created_at)
+        .bind(version.updated_at)
+        .execute(&self.pool)
+        .await?;
+
+        info!("Created mod version: {}", version.id);
+        Ok(())
+    }
+
+    pub async fn get_mod_versions_by_metadata_id(&self, mod_metadata_id: &str) -> Result<Vec<ModVersion>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, mod_metadata_id, version, minecraft_version, loader,
+                   filename, file_size, sha1, sha512, download_url, release_type,
+                   created_at, updated_at
+            FROM mod_versions
+            WHERE mod_metadata_id = ?
+            ORDER BY created_at DESC
+            "#,
+        )
+        .bind(mod_metadata_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let versions = rows
+            .into_iter()
+            .map(|row| ModVersion {
+                id: row.get("id"),
+                mod_metadata_id: row.get("mod_metadata_id"),
+                version: row.get("version"),
+                minecraft_version: row.get("minecraft_version"),
+                loader: row.get("loader"),
+                filename: row.get("filename"),
+                file_size: row.get::<i64, _>("file_size") as u64,
+                sha1: row.get("sha1"),
+                sha256: row.get("sha256"),
+                sha512: row.get("sha512"),
+                download_url: row.get("download_url"),
+                release_type: row.get("release_type"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            })
+            .collect();
+
+        Ok(versions)
+    }
+
+    pub async fn create_installed_mod_with_metadata(&self, installed_mod: &InstalledModWithMetadata) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO installed_mods_with_metadata (
+                id, server_id, mod_metadata_id, mod_version_id, file_path,
+                enabled, installed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(&installed_mod.id)
+        .bind(&installed_mod.server_id)
+        .bind(&installed_mod.mod_metadata.id)
+        .bind(&installed_mod.mod_version.id)
+        .bind(&installed_mod.file_path)
+        .bind(installed_mod.enabled)
+        .bind(installed_mod.installed_at)
+        .execute(&self.pool)
+        .await?;
+
+        info!("Created installed mod with metadata: {}", installed_mod.id);
+        Ok(())
+    }
+
+    pub async fn get_installed_mods_with_metadata(&self, server_id: &str) -> Result<Vec<InstalledModWithMetadata>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, server_id, mod_metadata_id, mod_version_id, file_path,
+                   enabled, installed_at
+            FROM installed_mods_with_metadata
+            WHERE server_id = ?
+            ORDER BY installed_at DESC
+            "#,
+        )
+        .bind(server_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let installed_mods = rows
+            .into_iter()
+        .map(|row| InstalledModWithMetadata {
+            id: row.get("id"),
+            server_id: row.get("server_id"),
+            mod_metadata: ModMetadata {
+                id: row.get("mod_metadata_id"),
+                name: row.get("mod_name"),
+                description: row.get("mod_description"),
+                author: row.get("mod_author"),
+                provider: row.get::<Option<String>, _>("mod_provider").unwrap_or_else(|| "unknown".to_string()),
+                project_id: row.get::<Option<String>, _>("mod_project_id").unwrap_or_else(|| "".to_string()),
+                slug: row.get("mod_slug"),
+                category: row.get::<Option<String>, _>("mod_category").unwrap_or_else(|| "".to_string()),
+                side: row.get::<Option<String>, _>("mod_side").unwrap_or("both".to_string()),
+                website_url: row.get("mod_website_url"),
+                source_url: row.get("mod_source_url"),
+                issues_url: row.get("mod_issues_url"),
+                created_at: row.get("mod_created_at"),
+                updated_at: row.get("mod_updated_at"),
+            },
+                mod_version: ModVersion {
+                    id: row.get("mod_version_id"),
+                    mod_metadata_id: row.get("mod_metadata_id"),
+                    version: row.get("mod_version"),
+                    minecraft_version: row.get("mod_minecraft_version"),
+                    loader: row.get("mod_loader"),
+                    filename: row.get("mod_filename"),
+                    file_size: row.get::<i64, _>("mod_file_size") as u64,
+                    sha1: row.get("mod_sha1"),
+                    sha256: row.get("mod_sha256"),
+                    sha512: row.get("mod_sha512"),
+                    download_url: row.get("mod_download_url"),
+                    release_type: row.get("mod_release_type"),
+                    created_at: row.get("mod_version_created_at"),
+                    updated_at: row.get("mod_version_updated_at"),
+                },
+                file_path: row.get("file_path"),
+                enabled: row.get("enabled"),
+                installed_at: row.get("installed_at"),
+            })
+            .collect();
+
+        Ok(installed_mods)
+    }
+
+    pub async fn create_mod_dependency(&self, dependency: &ModDependency) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO mod_dependencies (
+                id, mod_metadata_id, dependency_mod_id, version_range,
+                required, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(&dependency.id)
+        .bind(&dependency.mod_metadata_id)
+        .bind(&dependency.dependency_mod_id)
+        .bind(&dependency.version_range)
+        .bind(dependency.required)
+        .bind(dependency.created_at)
+        .execute(&self.pool)
+        .await?;
+
+        info!("Created mod dependency: {}", dependency.id);
+        Ok(())
+    }
+
+    pub async fn get_mod_dependencies(&self, mod_metadata_id: &str) -> Result<Vec<ModDependency>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, mod_metadata_id, dependency_mod_id, version_range,
+                   required, created_at
+            FROM mod_dependencies
+            WHERE mod_metadata_id = ?
+            ORDER BY created_at
+            "#,
+        )
+        .bind(mod_metadata_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let dependencies = rows
+            .into_iter()
+            .map(|row| ModDependency {
+                id: row.get("id"),
+                mod_metadata_id: row.get("mod_metadata_id"),
+                dependency_mod_id: row.get("dependency_mod_id"),
+                version_range: row.get("version_range"),
+                required: row.get("required"),
+                side: row.get::<Option<String>, _>("side").unwrap_or("both".to_string()),
+                created_at: row.get("created_at"),
+            })
+            .collect();
+
+        Ok(dependencies)
+    }
+
+    /// Search mods by name, category, or provider
+    pub async fn search_mod_metadata(
+        &self,
+        query: Option<&str>,
+        category: Option<&str>,
+        provider: Option<&str>,
+        side: Option<&str>,
+        limit: Option<u32>,
+    ) -> Result<Vec<ModMetadata>> {
+        let mut sql = "SELECT id, name, description, author, provider, project_id, slug, category, side, website_url, source_url, issues_url, created_at, updated_at FROM mod_metadata WHERE 1=1".to_string();
+        let mut params = Vec::new();
+
+        if let Some(q) = query {
+            sql.push_str(" AND (name LIKE ? OR description LIKE ?)");
+            params.push(format!("%{}%", q));
+            params.push(format!("%{}%", q));
+        }
+        if let Some(cat) = category {
+            sql.push_str(" AND category = ?");
+            params.push(cat.to_string());
+        }
+        if let Some(prov) = provider {
+            sql.push_str(" AND provider = ?");
+            params.push(prov.to_string());
+        }
+        if let Some(s) = side {
+            sql.push_str(" AND side = ?");
+            params.push(s.to_string());
+        }
+
+        sql.push_str(" ORDER BY name");
+        
+        if let Some(l) = limit {
+            sql.push_str(&format!(" LIMIT {}", l));
+        }
+
+        let mut query_builder = sqlx::query(&sql);
+        for param in params {
+            query_builder = query_builder.bind(param);
+        }
+
+        let rows = query_builder.fetch_all(&self.pool).await?;
+
+        let metadata = rows
+            .into_iter()
+            .map(|row| ModMetadata {
+                id: row.get("id"),
+                name: row.get("name"),
+                description: row.get("description"),
+                author: row.get("author"),
+                provider: row.get("provider"),
+                project_id: row.get("project_id"),
+                slug: row.get("slug"),
+                category: row.get("category"),
+                side: row.get("side"),
+                website_url: row.get("website_url"),
+                source_url: row.get("source_url"),
+                issues_url: row.get("issues_url"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            })
+            .collect();
+
+        Ok(metadata)
     }
 }
 

@@ -1,7 +1,6 @@
-use std::process::{Command, Stdio};
+use std::process::Command;
 use std::time::Duration;
 use std::thread;
-use std::fs;
 use std::path::Path;
 use serde_json::json;
 use reqwest::Client;
@@ -205,7 +204,8 @@ async fn test_mod_management(client: &Client) -> Result<(), Box<dyn std::error::
     }
     
     let search_results: serde_json::Value = response.json().await?;
-    let mods = search_results["data"].as_array().unwrap_or(&vec![]);
+    let empty_vec = vec![];
+    let mods = search_results["data"].as_array().unwrap_or(&empty_vec);
     println!("    ✅ Mod search completed ({} results)", mods.len());
     
     if !mods.is_empty() {
@@ -268,7 +268,8 @@ async fn test_backup_management(client: &Client) -> Result<(), Box<dyn std::erro
     
     if response.status().is_success() {
         let backups: serde_json::Value = response.json().await?;
-        let backup_list = backups["data"].as_array().unwrap_or(&vec![]);
+        let empty_vec = vec![];
+        let backup_list = backups["data"].as_array().unwrap_or(&empty_vec);
         println!("    ✅ Backup list retrieved ({} backups)", backup_list.len());
     } else {
         println!("    ⚠️  Backup list check failed");
@@ -333,7 +334,8 @@ async fn test_compatibility_analysis(client: &Client) -> Result<(), Box<dyn std:
     
     if response.status().is_success() {
         let issues: serde_json::Value = response.json().await?;
-        let issue_list = issues["data"].as_array().unwrap_or(&vec![]);
+        let empty_vec = vec![];
+        let issue_list = issues["data"].as_array().unwrap_or(&empty_vec);
         println!("    ✅ Compatibility issues retrieved ({} issues)", issue_list.len());
     } else {
         println!("    ⚠️  Compatibility issues check failed");
@@ -347,7 +349,8 @@ async fn test_compatibility_analysis(client: &Client) -> Result<(), Box<dyn std:
     
     if response.status().is_success() {
         let risk_analysis: serde_json::Value = response.json().await?;
-        let risk_list = risk_analysis["data"].as_array().unwrap_or(&vec![]);
+        let empty_vec = vec![];
+        let risk_list = risk_analysis["data"].as_array().unwrap_or(&empty_vec);
         println!("    ✅ Risk analysis retrieved ({} mods analyzed)", risk_list.len());
     } else {
         println!("    ⚠️  Risk analysis check failed");

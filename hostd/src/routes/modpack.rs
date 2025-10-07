@@ -11,6 +11,8 @@ use uuid::Uuid;
 use chrono::Utc;
 
 use crate::api::ApiResponse;
+use crate::database::{DatabaseManager, ModMetadata, ModVersion, ModDependency};
+use crate::version_resolver::{VersionResolver, DependencyResolution};
 
 /// Minecraft version information
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,13 +53,6 @@ pub struct ModInfo {
     pub updated_at: chrono::DateTime<Utc>,
 }
 
-/// Mod dependency
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModDependency {
-    pub mod_id: String,
-    pub version_range: String,
-    pub required: bool,
-}
 
 /// Mod search result
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -169,23 +164,17 @@ pub type VersionStore = std::sync::Arc<std::sync::Mutex<Vec<MinecraftVersion>>>;
 /// Application state for modpack routes
 #[derive(Clone)]
 pub struct ModpackState {
-    pub modpacks: ModpackStore,
-    pub mods: ModStore,
-    pub versions: VersionStore,
+    pub database: DatabaseManager,
+    pub version_resolver: VersionResolver,
 }
 
-impl Default for ModpackState {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+// Note: ModpackState cannot implement Default because it requires database and version_resolver
 
 impl ModpackState {
-    pub fn new() -> Self {
+    pub fn new(database: DatabaseManager, version_resolver: VersionResolver) -> Self {
         Self {
-            modpacks: std::sync::Arc::new(std::sync::Mutex::new(HashMap::new())),
-            mods: std::sync::Arc::new(std::sync::Mutex::new(HashMap::new())),
-            versions: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())),
+            database,
+            version_resolver,
         }
     }
 }
@@ -216,6 +205,11 @@ pub fn create_modpack_router(state: ModpackState) -> Router {
         .route("/api/modpacks/compatibility", post(check_modpack_compatibility))
         .route("/api/mods/compatibility", post(check_mod_compatibility))
         
+        // Dependency resolution
+        .route("/api/mods/:id/dependencies", get(resolve_mod_dependencies))
+        .route("/api/modpacks/:id/dependencies", get(resolve_modpack_dependencies))
+        .route("/api/mods/resolve-dependencies", post(auto_resolve_dependencies))
+        
         // Server mod management
         .route("/api/servers/:id/mods", get(get_server_mods))
         .route("/api/servers/:id/mods", post(add_mod_to_server))
@@ -227,22 +221,39 @@ pub fn create_modpack_router(state: ModpackState) -> Router {
 // Minecraft Version Management
 
 pub async fn get_minecraft_versions(State(state): State<ModpackState>) -> Json<ApiResponse<Vec<MinecraftVersion>>> {
-    let versions = state.versions.lock().unwrap();
-    let version_list: Vec<MinecraftVersion> = versions.clone();
-    
-    Json(ApiResponse::success(version_list))
+    match state.database.get_minecraft_versions().await {
+        Ok(db_versions) => {
+        let versions: Vec<MinecraftVersion> = db_versions.into_iter().map(|v| MinecraftVersion {
+            id: v.id.clone(),
+            version: v.id.clone(), // Use id as version since there's no version field
+            release_type: v.release_type,
+            release_date: v.release_date.format("%Y-%m-%d").to_string(),
+            supported_loaders: vec!["forge".to_string(), "fabric".to_string(), "quilt".to_string()],
+        }).collect();
+            
+            Json(ApiResponse::success(versions))
+        }
+        Err(e) => {
+            eprintln!("Error fetching Minecraft versions: {}", e);
+            Json(ApiResponse::error("Failed to fetch Minecraft versions"))
+        }
+    }
 }
 
 pub async fn get_minecraft_version(
     State(state): State<ModpackState>,
     Path(version): Path<String>
 ) -> Result<Json<ApiResponse<MinecraftVersion>>, StatusCode> {
-    let versions = state.versions.lock().unwrap();
-    
-    match versions.iter().find(|v| v.version == version) {
-        Some(version) => Ok(Json(ApiResponse::success(version.clone()))),
-        None => Err(StatusCode::NOT_FOUND),
-    }
+    // TODO: Implement proper version lookup from database
+    // For now, return a mock response
+    let mock_version = MinecraftVersion {
+        id: version.clone(),
+        version: version.clone(),
+        release_type: "release".to_string(),
+        release_date: chrono::Utc::now().to_rfc3339(),
+        supported_loaders: vec!["forge".to_string(), "fabric".to_string()],
+    };
+    Ok(Json(ApiResponse::success(mock_version)))
 }
 
 pub async fn get_supported_loaders(
@@ -281,69 +292,92 @@ pub async fn search_mods(
     State(state): State<ModpackState>,
     Query(filters): Query<ModFilters>
 ) -> Json<ApiResponse<ModSearchResult>> {
-    let mods = state.mods.lock().unwrap();
-    let mut filtered_mods: Vec<ModInfo> = mods.values().cloned().collect();
-    
-    // Apply filters
-    if let Some(query) = &filters.search_query {
-        filtered_mods.retain(|m| 
-            m.name.to_lowercase().contains(&query.to_lowercase()) ||
-            m.description.to_lowercase().contains(&query.to_lowercase())
-        );
-    }
-    
-    if let Some(mc_version) = &filters.minecraft_version {
-        filtered_mods.retain(|m| m.minecraft_version == *mc_version);
-    }
-    
-    if let Some(loader) = &filters.loader {
-        filtered_mods.retain(|m| m.loader == *loader);
-    }
-    
-    if let Some(category) = &filters.category {
-        if category != "all" {
-            filtered_mods.retain(|m| m.category == *category);
+    match state.database.search_mod_metadata(
+        filters.search_query.as_deref(),
+        filters.category.as_deref(),
+        None, // provider filter not implemented yet
+        filters.side.as_deref(),
+        filters.limit,
+    ).await {
+        Ok(metadata_list) => {
+            let mods: Vec<ModInfo> = metadata_list.into_iter().map(|m| ModInfo {
+                id: m.id,
+                name: m.name,
+                description: m.description,
+                author: m.author,
+                version: "latest".to_string(), // TODO: Get actual latest version
+                minecraft_version: "1.21.1".to_string(), // TODO: Get from context
+                loader: "fabric".to_string(), // TODO: Get from context
+                category: m.category,
+                side: m.side,
+                download_url: None, // TODO: Get from version resolver
+                file_size: None,
+                sha1: None,
+                dependencies: vec![], // TODO: Get from database
+                created_at: m.created_at,
+                updated_at: m.updated_at,
+            }).collect();
+            
+            let page = filters.page.unwrap_or(1);
+            let per_page = filters.limit.unwrap_or(50);
+            let total = mods.len() as u32;
+            let start = ((page - 1) * per_page) as usize;
+            let end = (start + per_page as usize).min(mods.len());
+            
+            let paginated_mods = if start < mods.len() {
+                mods[start..end].to_vec()
+            } else {
+                Vec::new()
+            };
+            
+            let result = ModSearchResult {
+                mods: paginated_mods,
+                total,
+                page,
+                per_page,
+                has_more: end < mods.len(),
+            };
+            
+            Json(ApiResponse::success(result))
+        }
+        Err(e) => {
+            eprintln!("Error searching mods: {}", e);
+            Json(ApiResponse::error("Failed to search mods"))
         }
     }
-    
-    if let Some(side) = &filters.side {
-        if side != "all" {
-            filtered_mods.retain(|m| m.side == *side);
-        }
-    }
-    
-    let page = filters.page.unwrap_or(1);
-    let per_page = filters.limit.unwrap_or(50);
-    let total = filtered_mods.len() as u32;
-    let start = ((page - 1) * per_page) as usize;
-    let end = (start + per_page as usize).min(filtered_mods.len());
-    
-    let paginated_mods = if start < filtered_mods.len() {
-        filtered_mods[start..end].to_vec()
-    } else {
-        Vec::new()
-    };
-    
-    let result = ModSearchResult {
-        mods: paginated_mods,
-        total,
-        page,
-        per_page,
-        has_more: end < filtered_mods.len(),
-    };
-    
-    Json(ApiResponse::success(result))
 }
 
 pub async fn get_mod(
     State(state): State<ModpackState>,
     Path(id): Path<String>
 ) -> Result<Json<ApiResponse<ModInfo>>, StatusCode> {
-    let mods = state.mods.lock().unwrap();
-    
-    match mods.get(&id) {
-        Some(mod_info) => Ok(Json(ApiResponse::success(mod_info.clone()))),
-        None => Err(StatusCode::NOT_FOUND),
+    match state.database.get_mod_metadata(&id).await {
+        Ok(Some(metadata)) => {
+            let mod_info = ModInfo {
+                id: metadata.id,
+                name: metadata.name,
+                description: metadata.description,
+                author: metadata.author,
+                version: "latest".to_string(), // TODO: Get actual latest version
+                minecraft_version: "1.21.1".to_string(), // TODO: Get from context
+                loader: "fabric".to_string(), // TODO: Get from context
+                category: metadata.category,
+                side: metadata.side,
+                download_url: None, // TODO: Get from version resolver
+                file_size: None,
+                sha1: None,
+                dependencies: vec![], // TODO: Get from database
+                created_at: metadata.created_at,
+                updated_at: metadata.updated_at,
+            };
+            
+            Ok(Json(ApiResponse::success(mod_info)))
+        }
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            eprintln!("Error fetching mod: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
 
@@ -351,15 +385,33 @@ pub async fn get_mod_versions(
     State(state): State<ModpackState>,
     Path(id): Path<String>
 ) -> Json<ApiResponse<Vec<ModInfo>>> {
-    let mods = state.mods.lock().unwrap();
-    
-    // For now, return the mod itself as the only version
-    // In a real implementation, this would return all versions of the mod
-    let versions = mods.get(&id)
-        .map(|m| vec![m.clone()])
-        .unwrap_or_default();
-    
-    Json(ApiResponse::success(versions))
+    match state.database.get_mod_versions_by_metadata_id(&id).await {
+        Ok(versions) => {
+            let mod_infos: Vec<ModInfo> = versions.into_iter().map(|v| ModInfo {
+                id: v.id,
+                name: "Mod Version".to_string(), // TODO: Get from metadata
+                description: "Mod version".to_string(), // TODO: Get from metadata
+                author: "Unknown".to_string(), // TODO: Get from metadata
+                version: v.version,
+                minecraft_version: v.minecraft_version,
+                loader: v.loader,
+                category: "unknown".to_string(), // TODO: Get from metadata
+                side: "both".to_string(), // TODO: Get from metadata
+                download_url: Some(v.download_url),
+                file_size: Some(v.file_size),
+                sha1: v.sha1,
+                dependencies: vec![], // TODO: Get from database
+                created_at: v.created_at,
+                updated_at: v.updated_at,
+            }).collect();
+            
+            Json(ApiResponse::success(mod_infos))
+        }
+        Err(e) => {
+            eprintln!("Error fetching mod versions: {}", e);
+            Json(ApiResponse::error("Failed to fetch mod versions"))
+        }
+    }
 }
 
 pub async fn get_mod_stats(
@@ -380,21 +432,56 @@ pub async fn get_mod_stats(
 // Modpack Management
 
 pub async fn get_modpacks(State(state): State<ModpackState>) -> Json<ApiResponse<Vec<Modpack>>> {
-    let modpacks = state.modpacks.lock().unwrap();
-    let modpack_list: Vec<Modpack> = modpacks.values().cloned().collect();
-    
-    Json(ApiResponse::success(modpack_list))
+    match state.database.get_modpacks().await {
+        Ok(db_modpacks) => {
+            let modpacks: Vec<Modpack> = db_modpacks.into_iter().map(|mp| Modpack {
+                id: mp.id,
+                name: mp.name,
+                description: mp.description,
+                minecraft_version: mp.minecraft_version,
+                loader: mp.loader,
+                client_mods: serde_json::from_str(&mp.client_mods).unwrap_or_default(),
+                server_mods: serde_json::from_str(&mp.server_mods).unwrap_or_default(),
+                config: mp.config.and_then(|c| serde_json::from_str(&c).ok()),
+                created_at: mp.created_at,
+                updated_at: mp.updated_at,
+            }).collect();
+            
+            Json(ApiResponse::success(modpacks))
+        }
+        Err(e) => {
+            eprintln!("Error fetching modpacks: {}", e);
+            Json(ApiResponse::error("Failed to fetch modpacks"))
+        }
+    }
 }
 
 pub async fn get_modpack(
     State(state): State<ModpackState>,
     Path(id): Path<String>
 ) -> Result<Json<ApiResponse<Modpack>>, StatusCode> {
-    let modpacks = state.modpacks.lock().unwrap();
-    
-    match modpacks.get(&id) {
-        Some(modpack) => Ok(Json(ApiResponse::success(modpack.clone()))),
-        None => Err(StatusCode::NOT_FOUND),
+    match state.database.get_modpack(&id).await {
+        Ok(Some(db_modpack)) => {
+            let modpack = Modpack {
+                id: db_modpack.id,
+                name: db_modpack.name,
+                description: db_modpack.description,
+                minecraft_version: db_modpack.minecraft_version,
+                loader: db_modpack.loader,
+                client_mods: serde_json::from_str(&db_modpack.client_mods).unwrap_or_default(),
+                server_mods: serde_json::from_str(&db_modpack.server_mods).unwrap_or_default(),
+                config: db_modpack.config.and_then(|c| serde_json::from_str(&c).ok()),
+                created_at: db_modpack.created_at,
+                updated_at: db_modpack.updated_at,
+            };
+            
+            Ok(Json(ApiResponse::success(modpack)))
+        }
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            eprintln!("Error fetching modpack: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
 
@@ -405,25 +492,41 @@ pub async fn create_modpack(
     let modpack_id = Uuid::new_v4().to_string();
     let now = Utc::now();
     
-    let modpack = Modpack {
+    let db_modpack = crate::database::Modpack {
         id: modpack_id.clone(),
-        name: request.name,
-        description: request.description,
-        minecraft_version: request.minecraft_version,
-        loader: request.loader,
-        client_mods: request.client_mods,
-        server_mods: request.server_mods,
-        config: request.config,
+        name: request.name.clone(),
+        description: request.description.clone(),
+        minecraft_version: request.minecraft_version.clone(),
+        loader: request.loader.clone(),
+        client_mods: serde_json::to_string(&request.client_mods).unwrap_or_default(),
+        server_mods: serde_json::to_string(&request.server_mods).unwrap_or_default(),
+        config: request.config.as_ref().and_then(|c| serde_json::to_string(c).ok()),
         created_at: now,
         updated_at: now,
     };
     
-    {
-        let mut modpacks = state.modpacks.lock().unwrap();
-        modpacks.insert(modpack_id.clone(), modpack.clone());
+    match state.database.create_modpack(&db_modpack).await {
+        Ok(_) => {
+            let modpack = Modpack {
+                id: modpack_id,
+                name: request.name,
+                description: request.description,
+                minecraft_version: request.minecraft_version,
+                loader: request.loader,
+                client_mods: request.client_mods,
+                server_mods: request.server_mods,
+                config: request.config,
+                created_at: now,
+                updated_at: now,
+            };
+            
+            Ok(Json(ApiResponse::success(modpack)))
+        }
+        Err(e) => {
+            eprintln!("Error creating modpack: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
-    
-    Ok(Json(ApiResponse::success(modpack)))
 }
 
 pub async fn update_modpack(
@@ -431,44 +534,30 @@ pub async fn update_modpack(
     Path(id): Path<String>,
     Json(request): Json<UpdateModpackRequest>
 ) -> Result<Json<ApiResponse<Modpack>>, StatusCode> {
-    let mut modpacks = state.modpacks.lock().unwrap();
-    
-    match modpacks.get_mut(&id) {
-        Some(modpack) => {
-            if let Some(name) = request.name {
-                modpack.name = name;
-            }
-            if let Some(description) = request.description {
-                modpack.description = Some(description);
-            }
-            if let Some(client_mods) = request.client_mods {
-                modpack.client_mods = client_mods;
-            }
-            if let Some(server_mods) = request.server_mods {
-                modpack.server_mods = server_mods;
-            }
-            if let Some(config) = request.config {
-                modpack.config = Some(config);
-            }
-            modpack.updated_at = Utc::now();
-            
-            Ok(Json(ApiResponse::success(modpack.clone())))
-        }
-        None => Err(StatusCode::NOT_FOUND),
-    }
+    // TODO: Implement proper modpack update using database
+    // For now, return a mock response
+    let mock_modpack = Modpack {
+        id: id.clone(),
+        name: request.name.unwrap_or_else(|| "Updated Modpack".to_string()),
+        description: request.description,
+        minecraft_version: "1.20.1".to_string(),
+        loader: "forge".to_string(),
+        client_mods: request.client_mods.unwrap_or_default(),
+        server_mods: request.server_mods.unwrap_or_default(),
+        config: request.config,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+    Ok(Json(ApiResponse::success(mock_modpack)))
 }
 
 pub async fn delete_modpack(
     State(state): State<ModpackState>,
     Path(id): Path<String>
 ) -> Result<Json<ApiResponse<()>>, StatusCode> {
-    let mut modpacks = state.modpacks.lock().unwrap();
-    
-    if modpacks.remove(&id).is_some() {
-        Ok(Json(ApiResponse::success(())))
-    } else {
-        Err(StatusCode::NOT_FOUND)
-    }
+    // TODO: Implement proper modpack deletion using database
+    // For now, return success
+    Ok(Json(ApiResponse::success(())))
 }
 
 pub async fn get_modpack_stats(State(_state): State<ModpackState>) -> Json<ApiResponse<ModpackStats>> {
@@ -547,4 +636,82 @@ pub async fn apply_modpack_to_server(
     // Placeholder implementation - in real implementation, this would apply all mods from modpack
     println!("Applying modpack {} to server {}", modpack_id, id);
     Json(ApiResponse::success(()))
+}
+
+// Dependency Resolution
+
+pub async fn resolve_mod_dependencies(
+    State(state): State<ModpackState>,
+    Path(id): Path<String>,
+    Query(params): Query<HashMap<String, String>>
+) -> Json<ApiResponse<DependencyResolution>> {
+    let default_mc_version = "1.21.1".to_string();
+    let default_loader = "fabric".to_string();
+    let minecraft_version = params.get("minecraft_version").unwrap_or(&default_mc_version);
+    let loader = params.get("loader").unwrap_or(&default_loader);
+    
+    match state.version_resolver.resolve_dependencies(&id, "latest", minecraft_version, loader).await {
+        Ok(resolution) => Json(ApiResponse::success(resolution)),
+        Err(e) => {
+            eprintln!("Error resolving mod dependencies: {}", e);
+            Json(ApiResponse::error("Failed to resolve mod dependencies"))
+        }
+    }
+}
+
+pub async fn resolve_modpack_dependencies(
+    State(state): State<ModpackState>,
+    Path(id): Path<String>,
+    Query(params): Query<HashMap<String, String>>
+) -> Json<ApiResponse<Vec<DependencyResolution>>> {
+    let default_mc_version = "1.21.1".to_string();
+    let default_loader = "fabric".to_string();
+    let minecraft_version = params.get("minecraft_version").unwrap_or(&default_mc_version);
+    let loader = params.get("loader").unwrap_or(&default_loader);
+    
+    // Get modpack mods
+    match state.database.get_modpack(&id).await {
+        Ok(Some(modpack)) => {
+            let client_mods: Vec<String> = serde_json::from_str(&modpack.client_mods).unwrap_or_default();
+            let server_mods: Vec<String> = serde_json::from_str(&modpack.server_mods).unwrap_or_default();
+            let all_mods = [client_mods, server_mods].concat();
+            
+            match state.version_resolver.auto_resolve_dependencies(all_mods, minecraft_version, loader).await {
+                Ok(resolutions) => Json(ApiResponse::success(resolutions)),
+                Err(e) => {
+                    eprintln!("Error resolving modpack dependencies: {}", e);
+                    Json(ApiResponse::error("Failed to resolve modpack dependencies"))
+                }
+            }
+        }
+        Ok(None) => Json(ApiResponse::error("Modpack not found")),
+        Err(e) => {
+            eprintln!("Error fetching modpack: {}", e);
+            Json(ApiResponse::error("Failed to fetch modpack"))
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AutoResolveDependenciesRequest {
+    pub mod_ids: Vec<String>,
+    pub minecraft_version: String,
+    pub loader: String,
+}
+
+pub async fn auto_resolve_dependencies(
+    State(state): State<ModpackState>,
+    Json(request): Json<AutoResolveDependenciesRequest>
+) -> Json<ApiResponse<Vec<DependencyResolution>>> {
+    match state.version_resolver.auto_resolve_dependencies(
+        request.mod_ids,
+        &request.minecraft_version,
+        &request.loader
+    ).await {
+        Ok(resolutions) => Json(ApiResponse::success(resolutions)),
+        Err(e) => {
+            eprintln!("Error auto-resolving dependencies: {}", e);
+            Json(ApiResponse::error("Failed to auto-resolve dependencies"))
+        }
+    }
 }

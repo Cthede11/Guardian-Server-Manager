@@ -454,6 +454,85 @@ export const apiClient = {
   async retryAssignment(assignmentId: string): Promise<any> {
     return apiCall(`/api/sharding/assignments/${assignmentId}/retry`, { method: 'POST' });
   },
+
+  // App Settings
+  async getAppSettings(): Promise<{ ok: boolean; data?: any; error?: string }> {
+    try {
+      const response = await apiCall<{ success: boolean; data: any; error?: string }>('/api/settings');
+      return {
+        ok: response.success,
+        data: response.data,
+        error: response.error
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : 'Failed to get app settings'
+      };
+    }
+  },
+  async updateAppSettings(updates: any): Promise<{ ok: boolean; data?: any; error?: string }> {
+    try {
+      const response = await apiCall<{ success: boolean; data: any; error?: string }>('/api/settings', {
+        method: 'PUT',
+        body: JSON.stringify(updates)
+      });
+      return {
+        ok: response.success,
+        data: response.data,
+        error: response.error
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : 'Failed to update app settings'
+      };
+    }
+  },
+
+  // API Keys
+  async getApiKeys(): Promise<{ ok: boolean; data?: any; error?: string }> {
+    try {
+      const response = await apiCall<{ success: boolean; data: any; error?: string }>('/api/settings');
+      return {
+        ok: response.success,
+        data: response.data,
+        error: response.error
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : 'Failed to get API keys'
+      };
+    }
+  },
+  async testApiKey(provider: string, apiKey: string): Promise<{ ok: boolean; data?: any; error?: string }> {
+    try {
+      const payload: any = {};
+      if (provider === 'curseforge') {
+        payload.cf_api_key = apiKey;
+      } else if (provider === 'modrinth') {
+        payload.modrinth_token = apiKey;
+      } else if (provider === 'github') {
+        payload.github_token = apiKey;
+      }
+
+      const response = await apiCall<{ success: boolean; data: any; error?: string }>('/api/settings/validate/api-keys', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      return {
+        ok: response.success,
+        data: response.data,
+        error: response.error
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : 'Failed to test API key'
+      };
+    }
+  },
 };
 
 // Events for real-time communication
@@ -476,6 +555,59 @@ export const events = {
   },
   subscribeToHealth(serverId: string, callback: (data: any) => void): Promise<() => void> {
     return import('./websocket').then(ws => ws.realtimeConnection.subscribe('health', callback));
+  },
+
+  // GPU Management API
+  async getGPUStatus() {
+    const base = await getAPI_BASE();
+    const response = await fetch(`${base}/api/gpu/status`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    return response.json();
+  },
+
+  async getGPUMetrics() {
+    const base = await getAPI_BASE();
+    const response = await fetch(`${base}/api/gpu/metrics`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    return response.json();
+  },
+
+  async enableGPU() {
+    const base = await getAPI_BASE();
+    const response = await fetch(`${base}/api/gpu/enable`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    return response.json();
+  },
+
+  async disableGPU() {
+    const base = await getAPI_BASE();
+    const response = await fetch(`${base}/api/gpu/disable`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    return response.json();
+  },
+
+  async submitGPUJob(job: any) {
+    const base = await getAPI_BASE();
+    const response = await fetch(`${base}/api/gpu/job/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(job),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    return response.json();
+  },
+
+  async getGPUJobStatus(jobId: string) {
+    const base = await getAPI_BASE();
+    const response = await fetch(`${base}/api/gpu/job/${jobId}/status`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    return response.json();
   },
 };
 

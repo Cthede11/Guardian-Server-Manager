@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { GPUMetrics } from './GPUMetrics';
 import { 
   Cpu, 
   MemoryStick, 
@@ -16,7 +18,8 @@ import {
   Activity,
   Monitor,
   Layers,
-  Shield
+  Shield,
+  Beaker
 } from 'lucide-react';
 
 interface GPUSettingsData {
@@ -265,6 +268,23 @@ export const GPUSettings: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col space-y-6">
+      {/* Experimental Warning */}
+      <Card className="border-orange-200 bg-orange-50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-orange-800">
+            <Beaker className="h-5 w-5" />
+            Experimental Feature
+          </CardTitle>
+          <CardDescription className="text-orange-700">
+            GPU acceleration is an experimental feature. It may cause instability or crashes. 
+            Use with caution and ensure you have proper GPU drivers installed.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+
+      {/* GPU Metrics */}
+      <GPUMetrics />
+
       {/* GPU Worker Settings */}
       <Card>
         <CardHeader>

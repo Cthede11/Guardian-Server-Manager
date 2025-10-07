@@ -17,10 +17,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
+import { type ServerFormData } from '@/lib/validation/server-schema';
 
 interface StepReviewProps {
-  formData: any;
-  updateFormData: (updates: any) => void;
+  formData: ServerFormData;
+  updateFormData: (updates: Partial<ServerFormData>) => void;
   errors: Record<string, string>;
   versions: string[];
   isLoadingVersions: boolean;
@@ -187,10 +188,10 @@ export const StepReview: React.FC<StepReviewProps> = ({
                 <span className="text-sm font-medium">World Type</span>
                 <span className="text-sm">{getWorldTypeLabel(formData.worldType)}</span>
               </div>
-              {formData.worldSeed && (
+              {formData.levelSeed && (
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Seed</span>
-                  <span className="text-sm font-mono text-xs">{formData.worldSeed}</span>
+                  <span className="text-sm font-mono text-xs">{formData.levelSeed}</span>
                 </div>
               )}
               <div className="flex items-center justify-between">

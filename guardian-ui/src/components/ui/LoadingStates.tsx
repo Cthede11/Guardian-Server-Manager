@@ -152,6 +152,54 @@ export const HeaderLoading: React.FC = () => (
   </div>
 );
 
+// Enhanced loading states for specific components
+export const ModsGridLoading: React.FC<{ count?: number }> = ({ count = 8 }) => (
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+    {Array.from({ length: count }).map((_, i) => (
+      <div key={i} className="bg-white rounded-lg border border-gray-200 p-4 animate-pulse">
+        <div className="h-4 bg-gray-200 rounded mb-2"></div>
+        <div className="h-3 bg-gray-200 rounded mb-4 w-3/4"></div>
+        <div className="flex space-x-2 mb-4">
+          <div className="h-6 bg-gray-200 rounded w-16"></div>
+          <div className="h-6 bg-gray-200 rounded w-20"></div>
+        </div>
+        <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+      </div>
+    ))}
+  </div>
+);
+
+export const ModpacksGridLoading: React.FC<{ count?: number }> = ({ count = 6 }) => (
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {Array.from({ length: count }).map((_, i) => (
+      <div key={i} className="bg-white rounded-lg border border-gray-200 p-6 animate-pulse">
+        <div className="h-6 bg-gray-200 rounded mb-3"></div>
+        <div className="h-4 bg-gray-200 rounded mb-4 w-3/4"></div>
+        <div className="space-y-2">
+          <div className="h-3 bg-gray-200 rounded"></div>
+          <div className="h-3 bg-gray-200 rounded w-5/6"></div>
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+export const ModsTableLoading: React.FC<{ count?: number }> = ({ count = 5 }) => (
+  <div className="space-y-2">
+    {Array.from({ length: count }).map((_, i) => (
+      <div key={i} className="flex items-center space-x-4 p-4 border rounded-lg animate-pulse">
+        <div className="h-10 w-10 bg-gray-200 rounded"></div>
+        <div className="flex-1 space-y-2">
+          <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+          <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+        </div>
+        <div className="h-6 bg-gray-200 rounded w-16"></div>
+        <div className="h-6 bg-gray-200 rounded w-20"></div>
+      </div>
+    ))}
+  </div>
+);
+
 // Hook for managing loading states
 export const useLoadingState = (initialState = false) => {
   const [isLoading, setIsLoading] = React.useState(initialState);

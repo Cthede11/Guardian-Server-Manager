@@ -461,6 +461,24 @@ export const Sidebar: React.FC = () => {
             </Link>
             
             <Link
+              to="/mod-browser"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                location.pathname === '/mod-browser' 
+                  ? 'bg-primary/15 text-primary border border-primary/20 shadow-sm' 
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              }`}
+            >
+              <div className={`w-6 h-6 rounded-md flex items-center justify-center ${
+                location.pathname === '/mod-browser' 
+                  ? 'bg-primary/20 text-primary' 
+                  : 'bg-muted/50 text-muted-foreground'
+              }`}>
+                <Package className="h-3.5 w-3.5" />
+              </div>
+              <span>Mod Browser</span>
+            </Link>
+            
+            <Link
               to="/workspace/backup-targets"
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                 location.pathname === '/workspace/backup-targets' 

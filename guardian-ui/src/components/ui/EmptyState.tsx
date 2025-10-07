@@ -228,3 +228,129 @@ export const LoadingEmptyState: React.FC<{ message?: string }> = ({
     size="sm"
   />
 );
+
+// Specific empty states for mod-related pages
+export const NoModsEmptyState: React.FC<{ 
+  onRefresh?: () => void;
+  onAdd?: () => void;
+  searchQuery?: string;
+}> = ({ onRefresh, onAdd, searchQuery }) => (
+  <EmptyState
+    icon={defaultIcons.files}
+    title={searchQuery ? "No mods found" : "No mods installed"}
+    description={
+      searchQuery 
+        ? `No mods match your search for "${searchQuery}". Try adjusting your search terms.`
+        : "No mods are currently installed on this server. Add some mods to get started."
+    }
+    action={onAdd ? {
+      label: 'Browse Mods',
+      onClick: onAdd,
+    } : undefined}
+    secondaryAction={onRefresh ? {
+      label: 'Refresh',
+      onClick: onRefresh,
+      variant: 'outline',
+    } : undefined}
+  />
+);
+
+export const NoModpacksEmptyState: React.FC<{ 
+  onRefresh?: () => void;
+  onAdd?: () => void;
+  searchQuery?: string;
+}> = ({ onRefresh, onAdd, searchQuery }) => (
+  <EmptyState
+    icon={defaultIcons.files}
+    title={searchQuery ? "No modpacks found" : "No modpacks available"}
+    description={
+      searchQuery 
+        ? `No modpacks match your search for "${searchQuery}". Try adjusting your search terms.`
+        : "No modpacks are currently available. Browse the modpack library to find some."
+    }
+    action={onAdd ? {
+      label: 'Browse Modpacks',
+      onClick: onAdd,
+    } : undefined}
+    secondaryAction={onRefresh ? {
+      label: 'Refresh',
+      onClick: onRefresh,
+      variant: 'outline',
+    } : undefined}
+  />
+);
+
+export const NoDiagnosticsEmptyState: React.FC<{ 
+  onRefresh?: () => void;
+  serverStatus?: string;
+}> = ({ onRefresh, serverStatus = 'stopped' }) => (
+  <EmptyState
+    icon={defaultIcons.charts}
+    title="No diagnostic data"
+    description={
+      serverStatus === 'stopped'
+        ? "The server is not running. Start the server to begin collecting diagnostic data."
+        : "No diagnostic data is available yet. Data will appear here as the server runs."
+    }
+    secondaryAction={onRefresh ? {
+      label: 'Refresh',
+      onClick: onRefresh,
+      variant: 'outline',
+    } : undefined}
+  />
+);
+
+export const NoShardingEmptyState: React.FC<{ 
+  onRefresh?: () => void;
+  onConfigure?: () => void;
+}> = ({ onRefresh, onConfigure }) => (
+  <EmptyState
+    icon={defaultIcons.servers}
+    title="No sharding configuration"
+    description="This server is not configured for sharding. Configure sharding to distribute load across multiple instances."
+    action={onConfigure ? {
+      label: 'Configure Sharding',
+      onClick: onConfigure,
+    } : undefined}
+    secondaryAction={onRefresh ? {
+      label: 'Refresh',
+      onClick: onRefresh,
+      variant: 'outline',
+    } : undefined}
+  />
+);
+
+export const NoRulesEmptyState: React.FC<{ 
+  onRefresh?: () => void;
+  onCreate?: () => void;
+}> = ({ onRefresh, onCreate }) => (
+  <EmptyState
+    icon={defaultIcons.settings}
+    title="No rules configured"
+    description="No mod rules are currently configured for this server. Create rules to manage mod behavior and conflicts."
+    action={onCreate ? {
+      label: 'Create Rule',
+      onClick: onCreate,
+    } : undefined}
+    secondaryAction={onRefresh ? {
+      label: 'Refresh',
+      onClick: onRefresh,
+      variant: 'outline',
+    } : undefined}
+  />
+);
+
+export const NoConflictsEmptyState: React.FC<{ 
+  onRefresh?: () => void;
+}> = ({ onRefresh }) => (
+  <EmptyState
+    icon={defaultIcons.error}
+    title="No conflicts detected"
+    description="Great! No mod conflicts have been detected on this server. All mods appear to be compatible."
+    secondaryAction={onRefresh ? {
+      label: 'Refresh',
+      onClick: onRefresh,
+      variant: 'outline',
+    } : undefined}
+  />
+);

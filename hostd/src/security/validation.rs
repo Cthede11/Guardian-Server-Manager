@@ -159,6 +159,147 @@ impl ValidationService {
         
         Ok(())
     }
+
+    /// Validate provider value (CurseForge, Modrinth, etc.)
+    pub fn validate_provider(provider: &str) -> Result<(), ValidationError> {
+        if provider.is_empty() {
+            return Err(ValidationError::new("empty"));
+        }
+        
+        let valid_providers = ["curseforge", "modrinth", "vanilla", "fabric", "quilt", "forge"];
+        if !valid_providers.contains(&provider.to_lowercase().as_str()) {
+            return Err(ValidationError::new("invalid_provider"));
+        }
+        
+        Ok(())
+    }
+
+    /// Validate server ID format
+    pub fn validate_server_id(server_id: &str) -> Result<(), ValidationError> {
+        if server_id.is_empty() {
+            return Err(ValidationError::new("empty"));
+        }
+        
+        if server_id.len() > 100 {
+            return Err(ValidationError::new("too_long"));
+        }
+        
+        // Allow alphanumeric, hyphens, and underscores
+        if !server_id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+            return Err(ValidationError::new("invalid_characters"));
+        }
+        
+        Ok(())
+    }
+
+    /// Validate mod ID format
+    pub fn validate_mod_id(mod_id: &str) -> Result<(), ValidationError> {
+        if mod_id.is_empty() {
+            return Err(ValidationError::new("empty"));
+        }
+        
+        if mod_id.len() > 100 {
+            return Err(ValidationError::new("too_long"));
+        }
+        
+        // Allow alphanumeric, hyphens, and underscores
+        if !mod_id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+            return Err(ValidationError::new("invalid_characters"));
+        }
+        
+        Ok(())
+    }
+
+    /// Validate API key format
+    pub fn validate_api_key(api_key: &str) -> Result<(), ValidationError> {
+        if api_key.is_empty() {
+            return Err(ValidationError::new("empty"));
+        }
+        
+        if api_key.len() < 10 {
+            return Err(ValidationError::new("too_short"));
+        }
+        
+        if api_key.len() > 200 {
+            return Err(ValidationError::new("too_long"));
+        }
+        
+        // Basic format validation - should be alphanumeric with possible special chars
+        if !api_key.chars().all(|c| c.is_alphanumeric() || "_-.".contains(c)) {
+            return Err(ValidationError::new("invalid_format"));
+        }
+        
+        Ok(())
+    }
+
+    /// Validate loader type
+    pub fn validate_loader(loader: &str) -> Result<(), ValidationError> {
+        if loader.is_empty() {
+            return Err(ValidationError::new("empty"));
+        }
+        
+        let valid_loaders = ["vanilla", "fabric", "quilt", "forge"];
+        if !valid_loaders.contains(&loader.to_lowercase().as_str()) {
+            return Err(ValidationError::new("invalid_loader"));
+        }
+        
+        Ok(())
+    }
+
+    /// Validate version string format
+    pub fn validate_version_string(version: &str) -> Result<(), ValidationError> {
+        if version.is_empty() {
+            return Err(ValidationError::new("empty"));
+        }
+        
+        if version.len() > 50 {
+            return Err(ValidationError::new("too_long"));
+        }
+        
+        // Basic version format validation (e.g., "1.20.1", "latest", "1.0.0")
+        if !version.chars().any(|c| c.is_numeric()) && version != "latest" {
+            return Err(ValidationError::new("invalid_format"));
+        }
+        
+        Ok(())
+    }
+
+    /// Validate memory allocation with more specific checks
+    pub fn validate_memory_allocation(memory: u32) -> Result<(), ValidationError> {
+        if memory < 512 {
+            return Err(ValidationError::new("insufficient_memory"));
+        }
+        
+        if memory > 32768 {
+            return Err(ValidationError::new("excessive_memory"));
+        }
+        
+        // Check for reasonable increments (e.g., 256MB increments)
+        if memory % 256 != 0 {
+            return Err(ValidationError::new("invalid_memory_increment"));
+        }
+        
+        Ok(())
+    }
+
+    /// Validate port range with more specific checks
+    pub fn validate_port_range(port: u16) -> Result<(), ValidationError> {
+        if port < 1024 {
+            return Err(ValidationError::new("privileged_port"));
+        }
+        
+        if port > 65535 {
+            return Err(ValidationError::new("invalid_port_range"));
+        }
+        
+        // Check for common reserved ports
+        let reserved_ports = [25565, 25566, 25575, 25576, 25577, 25578, 25579, 25580];
+        if reserved_ports.contains(&port) {
+            return Err(ValidationError::new("reserved_port"));
+        }
+        
+        Ok(())
+    }
 }
 
 /// Server creation validation

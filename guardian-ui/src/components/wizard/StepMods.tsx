@@ -21,10 +21,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { apiClient as api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import { type ServerFormData } from '@/lib/validation/server-schema';
 
 interface StepModsProps {
-  formData: any;
-  updateFormData: (updates: any) => void;
+  formData: ServerFormData;
+  updateFormData: (updates: Partial<ServerFormData>) => void;
   errors: Record<string, string>;
   versions: string[];
   isLoadingVersions: boolean;
@@ -331,7 +332,13 @@ export const StepMods: React.FC<StepModsProps> = ({
                       id="serverOnly"
                       checked={formData.modpack?.serverOnly || false}
                       onChange={(e) => updateFormData({
-                        modpack: { ...formData.modpack, serverOnly: e.target.checked }
+                        modpack: { 
+                          ...formData.modpack, 
+                          serverOnly: e.target.checked,
+                          source: formData.modpack?.source || 'curseforge',
+                          packId: formData.modpack?.packId || '',
+                          packVersionId: formData.modpack?.packVersionId || ''
+                        }
                       })}
                     />
                     <Label htmlFor="serverOnly" className="text-sm">

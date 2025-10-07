@@ -31,6 +31,14 @@ impl Default for GpuMetrics {
     }
 }
 
+/// GPU status information
+#[derive(Debug, Clone, Serialize)]
+pub struct GpuStatus {
+    pub enabled: bool,
+    pub worker_running: bool,
+    pub metrics: GpuMetrics,
+}
+
 /// GPU job types
 #[derive(Debug, Clone)]
 pub enum GpuJobType {
@@ -74,13 +82,24 @@ impl GpuManager {
                 power_usage: 0.0,
                 last_update: Instant::now(),
             })),
-            is_enabled: false, // TODO: Add GPU config to GuardianConfig
+            is_enabled: config.gpu_enabled, // Use config value, default is false
             cpu_usage_threshold: 0.8, // 80% CPU usage threshold
             last_cpu_check: Arc::new(Mutex::new(Instant::now())),
         };
 
+        // Only initialize GPU if explicitly enabled in config
         if manager.is_enabled {
-            manager.initialize_gpu().await?;
+            match manager.initialize_gpu().await {
+                Ok(_) => {
+                    info!("GPU worker initialized successfully");
+                }
+                Err(e) => {
+                    warn!("Failed to initialize GPU worker: {}. GPU features disabled.", e);
+                    manager.is_enabled = false;
+                }
+            }
+        } else {
+            info!("GPU worker disabled by configuration");
         }
 
         Ok(manager)
@@ -330,6 +349,15 @@ impl GpuManager {
         self.is_enabled
     }
 
+    /// Get GPU status
+    pub async fn get_status(&self) -> Result<GpuStatus, String> {
+        Ok(GpuStatus {
+            enabled: self.is_enabled,
+            worker_running: self.worker.is_some(),
+            metrics: self.get_metrics().await,
+        })
+    }
+
     /// Enable or disable GPU
     pub async fn set_enabled(&mut self, enabled: bool) -> Result<(), String> {
         if enabled && !self.is_enabled {
@@ -425,17 +453,11 @@ impl GpuManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::guardian_config::GpuConfig;
 
     #[tokio::test]
     async fn test_gpu_manager_creation() {
         let config = GuardianConfig {
-            gpu: GpuConfig {
-                enabled: false,
-                worker_ipc: "gpu-worker-ipc".to_string(),
-                max_memory: 1024,
-                timeout: 30,
-            },
+            gpu_enabled: false,
             ..Default::default()
         };
 

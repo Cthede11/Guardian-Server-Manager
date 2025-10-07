@@ -1,4 +1,5 @@
 // Core modules
+pub mod contracts;
 pub mod core;
 pub mod database;
 pub mod api;
@@ -12,6 +13,8 @@ pub mod lighting;
 pub mod mod_management;
 pub mod external_apis;
 pub mod modpack_installer;
+pub mod version_resolver;
+pub mod loaders;
 pub mod gpu_manager;
 pub mod compatibility_analyzer;
 pub mod performance_telemetry;

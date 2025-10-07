@@ -15,17 +15,21 @@ A comprehensive server management platform designed for modded Minecraft servers
 ### Mod Management
 - **API Integration**: Direct integration with CurseForge and Modrinth APIs
 - **Visual Mod Browser**: Tile-based interface for browsing mods
-- **Comprehensive Version Support**: Support for Minecraft versions 1.12.2 through 1.21.1
+- **Comprehensive Version Support**: Support for Minecraft versions 1.16.5 through 1.21.1
 - **Smart Search**: Advanced filtering by version, loader, and category
-- **Direct Downloads**: Links to official mod platforms for downloads
+- **Mod Installation**: Direct mod installation to servers
+- **Modpack Support**: Full modpack installation and management
+- **Dependency Resolution**: Automatic dependency installation and conflict detection
 - **API Key Management**: Secure storage and validation of API keys
 
 ### Server Administration
-- **Server Creation**: Wizard-based server setup process
+- **Server Creation Wizard**: 4-step wizard for server setup
+- **Loader Support**: Vanilla, Fabric, Quilt, and Forge server installation
 - **Server Monitoring**: Real-time status and performance tracking
-- **Server Deletion**: Complete cleanup including file system removal
-- **Folder Management**: Direct access to server directories
-- **Configuration Management**: YAML-based server configuration
+- **Server Control**: Start, stop, restart, and delete servers
+- **Console Management**: Real-time console output and command input
+- **Configuration Management**: Comprehensive server configuration options
+- **Backup System**: Automated and manual backup creation and restoration
 
 ### Backend Services
 - **Rust Backend**: High-performance server management daemon
@@ -33,17 +37,32 @@ A comprehensive server management platform designed for modded Minecraft servers
 - **API Endpoints**: RESTful API for frontend communication
 - **Process Management**: Child process supervision and management
 - **File System Operations**: Cross-platform file management
+- **WebSocket Support**: Real-time updates and progress events
+- **Health Monitoring**: System health checks and metrics
 
-## In Development
+### Security Features
+- **Input Validation**: Comprehensive validation of all inputs
+- **Path Sanitization**: Protection against directory traversal attacks
+- **Rate Limiting**: Protection against API abuse and DoS attacks
+- **Error Handling**: Safe error responses without information leakage
+- **Localhost Binding**: Secure localhost-only operation by default
 
-### Advanced Server Features
-- **GPU Acceleration**: Offload world generation to GPU using wgpu
+## Experimental Features
+
+### GPU Acceleration (Experimental)
+- **GPU Worker**: Offload world generation to GPU using wgpu
+- **Real-time Metrics**: GPU utilization, memory, temperature monitoring
+- **Safe Integration**: Off by default, graceful fallback to CPU
+- **Performance Boost**: Accelerated chunk generation and lighting
+- **Status**: Experimental - may cause instability
+
+### Advanced Features (Planned)
 - **Crash Prevention**: Non-destructive freeze/quarantine system for problematic entities
 - **Mod Compatibility Engine**: Runtime patching and conflict resolution
 - **Multi-Tenancy**: Support for multiple isolated server instances
 - **Plugin System**: Hot-reloadable plugins with sandboxed execution
 
-### AI and Analytics
+### AI and Analytics (Planned)
 - **Crash Prediction**: ML-based crash probability prediction
 - **Performance Optimization**: Automated performance tuning
 - **Anomaly Detection**: Real-time anomaly detection and alerting

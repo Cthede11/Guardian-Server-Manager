@@ -19,10 +19,11 @@ import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { type ServerFormData } from '@/lib/validation/server-schema';
 
 interface StepWorldProps {
-  formData: any;
-  updateFormData: (updates: any) => void;
+  formData: ServerFormData;
+  updateFormData: (updates: Partial<ServerFormData>) => void;
   errors: Record<string, string>;
   versions: string[];
   isLoadingVersions: boolean;
@@ -79,10 +80,10 @@ export const StepWorld: React.FC<StepWorldProps> = ({
             <div>
               <Label htmlFor="worldSeed">World Seed (Optional)</Label>
               <Input
-                id="worldSeed"
+                id="levelSeed"
                 placeholder="Enter world seed or leave empty for random"
-                value={formData.worldSeed || ''}
-                onChange={(e) => updateFormData({ worldSeed: e.target.value })}
+                value={formData.levelSeed || ''}
+                onChange={(e) => updateFormData({ levelSeed: e.target.value })}
               />
               <p className="text-xs text-muted-foreground mt-1">
                 Leave empty for a random seed
@@ -286,7 +287,7 @@ export const StepWorld: React.FC<StepWorldProps> = ({
               <Label htmlFor="quarantineBehavior">Quarantine Behavior</Label>
               <Select
                 value={formData.crashIsolation.quarantineBehavior}
-                onValueChange={(value) => updateFormData({
+                onValueChange={(value: 'pause_entity' | 'restart_region') => updateFormData({
                   crashIsolation: { ...formData.crashIsolation, quarantineBehavior: value }
                 })}
               >

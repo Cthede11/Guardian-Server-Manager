@@ -251,7 +251,7 @@ async fn main() -> Result<()> {
     let api_app_state = ApiAppState {
         websocket_manager: api_websocket_manager,
         minecraft_manager: hostd::minecraft::MinecraftManager::new(database.clone()),
-        database: database.clone(),
+        database: Arc::new(database.clone()),
         mod_manager: hostd::mod_manager::ModManager::new(std::path::PathBuf::from("mods")),
         resource_monitor: resource_monitor.clone(),
         crash_watchdog: crash_watchdog.clone(),
@@ -260,6 +260,24 @@ async fn main() -> Result<()> {
         performance_telemetry: performance_telemetry.clone(),
         sse_sender: None,
         process_manager: process_manager.clone(),
+        server_manager: Arc::new(hostd::core::server_manager::ServerManager::new(
+            Arc::new(database.clone()),
+            Arc::new(hostd::core::file_manager::FileManager::new(&hostd::core::config::MinecraftConfig {
+                server_jar_directory: std::path::PathBuf::from("./servers"),
+                world_directory: std::path::PathBuf::from("./worlds"),
+                mods_directory: std::path::PathBuf::from("./mods"),
+                config_directory: std::path::PathBuf::from("./configs"),
+                logs_directory: std::path::PathBuf::from("./logs"),
+                backups_directory: std::path::PathBuf::from("./backups"),
+                java_executable: std::path::PathBuf::from("java"),
+                default_memory: 2048,
+                default_max_players: 20,
+                default_port: 25565,
+            }).await.expect("Failed to create file manager")),
+            process_manager.clone(),
+        )),
+        secret_storage: Arc::new(hostd::security::secret_storage::SecretStorage::new()),
+        rate_limiter: Arc::new(hostd::security::rate_limiting::RateLimiter::new(hostd::security::rate_limiting::RateLimitConfig::default())),
     };
     
     // Create the main router with auth routes

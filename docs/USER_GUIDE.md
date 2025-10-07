@@ -1,519 +1,407 @@
 # Guardian Server Manager - User Guide
 
-## Table of Contents
-
-1. [Getting Started](#getting-started)
-2. [First Run Setup](#first-run-setup)
-3. [Server Management](#server-management)
-4. [Mod Management](#mod-management)
-5. [Performance Monitoring](#performance-monitoring)
-6. [Backup Management](#backup-management)
-7. [Settings Configuration](#settings-configuration)
-8. [Troubleshooting](#troubleshooting)
-9. [Advanced Features](#advanced-features)
-
 ## Getting Started
+
+Guardian Server Manager is a comprehensive tool for managing Minecraft servers with advanced features like mod management, GPU acceleration, and automated backups.
 
 ### System Requirements
 
-**Minimum Requirements:**
-- Windows 10/11, macOS 10.15+, or Linux (Ubuntu 20.04+)
-- 8GB RAM (16GB recommended)
-- 2GB free disk space
-- Java 17+ (for Minecraft servers)
-- Modern web browser (Chrome, Firefox, Safari, Edge)
-
-**Recommended Requirements:**
-- 16GB+ RAM
-- SSD storage
-- Dedicated GPU (for GPU-accelerated features)
-- Stable internet connection
+- **Operating System**: Windows 10/11 (primary), Linux (supported)
+- **RAM**: 4GB minimum, 8GB recommended
+- **Storage**: 10GB free space minimum
+- **Java**: Java 17 or higher (auto-detected)
+- **GPU**: Optional, for acceleration features
 
 ### Installation
 
-1. **Download the Application**
-   - Download the latest release from the GitHub releases page
-   - Choose the appropriate installer for your operating system
+1. Download the latest release from the GitHub repository
+2. Extract the files to your desired location
+3. Run `guardian-server-manager.exe` (Windows) or `./guardian-server-manager` (Linux)
+4. The application will start and open in your default web browser
 
-2. **Install Guardian Server Manager**
-   - **Windows**: Run the `.exe` installer and follow the setup wizard
-   - **macOS**: Open the `.dmg` file and drag the app to Applications
-   - **Linux**: Extract the `.AppImage` file and make it executable
+## First Time Setup
 
-3. **Launch the Application**
-   - The application will start automatically after installation
-   - On first run, you'll be guided through the setup wizard
+### 1. API Keys Configuration
 
-## First Run Setup
+For full functionality, you'll need API keys from mod providers:
 
-When you first launch Guardian Server Manager, you'll be presented with a setup wizard to configure your environment.
-
-### Step 1: API Keys Configuration
-
-**CurseForge API Key:**
-1. Visit [CurseForge API](https://console.curseforge.com/)
+#### CurseForge API Key
+1. Go to [CurseForge Developer Portal](https://console.curseforge.com/)
 2. Create an account and generate an API key
-3. Enter the API key in the setup wizard
+3. In Guardian, go to Settings → API Keys
+4. Enter your CurseForge API key
 
-**Modrinth API Key (Optional):**
-1. Visit [Modrinth API](https://modrinth.com/developers)
+#### Modrinth API Key
+1. Go to [Modrinth Developer Portal](https://modrinth.com/developers)
 2. Create an account and generate an API key
-3. Enter the API key for enhanced mod search capabilities
+3. In Guardian, go to Settings → API Keys
+4. Enter your Modrinth API key
 
-### Step 2: Java Configuration
+### 2. Java Detection
 
-**Automatic Detection:**
-- Guardian will attempt to automatically detect Java installations
-- Select the appropriate Java version (17+ recommended)
+Guardian will automatically detect Java installations on your system. If you have multiple Java versions, you can specify which one to use in server settings.
 
-**Manual Configuration:**
-- If auto-detection fails, browse to your Java installation directory
-- Ensure the selected Java version is compatible with your Minecraft version
+## Creating Your First Server
 
-### Step 3: Directory Setup
+### Using the Server Creation Wizard
 
-**Server Directory:**
-- Choose where to store your Minecraft servers
-- Default: `~/GuardianServers/`
-- Ensure the directory has sufficient space (10GB+ recommended)
+1. Click "Create Server" on the main dashboard
+2. Follow the 4-step wizard:
 
-**Backup Directory:**
-- Choose where to store server backups
-- Default: `~/GuardianBackups/`
-- Consider using a different drive for redundancy
+#### Step 1: Basics
+- **Server Name**: Choose a unique name (letters, numbers, hyphens only)
+- **Minecraft Version**: Select from available versions
+- **Loader**: Choose Vanilla, Fabric, Forge, or Quilt
+- **Memory**: Allocate RAM (minimum 1GB, recommended 2-4GB)
+- **Port**: Server port (default 25565)
 
-### Step 4: GPU Settings
+#### Step 2: Mods & Modpacks
+- **Modpack**: Select a modpack to install (optional)
+- **Individual Mods**: Add specific mods (optional)
+- **Search**: Use the search to find mods by name
 
-**Enable GPU Acceleration:**
-- Check this option if you have a compatible GPU
-- GPU acceleration improves chunk generation and world processing
-- Requires WebGPU support in your browser
+#### Step 3: World & Performance
+- **World Seed**: Enter a seed for world generation
+- **World Type**: Choose from Default, Flat, Large Biomes, etc.
+- **Difficulty**: Peaceful, Easy, Normal, or Hard
+- **Game Rules**: Configure PvP, command blocks, etc.
+- **Performance**: Set view distance, simulation distance
 
-**GPU Worker Configuration:**
-- Set the maximum number of GPU workers (1-8)
-- Higher values use more GPU memory but improve performance
+#### Step 4: Review & Create
+- Review all settings
+- Click "Create Server" to begin installation
 
-### Step 5: Theme and Preferences
+### Server Creation Process
 
-**Theme Selection:**
-- **Dark**: Default dark theme (recommended)
-- **Light**: Light theme for bright environments
-- **System**: Follows your operating system theme
+The creation process includes:
+1. **Validation**: Checking all parameters
+2. **Loader Installation**: Installing Fabric/Forge/Quilt if needed
+3. **Modpack Application**: Installing selected modpack
+4. **Mod Installation**: Installing individual mods
+5. **Configuration**: Setting up server properties
 
-**Notification Settings:**
-- Configure which events trigger notifications
-- Choose notification types (toast, system, sound)
+Progress is shown in real-time with WebSocket updates.
 
-## Server Management
+## Managing Servers
 
-### Creating a New Server
+### Server Dashboard
 
-Guardian features a comprehensive 4-step server creation wizard that guides you through the entire process.
+Each server has its own dashboard with:
 
-1. **Access the Server Creation Wizard**
-   - Click "Servers" in the sidebar
-   - Click the "Create New Server" button (plus icon)
-   - The wizard will open in a modal dialog
-
-2. **Step 1: Server Basics**
-   - **Server Name**: Choose a unique, descriptive name (required)
-   - **Edition**: Select Vanilla, Fabric, or Forge
-   - **Version**: Choose from available versions for your selected edition
-   - **Install Path**: Select where server files will be stored
-   - **Memory Allocation**: Set minimum and maximum RAM (with quick presets)
-   - **Java Path**: Auto-detect or manually specify Java executable
-
-3. **Step 2: Mods & Modpacks (Optional)**
-   - **Modpack Tab**: Search and install popular modpacks
-     - Choose between Modrinth and CurseForge sources
-     - View modpack details including mod counts
-     - Option to install server subset only
-   - **Individual Mods Tab**: Add specific mods
-     - Search by name with server-safe filtering
-     - Add/remove mods with visual chips
-     - Support for both Modrinth and CurseForge
-
-4. **Step 3: World & Performance**
-   - **World Settings**:
-     - World seed (optional, leave empty for random)
-     - World type (Default, Flat, or Custom)
-     - Render distance (2-32 chunks)
-   - **GPU Acceleration** (optional):
-     - Enable GPU pregeneration for faster world generation
-     - Configure radius, concurrency, and timing
-   - **Crash Isolation**:
-     - Set tick timeout and quarantine behavior
-     - Configure automatic crash recovery
-
-5. **Step 4: Review & Create**
-   - Review all your settings in organized summary cards
-   - Check resource requirements and warnings
-   - Click "Create Server" to begin the process
-   - Monitor progress with real-time status updates
-
-6. **Server Creation Process**
-   The wizard handles the entire creation process non-blocking:
-   - **Preparing**: Setting up server configuration
-   - **Installing Core**: Downloading Minecraft server files
-   - **Installing Modpack/Mods**: Adding selected content (if any)
-   - **Validating**: Checking configuration and dependencies
-   - **Finalizing**: Completing setup and preparing for launch
-
-7. **Post-Creation**
-   - Server appears in your server list
-   - Automatic navigation to server detail page
-   - Ready to start, configure, and manage your server
-
-4. **Advanced Settings**
-   - **JVM Memory**: Allocate RAM for the server (2GB+ recommended)
-   - **JVM Flags**: Custom Java Virtual Machine arguments
-   - **View Distance**: How far players can see (4-32 chunks)
-   - **Simulation Distance**: How far the server simulates (4-32 chunks)
-
-5. **Create Server**
-   - Review your configuration
-   - Click "Create Server" to proceed
+- **Status**: Running, Stopped, Starting, Stopping
+- **Players**: Online player count and list
+- **Performance**: TPS, memory usage, CPU usage
+- **Console**: Real-time server console output
+- **Files**: Access to server files and configuration
 
 ### Starting and Stopping Servers
 
-**Starting a Server:**
-1. Navigate to your server in the server list
-2. Click the "Start" button
-3. Monitor the console for startup progress
-4. The server status will change to "Running" when ready
-
-**Stopping a Server:**
-1. Click the "Stop" button on your server
-2. Choose stop method:
-   - **Graceful**: Saves world and kicks players (recommended)
-   - **Force**: Immediate shutdown (use only if necessary)
-
-**Restarting a Server:**
-1. Click the "Restart" button
-2. The server will stop gracefully and restart automatically
+1. **Start Server**: Click the "Start" button on the server dashboard
+2. **Stop Server**: Click the "Stop" button (graceful shutdown)
+3. **Restart Server**: Click the "Restart" button for quick restart
 
 ### Server Console
 
-**Viewing Console Output:**
-1. Click on your server to open the detail view
-2. Navigate to the "Console" tab
-3. View real-time server output and logs
+The console provides:
+- Real-time server output
+- Command input (type commands and press Enter)
+- Log filtering and search
+- Export logs for debugging
 
-**Sending Commands:**
-1. Type commands in the console input field
-2. Press Enter to execute
-3. Common commands:
-   - `/say <message>`: Broadcast a message
-   - `/kick <player>`: Kick a player
-   - `/ban <player>`: Ban a player
-   - `/op <player>`: Give operator privileges
-   - `/whitelist add <player>`: Add player to whitelist
+### Server Settings
 
-### Player Management
+Access server settings from the server dashboard:
 
-**Viewing Players:**
-1. Navigate to the "Players" tab in your server
-2. See all online and recently connected players
-3. View player statistics and playtime
+#### General Settings
+- Server name and description
+- Auto-start on system boot
+- Auto-restart on crash
+- JVM arguments
 
-**Player Actions:**
-- **Kick**: Remove player temporarily
-- **Ban**: Permanently ban player
-- **Whitelist**: Add/remove from whitelist
-- **Op**: Grant/revoke operator privileges
+#### World Settings
+- World seed and type
+- Difficulty and game rules
+- Player limits and permissions
+
+#### Performance Settings
+- Memory allocation
+- View distance and simulation distance
+- Chunk loading settings
+
+#### Backup Settings
+- Automatic backups
+- Backup frequency and retention
+- Backup compression
 
 ## Mod Management
 
 ### Installing Mods
 
-**Search for Mods:**
-1. Navigate to the "Mods" tab in your server
-2. Use the search bar to find mods
-3. Filter by Minecraft version, mod loader, and category
-4. Browse results from CurseForge and Modrinth
+1. Go to the Mod Browser
+2. Search for mods by name
+3. Select the mod and version
+4. Choose "Install to Server"
+5. Select target server
+6. Confirm installation
 
-**Install a Mod:**
-1. Click on a mod to view details
-2. Check compatibility and dependencies
-3. Click "Install" to add the mod
-4. The mod will be downloaded and installed automatically
+### Installing Modpacks
 
-**Bulk Mod Installation:**
-1. Select multiple mods from search results
-2. Click "Install Selected" to install all at once
-3. Review compatibility warnings before proceeding
+1. Go to the Mod Browser
+2. Switch to "Modpacks" tab
+3. Search for modpacks
+4. Select a modpack
+5. Choose "Apply to Server"
+6. Select target server
+7. Confirm application
 
 ### Managing Installed Mods
 
-**View Installed Mods:**
-1. Navigate to the "Mods" tab
-2. Switch to "Installed" view
-3. See all currently installed mods
+1. Go to your server dashboard
+2. Click on "Mods" tab
+3. View installed mods
+4. Enable/disable mods
+5. Uninstall mods
+6. Check for updates
 
-**Update Mods:**
-1. Look for mods with update indicators
-2. Click "Update" next to outdated mods
-3. Review changelog before updating
+### Mod Dependencies
 
-**Remove Mods:**
-1. Click the "Remove" button next to a mod
-2. Confirm removal
-3. The mod will be uninstalled and removed
+Guardian automatically handles mod dependencies:
+- Required dependencies are installed automatically
+- Dependency conflicts are detected and reported
+- Version compatibility is checked
 
-### Modpack Management
+## GPU Acceleration (Experimental)
 
-**Installing Modpacks:**
-1. Navigate to "Modpacks" in the main menu
-2. Browse available modpacks
-3. Click "Install" on a modpack
-4. Choose server to install to
-5. Wait for installation to complete
+### Enabling GPU Acceleration
 
-**Managing Modpacks:**
-- **Update**: Update to latest version
-- **Remove**: Uninstall modpack
-- **Export**: Create a backup of modpack configuration
+1. Go to Settings → GPU
+2. Toggle "Enable GPU Worker"
+3. Configure GPU settings
+4. Monitor GPU metrics
+
+### GPU Features
+
+- **Chunk Generation**: Accelerated world generation
+- **Lighting Calculations**: Faster lighting updates
+- **Pregeneration**: GPU-accelerated world pregeneration
+- **Performance Monitoring**: Real-time GPU metrics
+
+### GPU Requirements
+
+- **NVIDIA**: GTX 1060 or better (CUDA support)
+- **AMD**: RX 580 or better (OpenCL support)
+- **Intel**: Arc A380 or better (experimental)
+- **Drivers**: Latest GPU drivers required
+
+## Backups and Restore
+
+### Automatic Backups
+
+Configure automatic backups in server settings:
+- **Frequency**: Every 1-168 hours
+- **Retention**: Keep 1-365 backups
+- **Compression**: Enable/disable compression
+- **Location**: Choose backup directory
+
+### Manual Backups
+
+1. Go to server dashboard
+2. Click "Backups" tab
+3. Click "Create Backup"
+4. Enter backup name and description
+5. Confirm creation
+
+### Restoring Backups
+
+1. Go to server dashboard
+2. Click "Backups" tab
+3. Select a backup
+4. Click "Restore"
+5. Confirm restoration
 
 ## Performance Monitoring
 
-### Real-time Metrics
+### Server Metrics
 
-**Viewing Performance:**
-1. Navigate to the "Analytics" tab in your server
-2. View real-time performance graphs:
-   - **TPS (Ticks Per Second)**: Server performance indicator
-   - **Memory Usage**: RAM consumption
-   - **CPU Usage**: Processor utilization
-   - **Disk I/O**: Storage read/write activity
-   - **Network**: Data transfer rates
+Monitor server performance with:
+- **TPS**: Ticks per second (target: 20)
+- **Memory Usage**: RAM consumption
+- **CPU Usage**: Processor utilization
+- **Player Count**: Online players
 
-**Performance Indicators:**
-- **Green**: Optimal performance
-- **Yellow**: Moderate performance issues
-- **Red**: Critical performance problems
+### System Metrics
 
-### Performance Optimization
+Monitor system resources:
+- **CPU Usage**: Overall system CPU
+- **Memory Usage**: System RAM usage
+- **Disk Usage**: Storage space
+- **GPU Usage**: GPU utilization (if enabled)
 
-**Memory Optimization:**
-1. Navigate to server settings
-2. Adjust JVM memory allocation
-3. Monitor memory usage after changes
-4. Consider adding more RAM if needed
+### Alerts and Notifications
 
-**JVM Tuning:**
-1. Access advanced server settings
-2. Modify JVM flags for better performance
-3. Common optimizations:
-   - `-XX:+UseG1GC`: Use G1 garbage collector
-   - `-XX:+UnlockExperimentalVMOptions`: Enable experimental features
-   - `-XX:MaxGCPauseMillis=200`: Limit GC pause time
-
-**GPU Acceleration:**
-1. Enable GPU workers in settings
-2. Monitor GPU usage in analytics
-3. Adjust worker count based on performance
-
-## Backup Management
-
-### Creating Backups
-
-**Manual Backup:**
-1. Navigate to the "Backups" tab in your server
-2. Click "Create Backup"
-3. Enter backup name and description
-4. Choose what to include:
-   - **World Data**: Player builds and terrain
-   - **Mods**: Installed mods and configurations
-   - **Server Config**: Server.properties and other configs
-5. Click "Create Backup"
-
-**Automatic Backups:**
-1. Go to server settings
-2. Enable "Automatic Backups"
-3. Configure backup schedule:
-   - **Frequency**: Daily, weekly, or custom
-   - **Retention**: How many backups to keep
-   - **Compression**: Enable/disable compression
-
-### Managing Backups
-
-**Viewing Backups:**
-1. Navigate to the "Backups" tab
-2. See all available backups with details:
-   - Creation date and time
-   - Backup size
-   - What's included
-
-**Restoring Backups:**
-1. Click on a backup to view details
-2. Click "Restore" to restore the backup
-3. Choose what to restore:
-   - **World Data**: Restore player builds
-   - **Mods**: Restore mod configuration
-   - **Server Config**: Restore server settings
-4. Confirm restoration
-
-**Backup Storage:**
-- Backups are stored in your configured backup directory
-- Consider using cloud storage for important backups
-- Regular cleanup of old backups saves disk space
-
-## Settings Configuration
-
-### Application Settings
-
-**General Settings:**
-1. Click the settings icon in the sidebar
-2. Configure general preferences:
-   - **Theme**: Dark, Light, or System
-   - **Language**: Interface language
-   - **Auto-start**: Start servers on application launch
-   - **Minimize to tray**: Keep running in system tray
-
-**Notification Settings:**
-1. Navigate to "Notifications" in settings
-2. Configure notification preferences:
-   - **Server Events**: Start, stop, crash notifications
-   - **Player Events**: Join, leave, ban notifications
-   - **System Events**: Updates, errors, warnings
-   - **Notification Types**: Toast, system, sound
-
-### Workspace Settings
-
-**Directory Configuration:**
-1. Go to "Workspace" in settings
-2. Configure directories:
-   - **Servers Directory**: Where servers are stored
-   - **Backups Directory**: Where backups are stored
-   - **Logs Directory**: Where logs are stored
-   - **Temp Directory**: Temporary files location
-
-**API Configuration:**
-1. Navigate to "API Keys" in settings
-2. Update API keys:
-   - **CurseForge API Key**: For mod downloads
-   - **Modrinth API Key**: For enhanced mod search
-   - **Mojang API Key**: For player authentication
-
-### Server-Specific Settings
-
-**Individual Server Settings:**
-1. Open a server's detail view
-2. Click "Settings" tab
-3. Configure server-specific options:
-   - **Startup Parameters**: Custom JVM arguments
-   - **Environment Variables**: Custom environment setup
-   - **Port Configuration**: Server and RCON ports
-   - **Resource Limits**: CPU and memory limits
+Set up alerts for:
+- Low TPS (< 15)
+- High memory usage (> 90%)
+- Server crashes
+- Backup failures
 
 ## Troubleshooting
 
 ### Common Issues
 
-**Server Won't Start:**
-1. Check Java installation and version
-2. Verify server directory permissions
-3. Review console output for error messages
-4. Ensure sufficient disk space and RAM
-5. Check port availability
+#### Server Won't Start
+1. Check Java version compatibility
+2. Verify memory allocation
+3. Check port availability
+4. Review console logs for errors
 
-**Mod Installation Fails:**
+#### Mods Not Loading
 1. Verify mod compatibility with Minecraft version
-2. Check for conflicting mods
-3. Ensure mod loader is correct (Forge/Fabric)
-4. Review dependency requirements
-5. Check available disk space
+2. Check loader compatibility (Fabric/Forge)
+3. Review mod dependencies
+4. Check for mod conflicts
 
-**Performance Issues:**
-1. Monitor resource usage in Analytics tab
-2. Adjust JVM memory allocation
-3. Optimize JVM flags
-4. Consider reducing view distance
-5. Check for problematic mods
+#### Performance Issues
+1. Increase memory allocation
+2. Reduce view distance
+3. Disable unnecessary mods
+4. Enable GPU acceleration (if available)
 
-**Backup/Restore Issues:**
-1. Verify backup directory permissions
-2. Check available disk space
-3. Ensure backup files are not corrupted
-4. Review backup contents before restore
+#### Connection Issues
+1. Check firewall settings
+2. Verify port forwarding
+3. Check server.properties
+4. Review network configuration
+
+### Logs and Debugging
+
+#### Server Logs
+- Access via server console
+- Export logs for analysis
+- Filter by log level
+- Search for specific errors
+
+#### System Logs
+- Check Guardian application logs
+- Review GPU worker logs
+- Monitor system resource usage
+- Check network connectivity
 
 ### Getting Help
 
-**Log Files:**
-1. Navigate to "Logs" in settings
-2. View application and server logs
-3. Look for error messages and warnings
-4. Include relevant logs when reporting issues
+1. **Documentation**: Check this user guide
+2. **GitHub Issues**: Report bugs and request features
+3. **Discord Community**: Join the community server
+4. **FAQ**: Check frequently asked questions
 
-**Support Resources:**
-- **Documentation**: Check this user guide and API reference
-- **GitHub Issues**: Report bugs and request features
-- **Community Discord**: Get help from other users
-- **FAQ**: Check frequently asked questions
+## Advanced Configuration
 
-## Advanced Features
+### Environment Variables
 
-### GPU Acceleration
+Configure Guardian using environment variables:
 
-**Enabling GPU Workers:**
-1. Ensure you have a compatible GPU
-2. Enable GPU acceleration in settings
-3. Configure worker count based on GPU memory
-4. Monitor GPU usage in performance analytics
-
-**GPU Job Types:**
-- **Chunk Generation**: Accelerated world generation
-- **World Processing**: Terrain modification and optimization
-- **Mod Processing**: GPU-accelerated mod operations
-
-### Compatibility Analysis
-
-**Mod Compatibility:**
-1. Navigate to "Compatibility" tab in server
-2. View compatibility analysis results
-3. See conflicts and recommendations
-4. Apply automatic fixes when available
-
-**Risk Assessment:**
-1. Review mod risk scores
-2. Check stability predictions
-3. Follow recommendations for safer configurations
-
-### API Integration
-
-**Using the API:**
-1. Enable API access in settings
-2. Generate API tokens for external tools
-3. Use API endpoints for automation
-4. Integrate with external monitoring tools
-
-**Webhook Configuration:**
-1. Set up webhooks for server events
-2. Configure external service integrations
-3. Monitor server status remotely
-
-### Command Line Interface
-
-**CLI Usage:**
 ```bash
-# Start a server
-guardian server start <server-id>
+# API Keys
+CURSEFORGE_API_KEY=your_curseforge_key
+MODRINTH_API_KEY=your_modrinth_key
 
-# Stop a server
-guardian server stop <server-id>
+# Server Configuration
+GUARDIAN_PORT=52100
+GUARDIAN_HOST=127.0.0.1
 
-# Install a mod
-guardian mod install <server-id> <mod-id>
+# Database
+DATABASE_URL=sqlite:guardian.db
 
-# Create backup
-guardian backup create <server-id> --name "Backup Name"
+# GPU Configuration
+GPU_ENABLED=false
+GPU_WORKER_PATH=./gpu-worker.exe
+
+# Logging
+RUST_LOG=info
+LOG_LEVEL=info
 ```
 
-**Automation Scripts:**
-- Create batch/shell scripts for common tasks
-- Schedule automatic backups and updates
-- Monitor server health with external tools
+### Configuration Files
 
----
+Guardian uses several configuration files:
+- `guardian.yaml`: Main configuration
+- `servers/`: Server-specific configurations
+- `backups/`: Backup configurations
+- `logs/`: Log files
 
-This user guide provides comprehensive instructions for using Guardian Server Manager. For additional help or advanced configuration options, refer to the API reference or contact support.
+### Custom JVM Arguments
+
+Configure custom JVM arguments for servers:
+- **Memory**: `-Xmx4G -Xms2G`
+- **Garbage Collection**: `-XX:+UseG1GC`
+- **Performance**: `-XX:+UseStringDeduplication`
+- **Debugging**: `-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5005`
+
+## Security Considerations
+
+### Network Security
+- Guardian binds to localhost by default
+- No external network access without configuration
+- Firewall rules should be configured appropriately
+
+### File System Security
+- Path sanitization prevents directory traversal
+- Secure file permissions
+- Regular security updates
+
+### API Security
+- Rate limiting prevents abuse
+- Input validation prevents injection
+- No sensitive data in error responses
+
+## Best Practices
+
+### Server Management
+1. **Regular Backups**: Set up automatic backups
+2. **Monitor Performance**: Keep an eye on TPS and memory
+3. **Update Regularly**: Keep mods and server updated
+4. **Test Changes**: Test mods in a separate server first
+
+### Resource Management
+1. **Memory Allocation**: Don't allocate more RAM than available
+2. **CPU Usage**: Monitor CPU usage across all servers
+3. **Storage Space**: Keep sufficient free space for backups
+4. **Network Bandwidth**: Consider bandwidth for multiple servers
+
+### Mod Management
+1. **Compatibility**: Check mod compatibility before installing
+2. **Dependencies**: Install required dependencies
+3. **Updates**: Keep mods updated for security and performance
+4. **Testing**: Test mod combinations before production use
+
+## Frequently Asked Questions
+
+### Q: Can I run multiple servers at once?
+A: Yes, Guardian supports multiple concurrent servers, limited by your system resources.
+
+### Q: What Minecraft versions are supported?
+A: Guardian supports Minecraft 1.16.5 and newer, with automatic detection of available versions.
+
+### Q: Can I use Guardian without API keys?
+A: Yes, but you'll be limited to basic server management without mod search and installation features.
+
+### Q: Is GPU acceleration safe?
+A: GPU acceleration is experimental and disabled by default. It may cause instability on some systems.
+
+### Q: How do I update Guardian?
+A: Download the latest release and replace the executable. Your servers and configurations will be preserved.
+
+### Q: Can I migrate from other server managers?
+A: Guardian can import server configurations from some other managers. Check the migration guide for details.
+
+### Q: Does Guardian work on Linux?
+A: Yes, Guardian supports Linux, though Windows is the primary platform.
+
+### Q: How much RAM do I need?
+A: Minimum 4GB, but 8GB+ is recommended for multiple servers or modded servers.
+
+### Q: Can I use Guardian for production servers?
+A: Yes, but ensure you have proper backups, monitoring, and security measures in place.
+
+### Q: Is there a web interface?
+A: Yes, Guardian provides a web interface that opens automatically when you start the application.

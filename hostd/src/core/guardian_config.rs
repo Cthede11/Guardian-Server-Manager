@@ -45,7 +45,7 @@ impl Default for GuardianConfig {
             database_url: "sqlite:guardian.db".to_string(),
             rust_log: "info".to_string(),
             log_level: "info".to_string(),
-            gpu_enabled: true,
+            gpu_enabled: false, // Off by default for safety
             gpu_worker_path: PathBuf::from("./gpu-worker.exe"),
             java_agent_enabled: false,
             java_agent_path: PathBuf::from("./guardian-agent.jar"),

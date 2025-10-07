@@ -287,6 +287,7 @@ impl ServerManager {
             "vanilla" => self.download_vanilla_jar(&config.minecraft_version, &jar_path).await?,
             "forge" => self.download_forge_jar(&config.minecraft_version, &config.loader_version, &jar_path).await?,
             "fabric" => self.download_fabric_jar(&config.minecraft_version, &config.loader_version, &jar_path).await?,
+            "quilt" => self.download_quilt_jar(&config.minecraft_version, &config.loader_version, &jar_path).await?,
             "paper" => self.download_paper_jar(&config.minecraft_version, &jar_path).await?,
             _ => return Err(AppError::ValidationError {
                 message: format!("Unsupported loader: {}", config.loader),
@@ -391,23 +392,66 @@ impl ServerManager {
     }
     
     async fn download_forge_jar(&self, mc_version: &str, forge_version: &str, jar_path: &PathBuf) -> Result<()> {
-        // Forge uses a different download system
-        // This is a simplified implementation
-        Err(AppError::InternalError {
-            message: "Forge download not implemented yet".to_string(),
-            component: "server_manager".to_string(),
-            details: Some("Feature not implemented".to_string()),
-        })
+        use crate::loaders::LoaderInstaller;
+        
+        // Detect Java installation
+        let java_path = LoaderInstaller::detect_java().await?;
+        let installer = LoaderInstaller::new(java_path);
+        
+        // Get server directory
+        let server_dir = jar_path.parent().ok_or_else(|| AppError::ValidationError {
+            message: "Invalid JAR path".to_string(),
+            field: "jar_path".to_string(),
+            value: jar_path.to_string_lossy().to_string(),
+            constraint: "must have parent directory".to_string(),
+        })?;
+        
+        // Install Forge server
+        let _server_jar = installer.install_forge_server(mc_version, forge_version, server_dir).await?;
+        
+        Ok(())
     }
     
     async fn download_fabric_jar(&self, mc_version: &str, fabric_version: &str, jar_path: &PathBuf) -> Result<()> {
-        // Fabric uses a different download system
-        // This is a simplified implementation
-        Err(AppError::InternalError {
-            message: "Fabric download not implemented yet".to_string(),
-            component: "server_manager".to_string(),
-            details: Some("Feature not implemented".to_string()),
-        })
+        use crate::loaders::LoaderInstaller;
+        
+        // Detect Java installation
+        let java_path = LoaderInstaller::detect_java().await?;
+        let installer = LoaderInstaller::new(java_path);
+        
+        // Get server directory
+        let server_dir = jar_path.parent().ok_or_else(|| AppError::ValidationError {
+            message: "Invalid JAR path".to_string(),
+            field: "jar_path".to_string(),
+            value: jar_path.to_string_lossy().to_string(),
+            constraint: "must have parent directory".to_string(),
+        })?;
+        
+        // Install Fabric server
+        let _server_jar = installer.install_fabric_server(mc_version, fabric_version, server_dir).await?;
+        
+        Ok(())
+    }
+    
+    async fn download_quilt_jar(&self, mc_version: &str, quilt_version: &str, jar_path: &PathBuf) -> Result<()> {
+        use crate::loaders::LoaderInstaller;
+        
+        // Detect Java installation
+        let java_path = LoaderInstaller::detect_java().await?;
+        let installer = LoaderInstaller::new(java_path);
+        
+        // Get server directory
+        let server_dir = jar_path.parent().ok_or_else(|| AppError::ValidationError {
+            message: "Invalid JAR path".to_string(),
+            field: "jar_path".to_string(),
+            value: jar_path.to_string_lossy().to_string(),
+            constraint: "must have parent directory".to_string(),
+        })?;
+        
+        // Install Quilt server
+        let _server_jar = installer.install_quilt_server(mc_version, quilt_version, server_dir).await?;
+        
+        Ok(())
     }
     
     async fn download_paper_jar(&self, mc_version: &str, jar_path: &PathBuf) -> Result<()> {
