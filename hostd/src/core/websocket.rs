@@ -40,6 +40,12 @@ pub struct WebSocketManager {
     global_sender: broadcast::Sender<WebSocketMessage>,
 }
 
+impl Default for WebSocketManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WebSocketManager {
     pub fn new() -> Self {
         let (global_sender, _) = broadcast::channel(1000);
@@ -111,7 +117,7 @@ impl WebSocketManager {
                         match msg {
                             Ok(msg) => {
                                 let ws_msg = Message::Text(serde_json::to_string(&msg).unwrap_or_default());
-                                if let Err(_) = ws_tx_clone.send(ws_msg) {
+                                if ws_tx_clone.send(ws_msg).is_err() {
                                     break;
                                 }
                             }
@@ -124,7 +130,7 @@ impl WebSocketManager {
                         match msg {
                             Ok(msg) => {
                                 let ws_msg = Message::Text(serde_json::to_string(&msg).unwrap_or_default());
-                                if let Err(_) = ws_tx_clone.send(ws_msg) {
+                                if ws_tx_clone.send(ws_msg).is_err() {
                                     break;
                                 }
                             }
@@ -147,7 +153,7 @@ impl WebSocketManager {
                 Ok(Message::Close(_)) => break,
                 Ok(Message::Ping(data)) => {
                     let pong_msg = Message::Pong(data);
-                    if let Err(_) = ws_tx.send(pong_msg) {
+                    if ws_tx.send(pong_msg).is_err() {
                         break;
                     }
                 }

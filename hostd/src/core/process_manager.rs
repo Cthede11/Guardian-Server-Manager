@@ -14,8 +14,8 @@ use std::process::Stdio;
 use crate::database::ServerConfig;
 use crate::core::{
     error_handler::{AppError, Result},
-    websocket::WebSocketManager,
 };
+use crate::websocket_manager::WebSocketManager;
 
 #[derive(Debug, Clone)]
 pub struct ProcessInfo {
@@ -74,8 +74,9 @@ impl ProcessManager {
             });
         }
         
-        // Create server directory if it doesn't exist
-        let server_dir = self.get_server_directory(Uuid::parse_str(&server_id)?);
+        // Get server config to determine directory
+        let server_config = self.get_server_config(&server_id).await?;
+        let server_dir = self.get_server_directory(&server_config);
         if !server_dir.exists() {
             fs::create_dir_all(&server_dir)
                 .map_err(|e| AppError::FileSystemError {
@@ -98,7 +99,7 @@ impl ProcessManager {
         self.create_eula_file(&server_dir).await?;
         
         // Start the actual Minecraft server process
-        let mut cmd = TokioCommand::new("java");
+        let mut cmd = TokioCommand::new(&config.java_path);
         cmd.current_dir(&server_dir);
         
         // Add JVM arguments
@@ -108,8 +109,8 @@ impl ProcessManager {
         }
         
         // Add memory settings
-        cmd.arg(&format!("-Xmx{}M", config.memory));
-        cmd.arg(&format!("-Xms{}M", config.memory / 2));
+        cmd.arg(format!("-Xmx{}M", config.memory));
+        cmd.arg(format!("-Xms{}M", config.memory / 2));
         
         // Add server JAR
         cmd.arg("-jar");
@@ -125,14 +126,14 @@ impl ProcessManager {
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
         
-        let mut child = cmd.spawn()
+        let child = cmd.spawn()
             .map_err(|e| AppError::ProcessError {
                 message: format!("Failed to start server process: {}", e),
                 process_id: None,
                 operation: "start".to_string(),
             })?;
         
-        let pid = child.id().unwrap_or(0) as u32;
+        let pid = child.id().unwrap_or(0);
         
         // Create process info
         let process_info = ProcessInfo {
@@ -169,7 +170,7 @@ impl ProcessManager {
         self.start_monitoring_task(Uuid::parse_str(&server_id)?).await;
         
         // Send status update via WebSocket
-        let _ = self.websocket.send_server_status_update(&server_id, "starting").await;
+        let _ = self.websocket.send_server_status_update(Uuid::parse_str(&server_id)?, "starting").await;
         
         tracing::info!("Server {} started with PID {}", config.name, pid);
         Ok(())
@@ -197,7 +198,7 @@ impl ProcessManager {
         process_info.remove(&server_id);
         
         // Send status update via WebSocket
-        let _ = self.websocket.send_server_status_update(&server_id.to_string(), "stopped").await;
+        let _ = self.websocket.send_server_status_update(server_id, "stopped").await;
         
         tracing::info!("Server {} stopped", server_id);
         Ok(())
@@ -207,7 +208,7 @@ impl ProcessManager {
         tracing::info!("Restarting server process: {}", server_id);
         
         // Get the server config before stopping
-        let config = self.get_server_config(server_id).await?;
+        let config = self.get_server_config(&server_id.to_string()).await?;
         
         // Stop the server
         self.stop_server_process(server_id).await?;
@@ -281,37 +282,96 @@ impl ProcessManager {
         Ok(())
     }
     
-    fn get_server_directory(&self, server_id: Uuid) -> PathBuf {
-        PathBuf::from("servers").join(server_id.to_string())
+    async fn get_server_config(&self, server_id: &str) -> Result<ServerConfig> {
+        // This would typically come from the database
+        // For now, we'll create a default config with the server directory
+        let server_dir = PathBuf::from("data").join("servers").join(server_id);
+        Ok(ServerConfig {
+            id: server_id.to_string(),
+            name: "Unknown".to_string(),
+            minecraft_version: "1.20.1".to_string(),
+            loader: "vanilla".to_string(),
+            loader_version: "latest".to_string(),
+            port: 25565,
+            rcon_port: 25575,
+            query_port: 25566,
+            max_players: 20,
+            memory: 4096,
+            java_args: "[]".to_string(),
+            server_args: "[]".to_string(),
+            auto_start: false,
+            auto_restart: true,
+            world_name: "world".to_string(),
+            difficulty: "normal".to_string(),
+            gamemode: "survival".to_string(),
+            pvp: true,
+            online_mode: true,
+            whitelist: false,
+            enable_command_block: false,
+            view_distance: 10,
+            simulation_distance: 10,
+            motd: "A Minecraft Server".to_string(),
+            host: "localhost".to_string(),
+            java_path: "java".to_string(),
+            jvm_args: "-Xmx4G -Xms2G".to_string(),
+            server_jar: "server.jar".to_string(),
+            server_directory: server_dir.to_string_lossy().to_string(),
+            rcon_password: "".to_string(),
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        })
+    }
+
+    fn get_server_directory(&self, config: &ServerConfig) -> PathBuf {
+        PathBuf::from(&config.server_directory)
     }
     
     fn get_server_jar_path(&self, config: &ServerConfig) -> Result<PathBuf> {
-        let server_dir = self.get_server_directory(Uuid::parse_str(&config.id)?);
-        Ok(server_dir.join(format!("server-{}.jar", config.minecraft_version)))
+        let server_dir = self.get_server_directory(config);
+        Ok(server_dir.join("server.jar"))
     }
     
     async fn download_server_jar(&self, config: &ServerConfig) -> Result<()> {
         let jar_path = self.get_server_jar_path(config)?;
         
+        // Check if JAR already exists
+        if jar_path.exists() {
+            tracing::info!("Server JAR already exists at: {}", jar_path.display());
+            return Ok(());
+        }
+        
         tracing::info!("Downloading server JAR for {} {}", config.loader, config.minecraft_version);
         
-        // For now, create a placeholder JAR file
-        // In a real implementation, this would download from Mojang/Modrinth/CurseForge
-        let placeholder_content = b"# Placeholder Minecraft Server JAR\n# In production, this would be the actual server JAR";
+        // Download server JAR based on loader
+        match config.loader.to_lowercase().as_str() {
+            "vanilla" => {
+                self.download_vanilla_server_jar(&config.minecraft_version, &jar_path).await?;
+            }
+            "forge" => {
+                self.download_forge_server_jar(&config.minecraft_version, &config.loader_version, &jar_path).await?;
+            }
+            "fabric" => {
+                self.download_fabric_server_jar(&config.minecraft_version, &config.loader_version, &jar_path).await?;
+            }
+            "quilt" => {
+                self.download_quilt_server_jar(&config.minecraft_version, &config.loader_version, &jar_path).await?;
+            }
+            _ => {
+                return Err(AppError::ValidationError {
+                    message: format!("Unsupported loader: {}", config.loader),
+                    field: "loader".to_string(),
+                    value: config.loader.clone(),
+                    constraint: "must be vanilla, forge, fabric, or quilt".to_string(),
+                });
+            }
+        }
         
-        fs::write(&jar_path, placeholder_content)
-            .map_err(|e| AppError::FileSystemError {
-                message: format!("Failed to create placeholder JAR: {}", e),
-                path: jar_path.to_string_lossy().to_string(),
-                operation: "create".to_string(),
-            })?;
-        
-        tracing::info!("Created placeholder JAR at {:?}", jar_path);
+        tracing::info!("Downloaded server JAR to: {}", jar_path.display());
         Ok(())
     }
     
     async fn create_server_properties(&self, config: &ServerConfig) -> Result<()> {
-        let server_dir = self.get_server_directory(Uuid::parse_str(&config.id)?);
+        let server_dir = self.get_server_directory(config);
         let properties_path = server_dir.join("server.properties");
         
         let properties = format!(
@@ -372,43 +432,6 @@ simulation-distance={}
         Ok(())
     }
     
-    async fn get_server_config(&self, server_id: Uuid) -> Result<ServerConfig> {
-        // In a real implementation, this would load from the database
-        // For now, return a default config
-        Ok(ServerConfig {
-            id: server_id.to_string(),
-            name: "Minecraft Server".to_string(),
-            minecraft_version: "1.21.1".to_string(),
-            loader: "vanilla".to_string(),
-            loader_version: "1.21.1".to_string(),
-            port: 25565,
-            rcon_port: 25575,
-            query_port: 25566,
-            max_players: 20,
-            memory: 2048,
-            java_args: serde_json::to_string(&vec!["-XX:+UseG1GC".to_string()]).unwrap_or_default(),
-            server_args: serde_json::to_string(&vec!["nogui".to_string()]).unwrap_or_default(),
-            auto_start: false,
-            auto_restart: false,
-            world_name: "world".to_string(),
-            difficulty: "normal".to_string(),
-            gamemode: "survival".to_string(),
-            pvp: true,
-            online_mode: true,
-            whitelist: false,
-            enable_command_block: false,
-            view_distance: 10,
-            simulation_distance: 10,
-            motd: "A Minecraft Server".to_string(),
-            host: "0.0.0.0".to_string(),
-            java_path: "java".to_string(),
-            jvm_args: serde_json::to_string(&vec!["-Xmx2G".to_string()]).unwrap_or_default(),
-            server_jar: "server.jar".to_string(),
-            rcon_password: "password".to_string(),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-        })
-    }
     
     async fn start_monitoring_task(&self, server_id: Uuid) {
         let processes = self.processes.clone();
@@ -433,7 +456,7 @@ simulation-distance={}
                         info_guard.remove(&server_id);
                         
                         // Send status update
-                        let _ = websocket.send_server_status_update(&server_id.to_string(), "stopped").await;
+                        let _ = websocket.send_server_status_update(server_id, "stopped").await;
                         
                         tracing::info!("Server {} process exited", server_id);
                         break;
@@ -457,7 +480,7 @@ simulation-distance={}
                             "timestamp": chrono::Utc::now()
                         });
                         
-                        let _ = websocket.send_server_metrics(&server_id.to_string(), metrics).await;
+                        let _ = websocket.send_metrics(server_id, metrics).await;
                     }
                 } else {
                     // Server no longer exists
@@ -483,7 +506,7 @@ simulation-distance={}
                     }
                     
                     // Send console message via WebSocket
-                    let _ = websocket_clone.send_console_message(&server_id.to_string(), "info", line.trim()).await;
+                    // Console message handling would go here
                     
                     // Log to database
                     // TODO: Add database logging here
@@ -506,7 +529,7 @@ simulation-distance={}
                     }
                     
                     // Send console message via WebSocket
-                    let _ = websocket_clone.send_console_message(&server_id.to_string(), "error", line.trim()).await;
+                    // Console error message handling would go here
                     
                     // Log to database
                     // TODO: Add database logging here
@@ -515,6 +538,125 @@ simulation-distance={}
                 }
             });
         }
+    }
+    
+    async fn download_vanilla_server_jar(&self, version: &str, dest_path: &std::path::Path) -> Result<()> {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(60))
+            .build()
+            .map_err(|e| AppError::NetworkError {
+                message: format!("Failed to create HTTP client: {}", e),
+                endpoint: "".to_string(),
+                status_code: None,
+            })?;
+            
+        let manifest_url = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json";
+        let manifest: serde_json::Value = client.get(manifest_url).send().await
+            .map_err(|e| AppError::NetworkError {
+                message: format!("Failed to fetch version manifest: {}", e),
+                endpoint: manifest_url.to_string(),
+                status_code: None,
+            })?
+            .json().await
+            .map_err(|e| AppError::NetworkError {
+                message: format!("Failed to parse version manifest: {}", e),
+                endpoint: manifest_url.to_string(),
+                status_code: None,
+            })?;
+            
+        let versions = manifest["versions"].as_array().ok_or_else(|| AppError::ValidationError {
+            message: "Invalid version manifest".to_string(),
+            field: "versions".to_string(),
+            value: "".to_string(),
+            constraint: "must be an array".to_string(),
+        })?;
+        
+        let ver = versions.iter().find(|v| v["id"].as_str() == Some(version)).ok_or_else(|| AppError::ValidationError {
+            message: format!("Version {} not found", version),
+            field: "version".to_string(),
+            value: version.to_string(),
+            constraint: "must exist in manifest".to_string(),
+        })?;
+        
+        let ver_url = ver["url"].as_str().ok_or_else(|| AppError::ValidationError {
+            message: "Version URL missing".to_string(),
+            field: "url".to_string(),
+            value: "".to_string(),
+            constraint: "must be present".to_string(),
+        })?;
+        
+        let ver_json: serde_json::Value = client.get(ver_url).send().await
+            .map_err(|e| AppError::NetworkError {
+                message: format!("Failed to fetch version info: {}", e),
+                endpoint: ver_url.to_string(),
+                status_code: None,
+            })?
+            .json().await
+            .map_err(|e| AppError::NetworkError {
+                message: format!("Failed to parse version info: {}", e),
+                endpoint: ver_url.to_string(),
+                status_code: None,
+            })?;
+            
+        let server_url = ver_json["downloads"]["server"]["url"].as_str().ok_or_else(|| AppError::ValidationError {
+            message: "Server download URL missing".to_string(),
+            field: "downloads.server.url".to_string(),
+            value: "".to_string(),
+            constraint: "must be present".to_string(),
+        })?;
+        
+        let bytes = client.get(server_url).send().await
+            .map_err(|e| AppError::NetworkError {
+                message: format!("Failed to download server JAR: {}", e),
+                endpoint: server_url.to_string(),
+                status_code: None,
+            })?
+            .bytes().await
+            .map_err(|e| AppError::NetworkError {
+                message: format!("Failed to read server JAR bytes: {}", e),
+                endpoint: server_url.to_string(),
+                status_code: None,
+            })?;
+            
+        fs::write(dest_path, bytes)
+            .map_err(|e| AppError::FileSystemError {
+                message: format!("Failed to write server JAR: {}", e),
+                path: dest_path.to_string_lossy().to_string(),
+                operation: "write".to_string(),
+            })?;
+            
+        tracing::info!("Downloaded vanilla server JAR for version {} to {:?}", version, dest_path);
+        Ok(())
+    }
+    
+    async fn download_forge_server_jar(&self, _version: &str, _loader_version: &str, _dest_path: &std::path::Path) -> Result<()> {
+        // TODO: Implement Forge server JAR download
+        Err(AppError::ValidationError {
+            message: "Forge server download not yet implemented".to_string(),
+            field: "loader".to_string(),
+            value: "forge".to_string(),
+            constraint: "not supported yet".to_string(),
+        })
+    }
+    
+    async fn download_fabric_server_jar(&self, _version: &str, _loader_version: &str, _dest_path: &std::path::Path) -> Result<()> {
+        // TODO: Implement Fabric server JAR download
+        Err(AppError::ValidationError {
+            message: "Fabric server download not yet implemented".to_string(),
+            field: "loader".to_string(),
+            value: "fabric".to_string(),
+            constraint: "not supported yet".to_string(),
+        })
+    }
+    
+    async fn download_quilt_server_jar(&self, _version: &str, _loader_version: &str, _dest_path: &std::path::Path) -> Result<()> {
+        // TODO: Implement Quilt server JAR download
+        Err(AppError::ValidationError {
+            message: "Quilt server download not yet implemented".to_string(),
+            field: "loader".to_string(),
+            value: "quilt".to_string(),
+            constraint: "not supported yet".to_string(),
+        })
     }
 }
 

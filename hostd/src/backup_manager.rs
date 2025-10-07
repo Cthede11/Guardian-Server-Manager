@@ -5,7 +5,6 @@ use tokio::sync::RwLock;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
-use std::fs;
 use tokio::fs as async_fs;
 use zip::ZipWriter;
 use std::io::Write;
@@ -148,7 +147,7 @@ impl BackupManager {
         let created_at = Utc::now();
 
         // Create backup info
-        let mut backup = BackupInfo {
+        let backup = BackupInfo {
             id: backup_id.clone(),
             server_id: server_id.to_string(),
             name: request.name,
@@ -268,7 +267,7 @@ impl BackupManager {
     async fn create_archive(
         &self,
         path: &Path,
-        compression: &CompressionType,
+        _compression: &CompressionType,
     ) -> Result<ZipWriter<std::fs::File>, Box<dyn std::error::Error>> {
         let file = std::fs::File::create(path)?;
         let zip = ZipWriter::new(file);

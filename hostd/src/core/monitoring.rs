@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use crate::core::{
     config::MonitoringConfig,
-    error_handler::{AppError, Result},
+    error_handler::Result,
 };
 
 #[derive(Debug, Clone)]

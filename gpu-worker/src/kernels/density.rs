@@ -1,6 +1,6 @@
 use wgpu::*;
 use anyhow::Result;
-use bytemuck::{Pod, Zeroable};
+// use bytemuck::{Pod, Zeroable}; // TODO: Implement when needed
 
 /// Density kernel for terrain generation
 pub struct DensityKernel {

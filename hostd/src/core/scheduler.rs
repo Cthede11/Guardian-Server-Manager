@@ -2,11 +2,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
-use tokio::time::{interval, sleep};
+use tokio::time::interval;
 use uuid::Uuid;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
-use tracing::{info, warn, error, debug};
+use tracing::{info, error, debug};
 use cron::Schedule;
 use std::str::FromStr;
 
@@ -130,7 +130,7 @@ impl TaskScheduler {
         }
 
         // Calculate next run time
-        let next_run = self.calculate_next_run(&task.cron_expression)?;
+        let _next_run = self.calculate_next_run(&task.cron_expression)?;
         
         let task_name = task.name.clone();
         let mut tasks = self.tasks.write().await;
@@ -234,7 +234,7 @@ impl TaskScheduler {
     }
 
     /// Execute a task
-    async fn execute_task(&self, mut task: ScheduledTask) -> Result<()> {
+    async fn execute_task(&self, task: ScheduledTask) -> Result<()> {
         info!("Executing scheduled task: {} ({})", task.name, task.id);
         
         // Update task status
@@ -374,11 +374,11 @@ impl TaskScheduler {
     /// Execute maintenance task
     async fn execute_maintenance_task(
         server_id: Option<Uuid>,
-        config: serde_json::Value,
-        server_manager: Arc<ServerManager>,
+        _config: serde_json::Value,
+        _server_manager: Arc<ServerManager>,
     ) -> Result<()> {
         // Maintenance tasks can include cleanup, optimization, etc.
-        let maintenance_type = config.get("type")
+        let maintenance_type = _config.get("type")
             .and_then(|v| v.as_str())
             .unwrap_or("general");
 
@@ -450,7 +450,7 @@ impl TaskScheduler {
     }
 
     /// Get task execution history (would need to be stored in database)
-    pub async fn get_task_history(&self, task_id: Uuid) -> Vec<TaskResult> {
+    pub async fn get_task_history(&self, _task_id: Uuid) -> Vec<TaskResult> {
         // This would typically query a database for task execution history
         // For now, return empty vector
         Vec::new()

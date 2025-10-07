@@ -6,7 +6,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use tracing::{error, warn, info, debug};
+use tracing::{error, warn, info};
 
 /// Comprehensive error types for the Guardian Server Manager
 #[derive(Debug, Clone, Serialize, Deserialize)]

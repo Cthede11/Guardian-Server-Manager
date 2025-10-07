@@ -795,6 +795,7 @@ pub fn run() {
             log_debug("Setup complete successfully");
             Ok(())
         })
+        .plugin(tauri_plugin_dialog::init())
         .run(tauri::generate_context!());
 
     match result {

@@ -18,6 +18,12 @@ pub struct WebSocketMessage {
     pub timestamp: chrono::DateTime<chrono::Utc>,
 }
 
+impl Default for WebSocketManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WebSocketManager {
     pub fn new() -> Self {
         Self {}

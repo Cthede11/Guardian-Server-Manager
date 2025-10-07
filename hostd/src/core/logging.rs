@@ -1,13 +1,8 @@
 use std::sync::Arc;
 use tracing::{info, warn, error, debug, trace};
 use tracing_subscriber::{
-    fmt,
-    layer::SubscriberExt,
-    util::SubscriberInitExt,
     EnvFilter,
-    Registry,
 };
-use tracing_subscriber::layer::Layer;
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -164,7 +159,7 @@ impl LogManager {
             level: "INFO".to_string(),
             target: "performance".to_string(),
             message: format!("Operation '{}' completed in {:?}", operation, duration),
-            fields: metadata.unwrap_or_else(|| serde_json::Value::Null),
+            fields: metadata.unwrap_or(serde_json::Value::Null),
             thread_id: Some(format!("{:?}", std::thread::current().id())),
             span: None,
         };
@@ -182,7 +177,9 @@ impl LogManager {
             fields.insert("ip_address".to_string(), serde_json::Value::String(ip));
         }
         if let Some(details) = details {
-            fields.extend(details.as_object().unwrap().clone());
+            if let Some(obj) = details.as_object() {
+                fields.extend(obj.clone());
+            }
         }
         
         let entry = LogEntry {
@@ -207,7 +204,9 @@ impl LogManager {
             fields.insert("user_id".to_string(), serde_json::Value::String(user_id));
         }
         if let Some(details) = details {
-            fields.extend(details.as_object().unwrap().clone());
+            if let Some(obj) = details.as_object() {
+                fields.extend(obj.clone());
+            }
         }
         
         let entry = LogEntry {
@@ -292,7 +291,7 @@ macro_rules! measure_performance {
         let start = std::time::Instant::now();
         let result = $code;
         let duration = start.elapsed();
-        crate::core::logging::log_performance($operation, duration, None);
+        $crate::core::logging::log_performance($operation, duration, None);
         result
     }};
 }
@@ -304,7 +303,7 @@ macro_rules! measure_performance_with_metadata {
         let start = std::time::Instant::now();
         let result = $code;
         let duration = start.elapsed();
-        crate::core::logging::log_performance($operation, duration, Some($metadata));
+        $crate::core::logging::log_performance($operation, duration, Some($metadata));
         result
     }};
 }
@@ -335,7 +334,7 @@ mod tests {
             span: None,
         };
         
-        let json = serde_json::to_string(&entry).unwrap();
+        let json = serde_json::to_string(&entry).expect("Failed to serialize log entry");
         assert!(json.contains("Test message"));
     }
     

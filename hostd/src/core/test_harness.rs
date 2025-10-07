@@ -1,13 +1,11 @@
 use std::sync::Arc;
-use std::time::Duration;
-use tokio::time::sleep;
 use uuid::Uuid;
 use chrono::Utc;
 use serde::Serialize;
 
 use crate::core::{
     resource_monitor::ResourceMonitor,
-    crash_watchdog::{CrashWatchdog, WatchdogConfig},
+    crash_watchdog::CrashWatchdog,
     scheduler::{TaskScheduler, ScheduledTask, TaskType, TaskStatus},
     error_handler::Result,
 };
@@ -207,6 +205,12 @@ pub struct TestResults {
     pub total_tests: usize,
     pub passed_tests: usize,
     pub failed_tests: usize,
+}
+
+impl Default for TestResults {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TestResults {

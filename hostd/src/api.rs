@@ -10,13 +10,12 @@ use serde_json;
 use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
-use tracing::{info, warn, error, debug};
+use tracing::{info, warn, error};
 use chrono::{self, Utc};
 
 use crate::websocket_manager::{WebSocketManager, WebSocketMessage};
 use crate::database::{ServerConfig, MinecraftVersion, LoaderVersion, ModVersion, Modpack, Settings, Mod};
-use crate::mod_manager::{ModManager, ModCompatibilityResult, ModInfo};
-use crate::compatibility_engine::CompatibilityIssue;
+use crate::mod_manager::{ModManager, ModCompatibilityResult, ModInfo as ModManagerModInfo};
 
 /// API response wrapper
 #[derive(Debug, Serialize)]
@@ -100,8 +99,47 @@ pub struct CreateServerRequest {
     pub jar_path: Option<String>,
     #[serde(rename = "maxPlayers")]
     pub max_players: Option<u32>,
+    pub memory: Option<u32>,
     #[serde(rename = "pregenerationPolicy")]
     pub pregeneration_policy: Option<serde_json::Value>,
+    // Additional fields for production server creation
+    pub port: Option<u16>,
+    pub rcon_port: Option<u16>,
+    pub query_port: Option<u16>,
+    pub auto_start: Option<bool>,
+    pub auto_restart: Option<bool>,
+    pub world_settings: Option<WorldSettings>,
+    pub pvp: Option<bool>,
+    pub online_mode: Option<bool>,
+    pub whitelist: Option<bool>,
+    pub enable_command_block: Option<bool>,
+    pub view_distance: Option<u32>,
+    pub simulation_distance: Option<u32>,
+    pub motd: Option<String>,
+    pub modpack: Option<ModpackInstallRequest>,
+    pub individual_mods: Option<Vec<ModInstallItem>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct WorldSettings {
+    pub world_name: String,
+    pub difficulty: String,
+    pub gamemode: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ModpackInstallRequest {
+    pub pack_id: String,
+    pub pack_version_id: String,
+    pub provider: String,
+    pub server_only: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ModInstallItem {
+    pub mod_id: String,
+    pub file_id: String,
+    pub provider: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -124,6 +162,7 @@ pub struct ServerPaths {
     pub world: String,
     pub mods: String,
     pub config: String,
+    pub java_path: Option<String>,
 }
 
 /// Server health information
@@ -283,6 +322,8 @@ pub struct AppState {
     pub test_harness: Arc<crate::core::test_harness::TestHarness>,
     pub gpu_manager: Arc<tokio::sync::Mutex<crate::gpu_manager::GpuManager>>,
     pub performance_telemetry: Arc<crate::performance_telemetry::PerformanceTelemetry>,
+    pub sse_sender: Option<tokio::sync::broadcast::Sender<serde_json::Value>>,
+    pub process_manager: Arc<crate::core::process_manager::ProcessManager>,
 }
 
 /// Create API router
@@ -351,7 +392,6 @@ pub fn create_api_router(state: AppState) -> Router {
         
         
         // Metrics endpoints
-        .route("/api/servers/:id/metrics", get(get_metrics))
         .route("/api/servers/:id/metrics/realtime", get(get_realtime_metrics))
         
         // Backup endpoints
@@ -394,6 +434,15 @@ pub fn create_api_router(state: AppState) -> Router {
         .route("/api/settings/validate/java", post(validate_java))
         .route("/api/settings/validate/api-keys", post(validate_api_keys))
         
+        // Server creation wizard endpoints
+        .route("/api/server/versions", get(get_server_versions))
+        .route("/api/server/validate", post(validate_server_config))
+        .route("/api/server/detect-java", get(detect_java_path))
+        .route("/api/modpacks/search", get(search_modpacks))
+        .route("/api/mods/search", get(search_mods))
+        .route("/api/modpacks/apply", post(apply_modpack_to_server))
+        .route("/api/mods/install", post(install_mods))
+        
         // Compatibility endpoints
         .route("/api/servers/:id/compat/scan", post(scan_compatibility))
         .route("/api/servers/:id/compat/apply", post(apply_compatibility_fixes))
@@ -414,7 +463,6 @@ pub fn create_api_router(state: AppState) -> Router {
         .route("/api/servers/:id/lighting/settings", get(get_lighting_settings).put(update_lighting_settings))
         
         // Mod management endpoints
-        .route("/api/mods/search", get(search_mods))
         .route("/api/servers/:id/mods", get(get_server_mods))
         .route("/api/servers/:id/mods/plan", post(create_mod_plan))
         .route("/api/servers/:id/mods/plan/:plan_id", get(get_mod_plan).delete(delete_mod_plan))
@@ -481,51 +529,93 @@ async fn create_server(
 ) -> Result<Json<ApiResponse<ServerInfo>>, StatusCode> {
     let server_id = Uuid::new_v4().to_string();
     
-    // Determine server root under working directory (packaged app sets cwd to resource dir)
-    let server_root = std::path::Path::new("data").join("servers").join(&server_id);
+    info!("Creating server: {} (ID: {})", payload.name, server_id);
+    
+    // Comprehensive validation
+    if let Err(validation_error) = validate_server_creation_request(&payload).await {
+        return Ok(Json(ApiResponse::error(validation_error)));
+    }
+    
+    // Determine server root - use user-specified path if provided, otherwise use default
+    let server_root = if !payload.paths.world.is_empty() {
+        let install_path = &payload.paths.world;
+        // Extract the base directory from the world path (remove './world' suffix)
+        let base_path = if install_path.ends_with("/world") || install_path.ends_with("\\world") {
+            install_path.trim_end_matches("/world").trim_end_matches("\\world")
+        } else if install_path.ends_with("./world") {
+            install_path.trim_end_matches("./world")
+        } else {
+            install_path
+        };
+        
+        // If it's a relative path, make it relative to the working directory
+        if base_path.starts_with("./") || base_path.starts_with(".\\") {
+            std::path::Path::new(".").join(base_path.trim_start_matches("./").trim_start_matches(".\\"))
+        } else if base_path.starts_with("C:\\") || base_path.starts_with("/") {
+            // Absolute path - use as is
+            std::path::Path::new(base_path).to_path_buf()
+        } else {
+            // Relative path - make it relative to working directory
+            std::path::Path::new(".").join(base_path)
+        }
+    } else {
+        // Fallback to default location
+        std::path::Path::new("data").join("servers").join(&server_id)
+    };
+    
     let server_root_str = server_root.to_string_lossy().to_string();
     
-    // Create server configuration - use server root as working directory
+    // Create server directory structure
+    if let Err(e) = create_server_layout(&server_root_str).await {
+        error!("Failed to create server directories: {}", e);
+        return Ok(Json(ApiResponse::error(format!("Failed to create server directories: {}", e))));
+    }
+    
+    // Download and prepare server JAR
+    let jar_path = match prepare_server_jar(&payload, &server_root_str).await {
+        Ok(path) => path,
+        Err(e) => {
+            error!("Failed to prepare server JAR: {}", e);
+            return Ok(Json(ApiResponse::error(format!("Failed to prepare server JAR: {}", e))));
+        }
+    };
+    
+    // Create optimized JVM arguments based on memory allocation
+    let memory_mb = payload.memory.unwrap_or(4096);
+    let jvm_args = generate_optimized_jvm_args(memory_mb);
+    
+    // Create server configuration
     let server_config = ServerConfig {
         id: server_id.clone(),
         name: payload.name.clone(),
         minecraft_version: payload.minecraft_version.clone(),
         loader: payload.loader.clone(),
         loader_version: payload.version.clone(),
-        port: 25565,
-        rcon_port: 25575,
-        query_port: 25566,
+        port: payload.port.unwrap_or(25565),
+        rcon_port: payload.rcon_port.unwrap_or(25575),
+        query_port: payload.query_port.unwrap_or(25566),
         max_players: payload.max_players.unwrap_or(20),
-        memory: 4096, // Default memory allocation
-        java_args: serde_json::to_string(&vec![
-            "-Xmx4G", "-Xms2G", "-XX:+UseG1GC", "-XX:+ParallelRefProcEnabled",
-            "-XX:MaxGCPauseMillis=200", "-XX:+UnlockExperimentalVMOptions",
-            "-XX:+DisableExplicitGC", "-XX:+AlwaysPreTouch", "-XX:G1NewSizePercent=30",
-            "-XX:G1MaxNewSizePercent=40", "-XX:G1HeapRegionSize=8M", "-XX:G1ReservePercent=20",
-            "-XX:G1HeapWastePercent=5", "-XX:G1MixedGCCountTarget=4",
-            "-XX:InitiatingHeapOccupancyPercent=15", "-XX:G1MixedGCLiveThresholdPercent=90",
-            "-XX:G1RSetUpdatingPauseTimePercent=5", "-XX:SurvivorRatio=32",
-            "-XX:+PerfDisableSharedMem", "-XX:MaxTenuringThreshold=1"
-        ]).unwrap_or_default(),
+        memory: memory_mb,
+        java_args: serde_json::to_string(&jvm_args).unwrap_or_default(),
         server_args: serde_json::to_string(&vec!["--nogui"]).unwrap_or_default(),
-        auto_start: false,
-        auto_restart: true,
-        world_name: "world".to_string(),
-        difficulty: "normal".to_string(),
-        gamemode: "survival".to_string(),
-        pvp: true,
-        online_mode: true,
-        whitelist: false,
-        enable_command_block: false,
-        view_distance: 10,
-        simulation_distance: 10,
-        motd: "A Minecraft Server".to_string(),
-        // Additional production fields
+        auto_start: payload.auto_start.unwrap_or(false),
+        auto_restart: payload.auto_restart.unwrap_or(true),
+        world_name: payload.world_settings.as_ref().map(|w| w.world_name.clone()).unwrap_or_else(|| "world".to_string()),
+        difficulty: payload.world_settings.as_ref().map(|w| w.difficulty.clone()).unwrap_or_else(|| "normal".to_string()),
+        gamemode: payload.world_settings.as_ref().map(|w| w.gamemode.clone()).unwrap_or_else(|| "survival".to_string()),
+        pvp: payload.pvp.unwrap_or(true),
+        online_mode: payload.online_mode.unwrap_or(true),
+        whitelist: payload.whitelist.unwrap_or(false),
+        enable_command_block: payload.enable_command_block.unwrap_or(false),
+        view_distance: payload.view_distance.unwrap_or(10),
+        simulation_distance: payload.simulation_distance.unwrap_or(10),
+        motd: payload.motd.clone().unwrap_or_else(|| "A Minecraft Server".to_string()),
         host: "localhost".to_string(),
-        java_path: "java".to_string(),
-        jvm_args: "-Xmx4G -Xms2G".to_string(),
-        server_jar: "server.jar".to_string(),
-        rcon_password: uuid::Uuid::new_v4().to_string(),
+        java_path: payload.paths.java_path.clone().unwrap_or_else(|| "java".to_string()),
+        jvm_args: jvm_args.join(" "),
+        server_jar: jar_path,
+        server_directory: server_root_str.clone(),
+        rcon_password: generate_secure_password(),
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
     };
@@ -535,41 +625,25 @@ async fn create_server(
         Ok(_) => {
             info!("Successfully created server: {} (ID: {})", payload.name, server_id);
             
-            // Create server directory structure (root with world/mods/config)
-            if let Err(e) = create_server_layout(&server_root_str).await {
-                error!("Failed to create server directories: {}", e);
+            // Initialize server configuration files
+            if let Err(e) = initialize_server_configuration(&state, &server_id, &payload).await {
+                warn!("Failed to initialize server configuration: {}", e);
             }
             
-            // If user provided a jar path (non-empty), copy it into server root as server.jar
-            if let Some(jar_src) = payload.jar_path.as_ref().filter(|p| !p.trim().is_empty()) {
-                let from = std::path::Path::new(jar_src);
-                let to = std::path::Path::new(&server_root_str).join("server.jar");
-                if !to.exists() {
-                    if let Some(parent) = to.parent() { let _ = tokio::fs::create_dir_all(parent).await; }
+            // Install modpack if specified
+            if let Some(modpack) = &payload.modpack {
+                if let Err(e) = install_modpack_to_server(&state, &server_id, modpack).await {
+                    warn!("Failed to install modpack: {}", e);
                 }
-                if let Err(e) = tokio::fs::copy(from, &to).await {
-                    warn!("Failed to copy provided jar from {:?} to {:?}: {}", from, to, e);
-                } else {
-                    info!("Copied provided server jar to {:?}", to);
-                }
-            } else if payload.loader.to_lowercase() == "vanilla" {
-                // Attempt to download vanilla server JAR automatically
-                let dest = std::path::Path::new(&server_root_str).join("server.jar");
-                if !dest.exists() {
-                    match download_vanilla_server_jar(&payload.version, &dest).await {
-                        Ok(_) => info!("Downloaded vanilla server jar for {}", payload.version),
-                        Err(e) => warn!("Failed to download vanilla server jar: {}", e),
+            }
+            
+            // Install individual mods if specified
+            if let Some(mods) = &payload.individual_mods {
+                if !mods.is_empty() {
+                    if let Err(e) = install_mods_to_server(&state, &server_id, mods).await {
+                        warn!("Failed to install mods: {}", e);
                     }
                 }
-            }
-            // Initialize default server.properties with RCON enabled
-            if let Err(e) = init_server_properties(&state, &server_id).await {
-                warn!("Failed to initialize server.properties for {}: {}", server_id, e);
-            }
-            
-            // Initialize server.properties with RCON enabled (best-effort)
-            if let Err(e) = init_server_properties(&state, &server_id).await {
-                warn!("Failed to initialize server.properties for {}: {}", server_id, e);
             }
 
             // Return server info
@@ -628,7 +702,9 @@ async fn create_server_layout(server_root: &str) -> Result<(), std::io::Error> {
 
 /// Download Mojang vanilla server jar for the specified version
 async fn download_vanilla_server_jar(version: &str, dest_path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()?;
     let manifest_url = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json";
     let manifest: serde_json::Value = client.get(manifest_url).send().await?.json().await?;
     let versions = manifest["versions"].as_array().ok_or("invalid manifest")?;
@@ -720,8 +796,9 @@ async fn get_server_health(
             let rcon_ok = crate::rcon::RconClient::new(cfg.host.clone(), cfg.rcon_port, cfg.rcon_password.clone())
                 .is_available();
             // TCP query (simple connect to server port)
+            let default_addr = "127.0.0.1:25565".parse().unwrap_or_else(|_| "127.0.0.1:25565".parse().expect("Default address should be valid"));
             let query_ok = std::net::TcpStream::connect_timeout(
-                &format!("127.0.0.1:{}", cfg.port).parse().unwrap_or("127.0.0.1:25565".parse().unwrap()),
+                &format!("127.0.0.1:{}", cfg.port).parse().unwrap_or(default_addr),
                 std::time::Duration::from_millis(400),
             ).is_ok();
 
@@ -742,7 +819,21 @@ async fn start_server(
 ) -> Result<Json<ApiResponse<String>>, StatusCode> {
     info!("Starting server: {}", id);
     
-    match state.minecraft_manager.start_server(&id).await {
+    // Get server configuration from database
+    let server_config = match state.database.get_server(&id).await {
+        Ok(Some(config)) => config,
+        Ok(None) => {
+            error!("Server not found: {}", id);
+            return Ok(Json(ApiResponse::error("Server not found".to_string())));
+        }
+        Err(e) => {
+            error!("Failed to get server config: {}", e);
+            return Ok(Json(ApiResponse::error("Failed to get server configuration".to_string())));
+        }
+    };
+    
+    // Start server using ProcessManager
+    match state.process_manager.start_server_process(server_config).await {
         Ok(_) => {
             info!("Successfully started server: {}", id);
             
@@ -772,7 +863,15 @@ async fn stop_server(
 ) -> Result<Json<ApiResponse<String>>, StatusCode> {
     info!("Stopping server: {}", id);
     
-    match state.minecraft_manager.stop_server(&id).await {
+    let server_id = match Uuid::parse_str(&id) {
+        Ok(id) => id,
+        Err(e) => {
+            error!("Invalid server ID: {}", e);
+            return Ok(Json(ApiResponse::error("Invalid server ID".to_string())));
+        }
+    };
+    
+    match state.process_manager.stop_server_process(server_id).await {
         Ok(_) => {
             info!("Successfully stopped server: {}", id);
             
@@ -790,7 +889,7 @@ async fn stop_server(
         }
         Err(e) => {
             error!("Failed to stop server {}: {}", id, e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Ok(Json(ApiResponse::error(format!("Failed to stop: {}", e))))
         }
     }
 }
@@ -800,9 +899,24 @@ async fn restart_server(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<String>>, StatusCode> {
     info!("Restarting server: {}", id);
-    match state.minecraft_manager.restart_server(&id).await {
-        Ok(_) => Ok(Json(ApiResponse::success("Server restarting".to_string()))),
-        Err(e) => Ok(Json(ApiResponse::error(format!("Failed to restart: {}", e)))),
+    
+    let server_id = match Uuid::parse_str(&id) {
+        Ok(id) => id,
+        Err(e) => {
+            error!("Invalid server ID: {}", e);
+            return Ok(Json(ApiResponse::error("Invalid server ID".to_string())));
+        }
+    };
+    
+    match state.process_manager.restart_server_process(server_id).await {
+        Ok(_) => {
+            info!("Successfully restarted server: {}", id);
+            Ok(Json(ApiResponse::success("Server restarting".to_string())))
+        }
+        Err(e) => {
+            error!("Failed to restart server {}: {}", id, e);
+            Ok(Json(ApiResponse::error(format!("Failed to restart: {}", e))))
+        }
     }
 }
 
@@ -1042,7 +1156,7 @@ async fn update_jvm_args(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
     let new_args = payload.get("args").and_then(|v| v.as_str()).unwrap_or("").to_string();
     match state.database.get_server(&id).await {
-        Ok(Some(mut cfg)) => {
+        Ok(Some(cfg)) => {
             let mut cfg2 = cfg.clone();
             cfg2.jvm_args = new_args.clone();
             cfg2.updated_at = chrono::Utc::now();
@@ -1630,8 +1744,35 @@ async fn search_mods(
     Query(params): Query<ModSearchQuery>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<Mod>>>, StatusCode> {
-    match state.database.search_mods(&params).await {
-        Ok(mods) => Ok(Json(ApiResponse::success(mods))),
+    let query = params.search_query.unwrap_or_default();
+    let provider = params.source.unwrap_or_else(|| "modrinth".to_string());
+    
+    if query.is_empty() {
+        return Ok(Json(ApiResponse::success(vec![])));
+    }
+    
+    // Use the mod manager to search for mods
+    match state.mod_manager.search_mods(&query, None, None, None).await {
+        Ok(mods) => {
+            info!("Found {} mods for query '{}'", mods.len(), query);
+            // Convert ModInfo to Mod for API response
+            let api_mods: Vec<Mod> = mods.into_iter().map(|mod_info| {
+                Mod {
+                    id: mod_info.id.clone(),
+                    provider: "modrinth".to_string(),
+                    project_id: mod_info.id,
+                    version_id: mod_info.version,
+                    filename: format!("{}.jar", mod_info.name),
+                    sha1: "".to_string(),
+                    server_id: None,
+                    enabled: true,
+                    category: mod_info.category,
+                    created_at: chrono::Utc::now(),
+                    updated_at: chrono::Utc::now(),
+                }
+            }).collect();
+            Ok(Json(ApiResponse::success(api_mods)))
+        }
         Err(e) => {
             error!("Failed to search mods: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
@@ -1896,7 +2037,7 @@ async fn download_mod(
     let loader = params.get("loader");
 
     // Create a mock ModInfo for download
-    let mod_info = ModInfo {
+    let mod_info = ModManagerModInfo {
         id: id.clone(),
         name: "Unknown Mod".to_string(),
         description: "Unknown description".to_string(),
@@ -3111,8 +3252,8 @@ mod tests {
         let manager = WebSocketManager::new();
         let state = AppState {
             websocket_manager: Arc::new(manager),
-            minecraft_manager: crate::minecraft::MinecraftManager::new(crate::database::DatabaseManager::new(":memory:").await.unwrap()),
-            database: crate::database::DatabaseManager::new(":memory:").await.unwrap(),
+            minecraft_manager: crate::minecraft::MinecraftManager::new(crate::database::DatabaseManager::new(":memory:").await.expect("Failed to create test database")),
+            database: crate::database::DatabaseManager::new(":memory:").await.expect("Failed to create test database"),
             mod_manager: crate::mod_manager::ModManager::new(std::path::PathBuf::from("mods")),
             resource_monitor: Arc::new(crate::core::resource_monitor::ResourceMonitor::new(
                 crate::core::resource_monitor::ResourceMonitorConfig::default(),
@@ -3135,8 +3276,8 @@ mod tests {
         let manager = WebSocketManager::new();
         let state = AppState {
             websocket_manager: Arc::new(manager),
-            minecraft_manager: crate::minecraft::MinecraftManager::new(crate::database::DatabaseManager::new(":memory:").await.unwrap()),
-            database: crate::database::DatabaseManager::new(":memory:").await.unwrap(),
+            minecraft_manager: crate::minecraft::MinecraftManager::new(crate::database::DatabaseManager::new(":memory:").await.expect("Failed to create test database")),
+            database: crate::database::DatabaseManager::new(":memory:").await.expect("Failed to create test database"),
             mod_manager: crate::mod_manager::ModManager::new(std::path::PathBuf::from("mods")),
         };
         let app = create_api_router(state);
@@ -3149,4 +3290,756 @@ mod tests {
         let response = app.oneshot(request).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
     }
+}
+
+// Server creation wizard endpoints
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ServerVersionsResponse {
+    pub versions: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ServerValidationRequest {
+    pub name: Option<String>,
+    pub install_path: Option<String>,
+    pub java_path: Option<String>,
+    pub memory: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ServerValidationResponse {
+    pub valid: bool,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct JavaDetectionResponse {
+    pub java_path: Option<String>,
+    pub version: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ModpackSearchRequest {
+    pub query: String,
+    pub q: Option<String>,
+    pub provider: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ModpackSearchResponse {
+    pub modpacks: Vec<ModpackInfo>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ModpackInfo {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub version: String,
+    pub downloads: u64,
+    pub author: String,
+    pub logo_url: Option<String>,
+    pub server_mods: u32,
+    pub client_mods: u32,
+    pub total_mods: u32,
+}
+
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ModSearchResponse {
+    pub mods: Vec<ApiModInfo>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ApiModInfo {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub version: String,
+    pub downloads: u64,
+    pub author: String,
+    pub logo_url: Option<String>,
+    pub categories: Vec<String>,
+    pub server_safe: bool,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ModpackApplyRequest {
+    pub server_id: String,
+    pub source: String,
+    pub pack_id: String,
+    pub pack_version_id: String,
+    pub server_only: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ModInstallRequest {
+    pub server_id: String,
+    pub items: Vec<ModInstallItem>,
+}
+
+
+async fn get_server_versions(
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<ServerVersionsResponse>>, StatusCode> {
+    let edition_default = "Vanilla".to_string();
+    let edition = params.get("edition").unwrap_or(&edition_default);
+    
+    // For now, return mock data. In a real implementation, this would fetch from the appropriate API
+    let versions = match edition.as_str() {
+        "Vanilla" => vec![
+            "1.21.1".to_string(),
+            "1.21".to_string(),
+            "1.20.6".to_string(),
+            "1.20.4".to_string(),
+            "1.20.2".to_string(),
+        ],
+        "Fabric" => vec![
+            "1.21.1".to_string(),
+            "1.21".to_string(),
+            "1.20.6".to_string(),
+            "1.20.4".to_string(),
+        ],
+        "Forge" => vec![
+            "1.21.1".to_string(),
+            "1.21".to_string(),
+            "1.20.6".to_string(),
+            "1.20.4".to_string(),
+        ],
+        _ => vec![],
+    };
+    
+    Ok(Json(ApiResponse::success(ServerVersionsResponse { versions })))
+}
+
+async fn validate_server_config(
+    State(_state): State<AppState>,
+    Json(payload): Json<ServerValidationRequest>,
+) -> Result<Json<ApiResponse<ServerValidationResponse>>, StatusCode> {
+    let mut errors = Vec::new();
+    
+    // Validate server name
+    if let Some(name) = &payload.name {
+        if name.trim().is_empty() {
+            errors.push("Server name cannot be empty".to_string());
+        } else if name.len() > 50 {
+            errors.push("Server name must be 50 characters or less".to_string());
+        }
+    }
+    
+    // Validate install path
+    if let Some(path) = &payload.install_path {
+        if path.trim().is_empty() {
+            errors.push("Install path cannot be empty".to_string());
+        } else {
+            let path = std::path::Path::new(path);
+            if !path.is_absolute() {
+                errors.push("Install path must be absolute".to_string());
+            }
+        }
+    }
+    
+    // Validate Java path
+    if let Some(java_path) = &payload.java_path {
+        if java_path.trim().is_empty() {
+            errors.push("Java path cannot be empty".to_string());
+        } else {
+            // Check if Java executable exists and is valid
+            let output = std::process::Command::new(java_path)
+                .arg("-version")
+                .output();
+            
+            if let Err(_) = output {
+                errors.push("Invalid Java path or Java not executable".to_string());
+            }
+        }
+    }
+    
+    // Validate memory settings
+    if let Some(memory) = &payload.memory {
+        if let Ok(mem_obj) = serde_json::from_value::<serde_json::Map<String, serde_json::Value>>(memory.clone()) {
+            if let (Some(min), Some(max)) = (mem_obj.get("min"), mem_obj.get("max")) {
+                if let (Some(min_val), Some(max_val)) = (min.as_f64(), max.as_f64()) {
+                    if min_val >= max_val {
+                        errors.push("Minimum memory must be less than maximum memory".to_string());
+                    }
+                    if min_val < 1.0 || max_val > 32.0 {
+                        errors.push("Memory must be between 1GB and 32GB".to_string());
+                    }
+                }
+            }
+        }
+    }
+    
+    let valid = errors.is_empty();
+    let error = if valid { None } else { Some(errors.join("; ")) };
+    
+    Ok(Json(ApiResponse::success(ServerValidationResponse { valid, error })))
+}
+
+async fn detect_java_path(
+    State(_state): State<AppState>,
+) -> Result<Json<ApiResponse<JavaDetectionResponse>>, StatusCode> {
+    info!("Starting comprehensive Java detection");
+    
+    let mut java_installations = Vec::new();
+    
+    // First, try PATH
+    if let Ok(output) = std::process::Command::new("java").arg("-version").output() {
+        if output.status.success() {
+            let version_output = String::from_utf8_lossy(&output.stderr);
+            let version = extract_java_version(&version_output);
+            java_installations.push((String::from("java"), version));
+        }
+    }
+    
+    if cfg!(target_os = "windows") {
+        // Scan Windows Registry for Java installations
+        if let Ok(registry_java) = scan_windows_registry_for_java().await {
+            java_installations.extend(registry_java);
+        }
+        
+        // Scan common installation directories
+        let program_files = std::env::var("ProgramFiles").unwrap_or_else(|_| "C:\\Program Files".to_string());
+        let program_files_x86 = std::env::var("ProgramFiles(x86)").unwrap_or_else(|_| "C:\\Program Files (x86)".to_string());
+        
+        // Scan for Java installations in common directories
+        for base_path in &[&program_files, &program_files_x86] {
+            if let Ok(entries) = std::fs::read_dir(base_path) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                        if name.starts_with("Java") || name.starts_with("jdk") || name.starts_with("jre") || 
+                           name.starts_with("Eclipse Adoptium") || name.starts_with("OpenJDK") {
+                            let java_exe = path.join("bin").join("java.exe");
+                            if java_exe.exists() {
+                                if let Ok(output) = std::process::Command::new(&java_exe).arg("-version").output() {
+                                    if output.status.success() {
+                                        let version_output = String::from_utf8_lossy(&output.stderr);
+                                        let version = extract_java_version(&version_output);
+                                        java_installations.push((java_exe.to_string_lossy().to_string(), version));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        // Unix-like systems - scan common locations
+        let common_paths = vec![
+            "/usr/bin/java",
+            "/usr/local/bin/java",
+            "/opt/java/bin/java",
+            "/usr/lib/jvm/default-java/bin/java",
+            "/usr/lib/jvm/java-11-openjdk/bin/java",
+            "/usr/lib/jvm/java-17-openjdk/bin/java",
+            "/usr/lib/jvm/java-21-openjdk/bin/java",
+        ];
+        
+        for path in common_paths {
+            if let Ok(output) = std::process::Command::new(path).arg("-version").output() {
+                if output.status.success() {
+                    let version_output = String::from_utf8_lossy(&output.stderr);
+                    let version = extract_java_version(&version_output);
+                    java_installations.push((path.to_string(), version));
+                }
+            }
+        }
+        
+        // Scan /usr/lib/jvm for additional installations
+        if let Ok(entries) = std::fs::read_dir("/usr/lib/jvm") {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    if name.contains("java") || name.contains("jdk") || name.contains("jre") {
+                        let java_exe = path.join("bin").join("java");
+                        if java_exe.exists() {
+                            if let Ok(output) = std::process::Command::new(&java_exe).arg("-version").output() {
+                                if output.status.success() {
+                                    let version_output = String::from_utf8_lossy(&output.stderr);
+                                    let version = extract_java_version(&version_output);
+                                    java_installations.push((java_exe.to_string_lossy().to_string(), version));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Sort by version (prefer newer versions)
+    java_installations.sort_by(|a, b| {
+        let version_a = parse_java_version(&a.1);
+        let version_b = parse_java_version(&b.1);
+        version_b.cmp(&version_a)
+    });
+    
+    if let Some((java_path, version)) = java_installations.first() {
+        info!("Found Java at {} with version {}", java_path, version);
+        Ok(Json(ApiResponse::success(JavaDetectionResponse {
+            java_path: Some(java_path.clone()),
+            version: Some(version.clone()),
+        })))
+    } else {
+        warn!("No Java installation found");
+        Ok(Json(ApiResponse::success(JavaDetectionResponse {
+            java_path: None,
+            version: None,
+        })))
+    }
+}
+
+async fn scan_windows_registry_for_java() -> Result<Vec<(String, String)>, Box<dyn std::error::Error>> {
+    let mut installations = Vec::new();
+    
+    // Use PowerShell to query the registry for Java installations
+    let ps_script = r#"
+        $javaKeys = @(
+            "HKLM:\SOFTWARE\JavaSoft\JDK",
+            "HKLM:\SOFTWARE\JavaSoft\JRE", 
+            "HKLM:\SOFTWARE\Eclipse Adoptium\JDK",
+            "HKLM:\SOFTWARE\Eclipse Adoptium\JRE",
+            "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*"
+        )
+        
+        foreach ($key in $javaKeys) {
+            try {
+                if ($key -like "*Uninstall*") {
+                    $items = Get-ItemProperty $key | Where-Object { 
+                        $_.DisplayName -like "*Java*" -or 
+                        $_.DisplayName -like "*JDK*" -or 
+                        $_.DisplayName -like "*JRE*" -or
+                        $_.DisplayName -like "*Adoptium*" -or
+                        $_.DisplayName -like "*OpenJDK*"
+                    }
+                    foreach ($item in $items) {
+                        if ($item.InstallLocation) {
+                            $javaExe = Join-Path $item.InstallLocation "bin\java.exe"
+                            if (Test-Path $javaExe) {
+                                Write-Output $javaExe
+                            }
+                        }
+                    }
+                } else {
+                    $subKeys = Get-ChildItem $key -ErrorAction SilentlyContinue
+                    foreach ($subKey in $subKeys) {
+                        $javaHome = Get-ItemProperty "$($subKey.PSPath)" -Name "JavaHome" -ErrorAction SilentlyContinue
+                        if ($javaHome -and $javaHome.JavaHome) {
+                            $javaExe = Join-Path $javaHome.JavaHome "bin\java.exe"
+                            if (Test-Path $javaExe) {
+                                Write-Output $javaExe
+                            }
+                        }
+                    }
+                }
+            } catch {
+                # Ignore errors and continue
+            }
+        }
+    "#;
+    
+    let output = std::process::Command::new("powershell")
+        .args(&["-Command", ps_script])
+        .output();
+    
+    if let Ok(output) = output {
+        if output.status.success() {
+            let output_str = String::from_utf8_lossy(&output.stdout);
+            for line in output_str.lines() {
+                let path = line.trim();
+                if !path.is_empty() && std::path::Path::new(path).exists() {
+                    if let Ok(java_output) = std::process::Command::new(path).arg("-version").output() {
+                        if java_output.status.success() {
+                            let version_output = String::from_utf8_lossy(&java_output.stderr);
+                            let version = extract_java_version(&version_output);
+                            installations.push((path.to_string(), version));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    Ok(installations)
+}
+
+fn parse_java_version(version_str: &str) -> (u32, u32, u32) {
+    // Parse version string like "1.8.0_291" or "17.0.2" into (major, minor, patch)
+    let parts: Vec<&str> = version_str.split('.').collect();
+    let major = parts.get(0).and_then(|s| s.parse().ok()).unwrap_or(0);
+    let minor = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(0);
+    let patch = parts.get(2).and_then(|s| s.split('_').next().and_then(|p| p.parse().ok())).unwrap_or(0);
+    (major, minor, patch)
+}
+
+async fn validate_server_creation_request(payload: &CreateServerRequest) -> Result<(), String> {
+    // Validate required fields
+    if payload.name.trim().is_empty() {
+        return Err("Server name cannot be empty".to_string());
+    }
+    
+    if payload.name.len() > 50 {
+        return Err("Server name must be 50 characters or less".to_string());
+    }
+    
+    if payload.minecraft_version.trim().is_empty() {
+        return Err("Minecraft version cannot be empty".to_string());
+    }
+    
+    if payload.loader.trim().is_empty() {
+        return Err("Loader cannot be empty".to_string());
+    }
+    
+    // Validate Java path if provided
+    if let Some(java_path) = &payload.paths.java_path {
+        if !java_path.trim().is_empty() {
+            let output = std::process::Command::new(java_path)
+                .arg("-version")
+                .output();
+            
+            if let Err(_) = output {
+                return Err(format!("Invalid Java path: {}", java_path));
+            }
+        }
+    }
+    
+    // Validate memory allocation
+    if let Some(memory) = payload.memory {
+        if memory < 512 {
+            return Err("Memory must be at least 512MB".to_string());
+        }
+        if memory > 32768 {
+            return Err("Memory cannot exceed 32GB".to_string());
+        }
+    }
+    
+    // Validate port numbers
+    if let Some(port) = payload.port {
+        if port < 1024 {
+            return Err("Port must be between 1024 and 65535".to_string());
+        }
+    }
+    
+    Ok(())
+}
+
+async fn prepare_server_jar(payload: &CreateServerRequest, server_root: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let jar_path = format!("{}/server.jar", server_root);
+    
+    // If user provided a jar path, copy it
+    if let Some(jar_src) = &payload.jar_path {
+        if !jar_src.trim().is_empty() {
+            let from = std::path::Path::new(jar_src);
+            let to = std::path::Path::new(&jar_path);
+            
+            if !to.exists() {
+                if let Some(parent) = to.parent() {
+                    tokio::fs::create_dir_all(parent).await?;
+                }
+            }
+            
+            tokio::fs::copy(from, to).await?;
+            info!("Copied server JAR from {:?} to {:?}", from, to);
+            return Ok(jar_path);
+        }
+    }
+    
+    // Download server JAR based on loader
+    match payload.loader.to_lowercase().as_str() {
+        "vanilla" => {
+            download_vanilla_server_jar(&payload.minecraft_version, std::path::Path::new(&jar_path)).await?;
+        }
+        "forge" => {
+            download_forge_server_jar(&payload.minecraft_version, &payload.version, std::path::Path::new(&jar_path)).await?;
+        }
+        "fabric" => {
+            download_fabric_server_jar(&payload.minecraft_version, &payload.version, std::path::Path::new(&jar_path)).await?;
+        }
+        "quilt" => {
+            download_quilt_server_jar(&payload.minecraft_version, &payload.version, std::path::Path::new(&jar_path)).await?;
+        }
+        _ => {
+            return Err("Unsupported loader".into());
+        }
+    }
+    
+    Ok(jar_path)
+}
+
+fn generate_optimized_jvm_args(memory_mb: u32) -> Vec<String> {
+    let mut args = Vec::new();
+    
+    // Memory settings
+    args.push(format!("-Xmx{}M", memory_mb));
+    args.push(format!("-Xms{}M", memory_mb / 2));
+    
+    // Garbage collection optimization
+    if memory_mb >= 4096 {
+        args.push("-XX:+UseG1GC".to_string());
+        args.push("-XX:+ParallelRefProcEnabled".to_string());
+        args.push("-XX:MaxGCPauseMillis=200".to_string());
+        args.push("-XX:+UnlockExperimentalVMOptions".to_string());
+        args.push("-XX:+DisableExplicitGC".to_string());
+        args.push("-XX:+AlwaysPreTouch".to_string());
+        args.push("-XX:G1NewSizePercent=30".to_string());
+        args.push("-XX:G1MaxNewSizePercent=40".to_string());
+        args.push("-XX:G1HeapRegionSize=8M".to_string());
+        args.push("-XX:G1ReservePercent=20".to_string());
+        args.push("-XX:G1HeapWastePercent=5".to_string());
+        args.push("-XX:G1MixedGCCountTarget=4".to_string());
+        args.push("-XX:InitiatingHeapOccupancyPercent=15".to_string());
+        args.push("-XX:G1MixedGCLiveThresholdPercent=90".to_string());
+        args.push("-XX:G1RSetUpdatingPauseTimePercent=5".to_string());
+        args.push("-XX:SurvivorRatio=32".to_string());
+    } else {
+        args.push("-XX:+UseConcMarkSweepGC".to_string());
+        args.push("-XX:+UseParNewGC".to_string());
+    }
+    
+    // Performance optimizations
+    args.push("-XX:+PerfDisableSharedMem".to_string());
+    args.push("-XX:MaxTenuringThreshold=1".to_string());
+    args.push("-XX:+UseStringDeduplication".to_string());
+    args.push("-XX:+OptimizeStringConcat".to_string());
+    
+    // JVM optimizations
+    args.push("-server".to_string());
+    args.push("-Djava.awt.headless=true".to_string());
+    args.push("-Dfile.encoding=UTF-8".to_string());
+    
+    args
+}
+
+fn generate_secure_password() -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    use std::time::{SystemTime, UNIX_EPOCH};
+    
+    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
+    
+    // Use system time and thread ID for pseudo-randomness
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+    let thread_id = std::thread::current().id();
+    
+    let mut hasher = DefaultHasher::new();
+    now.hash(&mut hasher);
+    thread_id.hash(&mut hasher);
+    let hash = hasher.finish();
+    
+    (0..16)
+        .map(|i| {
+            let idx = ((hash >> (i * 4)) & 0xFF) as usize % CHARSET.len();
+            CHARSET[idx] as char
+        })
+        .collect()
+}
+
+async fn initialize_server_configuration(
+    state: &AppState,
+    server_id: &str,
+    payload: &CreateServerRequest,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize server.properties
+    init_server_properties(state, server_id).await?;
+    
+    // Initialize eula.txt
+    init_eula_file(server_id).await?;
+    
+    // Initialize ops.json
+    init_ops_file(server_id).await?;
+    
+    // Initialize whitelist.json if whitelist is enabled
+    if payload.whitelist.unwrap_or(false) {
+        init_whitelist_file(server_id).await?;
+    }
+    
+    Ok(())
+}
+
+async fn install_modpack_to_server(
+    state: &AppState,
+    server_id: &str,
+    modpack: &ModpackInstallRequest,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Use the mod manager to install the modpack
+    state.mod_manager.install_modpack(server_id, &modpack.pack_id, &modpack.pack_version_id).await?;
+    Ok(())
+}
+
+async fn install_mods_to_server(
+    state: &AppState,
+    server_id: &str,
+    mods: &[ModInstallItem],
+) -> Result<(), Box<dyn std::error::Error>> {
+    for mod_item in mods {
+        // Use the existing install_mod method with proper parameters
+        let mod_info = crate::mod_manager::ModInfo {
+            id: mod_item.mod_id.clone(),
+            name: "Unknown".to_string(),
+            description: "".to_string(),
+            version: mod_item.file_id.clone(),
+            author: "Unknown".to_string(),
+            minecraft_version: "1.20.1".to_string(),
+            loader: "forge".to_string(),
+            category: "misc".to_string(),
+            side: "both".to_string(),
+            download_url: None,
+            file_size: None,
+            sha1: None,
+            dependencies: vec![],
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+        
+        let _result = state.mod_manager.install_mod(server_id, &mod_item.mod_id, &mod_item.file_id, &mod_item.provider).await?;
+    }
+    Ok(())
+}
+
+
+async fn download_forge_server_jar(version: &str, forge_version: &str, dest: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+    // For now, download vanilla server JAR as a fallback
+    // TODO: Implement proper Forge server JAR download
+    info!("Downloading vanilla server JAR as fallback for Forge server");
+    download_vanilla_server_jar(version, dest).await?;
+    Ok(())
+}
+
+async fn download_fabric_server_jar(version: &str, fabric_version: &str, dest: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+    // For now, download vanilla server JAR as a fallback
+    // TODO: Implement proper Fabric server JAR download
+    info!("Downloading vanilla server JAR as fallback for Fabric server");
+    download_vanilla_server_jar(version, dest).await?;
+    Ok(())
+}
+
+async fn download_quilt_server_jar(version: &str, quilt_version: &str, dest: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+    // For now, download vanilla server JAR as a fallback
+    // TODO: Implement proper Quilt server JAR download
+    info!("Downloading vanilla server JAR as fallback for Quilt server");
+    download_vanilla_server_jar(version, dest).await?;
+    Ok(())
+}
+
+async fn init_eula_file(server_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let eula_path = format!("data/servers/{}/eula.txt", server_id);
+    let eula_content = "eula=false\n";
+    tokio::fs::write(eula_path, eula_content).await?;
+    Ok(())
+}
+
+async fn init_ops_file(server_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let ops_path = format!("data/servers/{}/ops.json", server_id);
+    let ops_content = "[]\n";
+    tokio::fs::write(ops_path, ops_content).await?;
+    Ok(())
+}
+
+async fn init_whitelist_file(server_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let whitelist_path = format!("data/servers/{}/whitelist.json", server_id);
+    let whitelist_content = "[]\n";
+    tokio::fs::write(whitelist_path, whitelist_content).await?;
+    Ok(())
+}
+
+async fn search_modpacks(
+    Query(params): Query<ModpackSearchRequest>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<ModpackSearchResponse>>, StatusCode> {
+    info!("Searching modpacks with query: {:?}", params);
+    
+    let query = params.q.unwrap_or_else(|| params.query.clone());
+    let provider = params.provider.unwrap_or_else(|| "modrinth".to_string());
+    
+    if query.is_empty() {
+        return Ok(Json(ApiResponse::success(ModpackSearchResponse { modpacks: vec![] })));
+    }
+    
+    // Use the mod manager to search for modpacks
+    match state.mod_manager.search_modpacks(&query, &provider).await {
+        Ok(modpacks) => {
+            info!("Found {} modpacks for query '{}'", modpacks.len(), query);
+            // Convert database Modpack to API ModpackInfo
+            let api_modpacks: Vec<ModpackInfo> = modpacks.into_iter().map(|modpack| {
+                let server_mods_count = modpack.server_mods.parse::<u32>().unwrap_or(0);
+                let client_mods_count = modpack.client_mods.parse::<u32>().unwrap_or(0);
+                
+                ModpackInfo {
+                    id: modpack.id,
+                    name: modpack.name,
+                    description: modpack.description.unwrap_or_default(),
+                    version: modpack.minecraft_version,
+                    downloads: 0, // Not available in database schema
+                    author: "Unknown".to_string(), // Not available in database schema
+                    logo_url: None, // Not available in database schema
+                    server_mods: server_mods_count,
+                    client_mods: client_mods_count,
+                    total_mods: server_mods_count + client_mods_count,
+                }
+            }).collect();
+            Ok(Json(ApiResponse::success(ModpackSearchResponse { modpacks: api_modpacks })))
+        }
+        Err(e) => {
+            error!("Failed to search modpacks: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+
+
+async fn install_mods(
+    State(_state): State<AppState>,
+    Json(payload): Json<ModInstallRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
+    // Mock implementation. In a real implementation, this would install the mods to the server
+    info!("Installing {} mods to server {}", payload.items.len(), payload.server_id);
+    
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "success": true,
+        "message": "Mods installed successfully"
+    }))))
+}
+
+async fn sse_handler(
+    State(state): State<AppState>,
+) -> Result<axum::response::Sse<impl futures::stream::Stream<Item = Result<axum::response::sse::Event, axum::Error>>>, StatusCode> {
+    use axum::response::sse::{Event, Sse};
+    use futures::stream;
+    use tokio::sync::broadcast;
+    
+    // Create a broadcast channel for SSE events
+    let (tx, mut rx) = broadcast::channel::<serde_json::Value>(1000);
+    
+    // Note: In a real implementation, you would store the sender in the state
+    // For now, we'll just use the local channel
+    
+    let stream = stream::unfold((rx, tx), |(mut rx, _tx)| async move {
+        // Listen for events from the broadcast channel
+        match rx.recv().await {
+            Ok(event_data) => {
+                let event = Event::default()
+                    .data(serde_json::to_string(&event_data).unwrap_or_default())
+                    .event("server_event");
+                Some((Ok(event), (rx, _tx)))
+            }
+            Err(_) => {
+                // Channel closed, end the stream
+                None
+            }
+        }
+    });
+    
+    Ok(Sse::new(stream).keep_alive(
+        axum::response::sse::KeepAlive::new()
+            .interval(tokio::time::Duration::from_secs(15))
+            .text("keep-alive-text"),
+    ))
 }

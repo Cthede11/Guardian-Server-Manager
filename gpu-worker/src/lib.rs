@@ -145,9 +145,9 @@ pub extern "C" fn gpuw_init() -> c_int {
 
 /// Submit a chunk job (C ABI)
 #[no_mangle]
-pub extern "C" fn gpuw_submit_chunk_job(job: ChunkJob, out_handle: *mut JobHandle) -> c_int {
+pub unsafe extern "C" fn gpuw_submit_chunk_job(job: ChunkJob, out_handle: *mut JobHandle) -> c_int {
     unsafe {
-        if let Some(worker_arc) = &GPU_WORKER {
+        if let Some(worker_arc) = GPU_WORKER.as_ref() {
             let worker = worker_arc.clone();
             let rt = tokio::runtime::Runtime::new().unwrap();
             
@@ -177,7 +177,7 @@ pub extern "C" fn gpuw_submit_chunk_job(job: ChunkJob, out_handle: *mut JobHandl
 
 /// Try to fetch a result (C ABI)
 #[no_mangle]
-pub extern "C" fn gpuw_try_fetch_result(handle: *mut JobHandle, out_result: *mut ChunkResult) -> c_int {
+pub unsafe extern "C" fn gpuw_try_fetch_result(handle: *mut JobHandle, out_result: *mut ChunkResult) -> c_int {
     unsafe {
         if handle.is_null() {
             return -1;
@@ -199,7 +199,7 @@ pub extern "C" fn gpuw_try_fetch_result(handle: *mut JobHandle, out_result: *mut
 
 /// Free a result (C ABI)
 #[no_mangle]
-pub extern "C" fn gpuw_free_result(result: *mut ChunkResult) {
+pub unsafe extern "C" fn gpuw_free_result(result: *mut ChunkResult) {
     if !result.is_null() {
         unsafe {
             let _ = Box::from_raw(result);
@@ -211,7 +211,7 @@ pub extern "C" fn gpuw_free_result(result: *mut ChunkResult) {
 #[no_mangle]
 pub extern "C" fn gpuw_health_check() -> c_int {
     unsafe {
-        if let Some(worker_arc) = &GPU_WORKER {
+        if let Some(worker_arc) = GPU_WORKER.as_ref() {
             let worker = worker_arc.clone();
             let rt = tokio::runtime::Runtime::new().unwrap();
             
@@ -233,7 +233,7 @@ pub extern "C" fn gpuw_health_check() -> c_int {
 #[no_mangle]
 pub extern "C" fn gpuw_cleanup() {
     unsafe {
-        if let Some(worker_arc) = &GPU_WORKER {
+        if let Some(worker_arc) = GPU_WORKER.as_ref() {
             let worker = worker_arc.clone();
             let rt = tokio::runtime::Runtime::new().unwrap();
             

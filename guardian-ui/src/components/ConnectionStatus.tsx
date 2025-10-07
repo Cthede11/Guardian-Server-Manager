@@ -16,7 +16,7 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ className = 
   const checkConnection = async () => {
     setIsChecking(true);
     try {
-      const response = await api.getServers();
+      const response = await api.getServersWithStatus();
       // Check for success property from API response
       const isSuccess = response.success === true;
       setIsConnected(isSuccess);

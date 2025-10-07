@@ -1,6 +1,6 @@
 use wgpu::*;
 use anyhow::Result;
-use bytemuck::{Pod, Zeroable};
+// use bytemuck::{Pod, Zeroable}; // TODO: Implement when needed
 
 /// Mask kernel for terrain masking
 pub struct MaskKernel {

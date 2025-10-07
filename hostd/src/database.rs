@@ -43,6 +43,7 @@ pub struct ServerConfig {
     pub java_path: String,
     pub jvm_args: String,
     pub server_jar: String,
+    pub server_directory: String,
     pub rcon_password: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
@@ -328,6 +329,7 @@ impl DatabaseManager {
                 java_path TEXT NOT NULL DEFAULT 'java',
                 jvm_args TEXT NOT NULL DEFAULT '-Xmx4G -Xms2G',
                 server_jar TEXT NOT NULL DEFAULT 'server.jar',
+                server_directory TEXT NOT NULL DEFAULT 'data/servers',
                 rcon_password TEXT NOT NULL DEFAULT '',
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -625,6 +627,7 @@ impl DatabaseManager {
             ("java_path", "TEXT DEFAULT 'java'"),
             ("jvm_args", "TEXT DEFAULT '-Xmx4G -Xms2G'"),
             ("server_jar", "TEXT DEFAULT 'server.jar'"),
+            ("server_directory", "TEXT DEFAULT 'data/servers'"),
             ("rcon_password", "TEXT DEFAULT ''"),
         ];
         
@@ -1013,9 +1016,9 @@ impl DatabaseManager {
                 max_players, memory, java_args, server_args, auto_start, auto_restart,
                 world_name, difficulty, gamemode, pvp, online_mode, whitelist,
                 enable_command_block, view_distance, simulation_distance, motd,
-                host, java_path, jvm_args, server_jar, rcon_password,
+                host, java_path, jvm_args, server_jar, server_directory, rcon_password,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
         .bind(&config.id)
@@ -1046,6 +1049,7 @@ impl DatabaseManager {
         .bind(&config.java_path)
         .bind(&config.jvm_args)
         .bind(&config.server_jar)
+        .bind(&config.server_directory)
         .bind(&config.rcon_password)
         .bind(config.created_at)
         .bind(config.updated_at)
@@ -1102,6 +1106,7 @@ impl DatabaseManager {
                 java_path: row.get("java_path"),
                 jvm_args: row.get("jvm_args"),
                 server_jar: row.get("server_jar"),
+                server_directory: row.get("server_directory"),
                 rcon_password: row.get("rcon_password"),
                 created_at: row.get("created_at"),
                 updated_at: row.get("updated_at"),
@@ -1157,6 +1162,7 @@ impl DatabaseManager {
                 java_path: row.get("java_path"),
                 jvm_args: row.get("jvm_args"),
                 server_jar: row.get("server_jar"),
+                server_directory: row.get("server_directory"),
                 rcon_password: row.get("rcon_password"),
                 created_at: row.get("created_at"),
                 updated_at: row.get("updated_at"),
@@ -1332,8 +1338,8 @@ impl DatabaseManager {
         .bind(task.progress)
         .bind(&task.log)
         .bind(&task.metadata)
-        .bind(&task.started_at)
-        .bind(&task.finished_at)
+        .bind(task.started_at)
+        .bind(task.finished_at)
         .bind(task.created_at)
         .bind(task.updated_at)
         .execute(&self.pool)
@@ -1420,8 +1426,8 @@ impl DatabaseManager {
         .bind(task.progress)
         .bind(&task.log)
         .bind(&task.metadata)
-        .bind(&task.started_at)
-        .bind(&task.finished_at)
+        .bind(task.started_at)
+        .bind(task.finished_at)
         .bind(task.updated_at)
         .bind(&task.id)
         .execute(&self.pool)
@@ -1595,7 +1601,7 @@ impl DatabaseManager {
         .bind(record.size_bytes as i64)
         .bind(&record.status)
         .bind(record.created_at)
-        .bind(&record.completed_at)
+        .bind(record.completed_at)
         .execute(&self.pool)
         .await?;
 
@@ -1644,7 +1650,7 @@ impl DatabaseManager {
             "#,
         )
         .bind(&record.status)
-        .bind(&record.completed_at)
+        .bind(record.completed_at)
         .bind(&record.id)
         .execute(&self.pool)
         .await?;
@@ -2095,7 +2101,7 @@ impl DatabaseManager {
         .bind(&log.level)
         .bind(&log.message)
         .bind(&log.component)
-        .bind(&log.timestamp)
+        .bind(log.timestamp)
         .execute(&self.pool)
         .await?;
         
@@ -2133,11 +2139,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_database_creation() {
-        let temp_dir = tempdir().unwrap();
+        let temp_dir = tempdir().expect("Failed to create temp directory");
         let db_path = temp_dir.path().join("test.db");
         let database_url = format!("sqlite:{}", db_path.display());
         
-        let db = DatabaseManager::new(&database_url).await.unwrap();
+        let db = DatabaseManager::new(&database_url).await.expect("Failed to create test database");
         
         // Test creating a server
         let server = ServerConfig {

@@ -132,6 +132,12 @@ pub struct FixManager {
     mod_manager: Option<ModManager>,
 }
 
+impl Default for FixManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FixManager {
     pub fn new() -> Self {
         Self {
@@ -261,6 +267,12 @@ pub enum RiskLevel {
     Medium,
     High,
     Critical,
+}
+
+impl Default for CompatibilityAnalyzer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CompatibilityAnalyzer {

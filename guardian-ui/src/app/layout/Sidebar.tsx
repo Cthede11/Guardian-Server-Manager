@@ -42,23 +42,48 @@ const AddServerWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       console.log('Server created successfully:', createdServer);
       
       // Refresh the servers list to show the new server
+      console.log('Refreshing server list...');
       await fetchServers();
+      console.log('Server list refreshed');
+      
+      // Wait a bit to ensure the state is updated
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Force another refresh to make sure
+      console.log('Force refreshing server list again...');
+      await fetchServers();
+      console.log('Force refresh completed');
       
       // Close the wizard
       onClose();
       
       // Navigate to the new server if it has an ID
       if (createdServer?.id) {
+        console.log('Navigating to server:', createdServer.id);
         navigate(`/servers/${createdServer.id}`);
       }
     } catch (error) {
       console.error('Error handling server creation:', error);
-      alert(`Error handling server creation: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
+      console.error('Error type:', typeof error);
+      console.error('Error details:', error);
+      
+      // Show user-friendly error message
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Error handling server creation: ${errorMessage}`);
+      
+      // Still try to close the wizard to prevent it from being stuck
+      try {
+        onClose();
+      } catch (closeError) {
+        console.error('Error closing wizard:', closeError);
+      }
     }
   };
 
   return (
     <ServerCreationWizard 
+      open={true}
+      onOpenChange={() => {}} // Controlled by parent dialog
       onClose={onClose} 
       onServerCreated={handleServerCreated} 
     />
@@ -247,7 +272,7 @@ export const Sidebar: React.FC = () => {
                                   <div className="server-meta">
                                     <StatusPill status={server.status as "stopped" | "starting" | "running" | "stopping"} />
                                     <span className="text-xs text-muted-foreground font-medium">
-                                      {server.players_online} players
+                                      {server.playersOnline} players
                                     </span>
                                   </div>
                                 </div>
@@ -255,9 +280,9 @@ export const Sidebar: React.FC = () => {
                             </Link>
                      
                      <div className="flex items-center gap-1">
-                        {server.blue_green && (
+                        {server.blueGreen && (
                          <div className={`w-2 h-2 rounded-full ${
-                           server.blue_green.active === 'blue' ? 'bg-blue-500' : 'bg-green-500'
+                           server.blueGreen.active === 'blue' ? 'bg-blue-500' : 'bg-green-500'
                          }`} />
                        )}
                        

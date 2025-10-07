@@ -29,9 +29,7 @@ impl ValidationService {
             return Err(ValidationError::new("privileged_port"));
         }
         
-        if port > 65535 {
-            return Err(ValidationError::new("invalid_port"));
-        }
+        // u16 can only hold values up to 65535, so no need to check upper bound
         
         Ok(())
     }

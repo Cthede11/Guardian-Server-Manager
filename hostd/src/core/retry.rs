@@ -1,5 +1,4 @@
 use std::time::Duration;
-use std::sync::Arc;
 use tokio::time::sleep;
 use tracing::{warn, error, info};
 use crate::core::error_handler::AppError;
@@ -129,7 +128,7 @@ impl RetryManager {
             }
         }
         
-        Err(last_error.expect("Should have at least one error"))
+        Err(last_error.unwrap_or_else(|| panic!("No errors collected but retry failed")))
     }
     
     /// Execute a function with retry logic, checking if the error is retryable
@@ -171,7 +170,7 @@ impl RetryManager {
             }
         }
         
-        Err(last_error.expect("Should have at least one error"))
+        Err(last_error.unwrap_or_else(|| panic!("No errors collected but retry failed")))
     }
     
     /// Calculate the delay for the next retry attempt
@@ -267,7 +266,7 @@ impl CircuitBreaker {
         
         // Check circuit state
         {
-            let mut circuit_state = state.lock().unwrap();
+            let mut circuit_state = state.lock().map_err(|_| anyhow::anyhow!("Failed to acquire circuit state lock"))?;
             match *circuit_state {
                 CircuitState::Open { opened_at } => {
                     if opened_at.elapsed() < timeout_duration {
@@ -289,13 +288,13 @@ impl CircuitBreaker {
         match operation().await {
             Ok(result) => {
                 // Success - reset circuit
-                let mut circuit_state = state.lock().unwrap();
+                let mut circuit_state = state.lock().map_err(|_| anyhow::anyhow!("Failed to acquire circuit state lock"))?;
                 *circuit_state = CircuitState::Closed { failure_count: 0 };
                 Ok(result)
             }
             Err(error) => {
                 // Failure - update circuit state
-                let mut circuit_state = state.lock().unwrap();
+                let mut circuit_state = state.lock().map_err(|_| anyhow::anyhow!("Failed to acquire circuit state lock"))?;
                 match *circuit_state {
                 CircuitState::Closed { ref mut failure_count } => {
                     *failure_count += 1;

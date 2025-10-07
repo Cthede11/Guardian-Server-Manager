@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use regex::Regex;
 use crate::core::error_handler::{AppError, Result};
 
@@ -16,6 +15,12 @@ pub struct StringValidationRules {
     pub pattern: Option<Regex>,
     pub required: bool,
     pub trim: bool,
+}
+
+impl Default for StringValidationRules {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl StringValidationRules {
@@ -115,6 +120,12 @@ pub struct NumericValidationRules {
     pub max_value: Option<f64>,
     pub integer_only: bool,
     pub positive_only: bool,
+}
+
+impl Default for NumericValidationRules {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl NumericValidationRules {
@@ -317,14 +328,7 @@ impl ValidationRule<u16> for PortValidation {
             ));
         }
         
-        if *value > 65535 {
-            return Err(AppError::validation_error(
-                "port",
-                &value.to_string(),
-                "range",
-                "Port must be at most 65535"
-            ));
-        }
+        // u16 can only hold values up to 65535, so no need to check upper bound
         
         Ok(())
     }
@@ -409,7 +413,7 @@ impl ValidationSchemas {
                 .required()
                 .min_length(3)
                 .max_length(50)
-                .pattern(Regex::new(r"^[a-zA-Z0-9_-]+$").unwrap())
+                .pattern(Regex::new(r"^[a-zA-Z0-9_-]+$").expect("Regex pattern should be valid"))
             ))
     }
     
@@ -420,7 +424,7 @@ impl ValidationSchemas {
                 .required()
                 .min_length(3)
                 .max_length(30)
-                .pattern(Regex::new(r"^[a-zA-Z0-9_-]+$").unwrap())
+                .pattern(Regex::new(r"^[a-zA-Z0-9_-]+$").expect("Regex pattern should be valid"))
             ))
     }
     
@@ -495,6 +499,12 @@ pub struct ValidationError {
     pub value: String,
     pub constraint: String,
     pub message: String,
+}
+
+impl Default for ValidationResult {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ValidationResult {

@@ -353,9 +353,8 @@ impl AuthManager {
         // Check if token is in active sessions
         let user_id = {
             let sessions = self.user_sessions.read().await;
-            sessions.get(token)
+            *sessions.get(token)
                 .ok_or_else(|| anyhow!("Invalid token"))?
-                .clone()
         };
         
         // Verify JWT token

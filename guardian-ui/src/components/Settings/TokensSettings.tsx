@@ -195,11 +195,8 @@ export const TokensSettings: React.FC = () => {
       await updateSettings(serverId, {
         ...currentServerSettings,
         tokens: {
-          enabled: true,
-          secret_key: settings.rcon || '',
-          expiration_hours: 24,
-          // rcon: settings.rcon || '',
-          // query: settings.query || '',
+          rcon: settings.rcon || '',
+          query: settings.query || '',
           [key]: value
         }
       });

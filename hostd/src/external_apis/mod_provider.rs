@@ -115,6 +115,12 @@ pub struct MultiProviderModManager {
     providers: Vec<Box<dyn ModProvider>>,
 }
 
+impl Default for MultiProviderModManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MultiProviderModManager {
     pub fn new() -> Self {
         Self {

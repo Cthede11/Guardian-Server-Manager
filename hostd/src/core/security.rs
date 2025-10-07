@@ -133,7 +133,7 @@ impl SecurityManager {
     
     pub fn hash_password(&self, password: &str) -> Result<String> {
         use argon2::{Argon2, PasswordHasher};
-        use argon2::password_hash::{PasswordHash, SaltString};
+        use argon2::password_hash::SaltString;
         
         let salt = SaltString::generate(&mut rand::thread_rng());
         let argon2 = Argon2::default();

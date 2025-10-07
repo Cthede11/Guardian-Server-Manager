@@ -1,6 +1,6 @@
 use aes_gcm::{Aes256Gcm, Key, Nonce, KeyInit};
 use aes_gcm::aead::Aead;
-use rand::{Rng, RngCore};
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};

@@ -10,6 +10,12 @@ pub struct CompatibilityScanner {
     // Placeholder implementation
 }
 
+impl Default for CompatibilityScanner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CompatibilityScanner {
     pub fn new() -> Self {
         Self {}
@@ -30,6 +36,12 @@ pub struct AutoFixEngine {
     // Placeholder implementation
 }
 
+
+impl Default for AutoFixEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl AutoFixEngine {
     pub fn new() -> Self {

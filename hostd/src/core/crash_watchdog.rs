@@ -4,14 +4,14 @@ use tokio::sync::RwLock;
 use tokio::time::interval;
 use uuid::Uuid;
 use serde::Serialize;
-use tracing::{info, warn, error, debug};
+use tracing::{info, warn, error};
 
 use crate::core::{
     error_handler::{AppError, Result},
     process_manager::ProcessManager,
     monitoring::MonitoringManager,
 };
-use crate::database::{DatabaseManager, ServerConfig};
+use crate::database::DatabaseManager;
 
 /// Crash detection configuration
 #[derive(Debug, Clone)]

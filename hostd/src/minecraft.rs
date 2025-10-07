@@ -15,7 +15,7 @@ use tracing::{info, warn, error, debug};
 use uuid::Uuid;
 
 use crate::database::{DatabaseManager, ServerConfig, EventLog};
-use crate::rcon::{RconClient, Player as RconPlayer};
+use crate::rcon::RconClient;
 use crate::websocket_manager::WebSocketManager;
 
 /// Minecraft server process manager
@@ -675,7 +675,7 @@ impl MinecraftManager {
             
             // Send WebSocket notification
             if let Some(ws_manager) = &self.websocket_manager {
-                ws_manager.send_server_status(Uuid::parse_str(&id)?, "starting".to_string()).await;
+                ws_manager.send_server_status(Uuid::parse_str(id)?, "starting".to_string()).await;
             }
         } else {
             return Err(anyhow!("Server not found: {}", id));
@@ -691,7 +691,7 @@ impl MinecraftManager {
             
             // Send WebSocket notification
             if let Some(ws_manager) = &self.websocket_manager {
-                ws_manager.send_server_status(Uuid::parse_str(&id)?, "stopping".to_string()).await;
+                ws_manager.send_server_status(Uuid::parse_str(id)?, "stopping".to_string()).await;
             }
         } else {
             return Err(anyhow!("Server not found: {}", id));
@@ -707,7 +707,7 @@ impl MinecraftManager {
             
             // Send WebSocket notification
             if let Some(ws_manager) = &self.websocket_manager {
-                ws_manager.send_server_status(Uuid::parse_str(&id)?, "restarting".to_string()).await;
+                ws_manager.send_server_status(Uuid::parse_str(id)?, "restarting".to_string()).await;
             }
         } else {
             return Err(anyhow!("Server not found: {}", id));
@@ -766,7 +766,7 @@ impl MinecraftManager {
                     for (server_id, server) in servers_read.iter() {
                         if server.status == ServerStatus::Running {
                             if let Ok(metrics) = server.get_metrics().await {
-                                if let Ok(server_uuid) = Uuid::parse_str(&server_id) {
+                                if let Ok(server_uuid) = Uuid::parse_str(server_id) {
                                     if let Ok(metrics_value) = serde_json::to_value(metrics) {
                                         let _ = ws_manager.send_metrics(server_uuid, metrics_value).await;
                                     }
@@ -787,11 +787,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_minecraft_server_creation() {
-        let temp_dir = tempdir().unwrap();
+        let temp_dir = tempdir().expect("Failed to create temp directory");
         let db_path = temp_dir.path().join("test.db");
         let database_url = format!("sqlite:{}", db_path.display());
         
-        let db = DatabaseManager::new(&database_url).await.unwrap();
+        let db = DatabaseManager::new(&database_url).await.expect("Failed to create test database");
         
         let config = ServerConfig {
             id: "test-server".to_string(),

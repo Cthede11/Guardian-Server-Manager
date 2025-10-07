@@ -128,11 +128,15 @@ try {
 Write-Log "Building Guardian UI frontend..."
 Set-Location "$ProjectRoot\guardian-ui"
 try {
-    # Install dependencies
-    Write-Log "Installing frontend dependencies..."
-    & npm ci
-    if ($LASTEXITCODE -ne 0) {
-        throw "npm ci failed with exit code $LASTEXITCODE"
+    # Check if node_modules exists, if not install dependencies
+    if (-not (Test-Path "node_modules")) {
+        Write-Log "Installing frontend dependencies..."
+        & npm install
+        if ($LASTEXITCODE -ne 0) {
+            throw "npm install failed with exit code $LASTEXITCODE"
+        }
+    } else {
+        Write-Log "Using existing node_modules, skipping dependency installation" "INFO"
     }
     
     # Build frontend

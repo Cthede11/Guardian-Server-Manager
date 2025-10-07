@@ -1,4 +1,4 @@
-use std::process::{Command, Stdio, Child};
+use std::process::Stdio;
 use std::path::PathBuf;
 use std::time::Duration;
 use uuid::Uuid;
@@ -6,7 +6,7 @@ use tokio::process::Command as TokioCommand;
 use tokio::time::sleep;
 use serde_json;
 
-use crate::database::{DatabaseManager, ServerConfig, ServerLog, ServerMetric};
+use crate::database::{DatabaseManager, ServerConfig};
 use crate::core::{
     file_manager::FileManager,
     process_manager::ProcessManager,

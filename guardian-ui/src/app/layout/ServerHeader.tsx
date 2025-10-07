@@ -103,7 +103,7 @@ export const ServerHeader: React.FC = () => {
         };
       case 'promote':
         return {
-          disabled: server.status !== 'running' || !server.blue_green?.candidate_healthy || isLoading,
+          disabled: server.status !== 'running' || !server.blueGreen?.candidateHealthy || isLoading,
           loading: isLoading,
         };
       default:
@@ -145,34 +145,34 @@ export const ServerHeader: React.FC = () => {
           <h1 className="text-2xl font-bold gradient-text">{server.name}</h1>
           <div className="flex items-center gap-4 mt-2">
             <StatusPill status={server.status as "stopped" | "starting" | "running" | "stopping"} />
-            {server.blue_green && (
+            {server.blueGreen && (
               <Badge variant="outline" className="text-xs bg-primary/15 border-primary/40 text-primary px-3 py-1">
-                {server.blue_green.active === 'blue' ? 'Blue' : 'Green'}
-                {server.blue_green.candidate_healthy && (
+                {server.blueGreen.active === 'blue' ? 'Blue' : 'Green'}
+                {server.blueGreen.candidateHealthy && (
                   <Circle className="h-2 w-2 ml-2 text-success" />
                 )}
               </Badge>
             )}
             {serverHealth && typeof serverHealth === 'object' && (
               <div className="flex items-center gap-3">
-                {(serverHealth as any).rcon ? (
+                {(serverHealth as { rcon?: boolean }).rcon ? (
                   <CheckCircle className="h-4 w-4 text-success" />
                 ) : (
                   <AlertTriangle className="h-4 w-4 text-warning" />
                 )}
-                {(serverHealth as any).query ? (
+                {(serverHealth as { query?: boolean }).query ? (
                   <CheckCircle className="h-4 w-4 text-success" />
                 ) : (
                   <AlertTriangle className="h-4 w-4 text-warning" />
                 )}
-                {(serverHealth as any).crashTickets > 0 && (
+                {(serverHealth as { crashTickets?: number }).crashTickets && (serverHealth as { crashTickets?: number }).crashTickets! > 0 && (
                   <Badge variant="destructive" className="text-xs px-2 py-1">
-                    {(serverHealth as any).crashTickets} crashes
+                    {(serverHealth as { crashTickets?: number }).crashTickets} crashes
                   </Badge>
                 )}
-                {(serverHealth as any).freezeTickets > 0 && (
+                {(serverHealth as { freezeTickets?: number }).freezeTickets && (serverHealth as { freezeTickets?: number }).freezeTickets! > 0 && (
                   <Badge variant="secondary" className="text-xs px-2 py-1">
-                    {(serverHealth as any).freezeTickets} freezes
+                    {(serverHealth as { freezeTickets?: number }).freezeTickets} freezes
                   </Badge>
                 )}
               </div>

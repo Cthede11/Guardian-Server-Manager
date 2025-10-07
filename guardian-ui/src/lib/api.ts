@@ -84,7 +84,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     const { invoke } = await import('@tauri-apps/api/core');
     
     const method = init?.method || 'GET';
-    const body = init?.body ? JSON.stringify(init.body) : undefined;
+    const body = init?.body;
     
     console.log('Calling Tauri command with:', { url: `${base}${path}`, method, body });
     
@@ -125,13 +125,18 @@ export const apiClient = {
 
   // Server management
   async getServers(): Promise<any> {
-    return apiCall('/api/servers');
+    const response = await apiCall<{ success: boolean; data: any[]; error?: string; timestamp: string }>('/api/servers');
+    return response.data;
+  },
+  async getServersWithStatus(): Promise<{ success: boolean; data: any[]; error?: string; timestamp: string }> {
+    return apiCall<{ success: boolean; data: any[]; error?: string; timestamp: string }>('/api/servers');
   },
   async getServer(serverId: string): Promise<any> {
-    return apiCall(`/api/servers/${serverId}`);
+    const response = await apiCall<{ success: boolean; data: any; error?: string; timestamp: string }>(`/api/servers/${serverId}`);
+    return response.data;
   },
   async createServer(data: any): Promise<any> {
-    const response = await apiCall<{ success: boolean; data: any; error?: string }>('/api/servers', { 
+    const response = await apiCall<{ success: boolean; data: any; error?: string; timestamp: string }>('/api/servers', { 
       method: 'POST', 
       body: JSON.stringify(data) 
     });

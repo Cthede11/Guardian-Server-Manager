@@ -69,10 +69,9 @@ pub fn add_security_headers(response: &mut Response, config: &SecurityHeadersCon
                    frame-ancestors 'none'; \
                    base-uri 'self'; \
                    form-action 'self'";
-        headers.insert(
-            "Content-Security-Policy",
-            HeaderValue::from_str(csp).unwrap(),
-        );
+        if let Ok(header_value) = HeaderValue::from_str(csp) {
+            headers.insert("Content-Security-Policy", header_value);
+        }
     }
     
     // X-XSS-Protection
@@ -112,10 +111,9 @@ pub fn add_security_headers(response: &mut Response, config: &SecurityHeadersCon
         let permissions = "camera=(), microphone=(), geolocation=(), \
                           payment=(), usb=(), magnetometer=(), \
                           gyroscope=(), accelerometer=(), ambient-light-sensor=()";
-        headers.insert(
-            "Permissions-Policy",
-            HeaderValue::from_str(permissions).unwrap(),
-        );
+        if let Ok(header_value) = HeaderValue::from_str(permissions) {
+            headers.insert("Permissions-Policy", header_value);
+        }
     }
     
     // Additional security headers
@@ -189,12 +187,10 @@ pub fn add_no_cache_headers(response: &mut Response) {
 
 /// Add CORS headers for specific origins
 pub fn add_cors_headers_for_origin(response: &mut Response, origin: &str) {
-    let allowed_origins = vec![
-        "http://localhost:3000",
+    let allowed_origins = ["http://localhost:3000",
         "http://localhost:5173",
         "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-    ];
+        "http://127.0.0.1:5173"];
     
     if allowed_origins.contains(&origin) {
         response.headers_mut().insert(

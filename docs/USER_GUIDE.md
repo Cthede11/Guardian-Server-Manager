@@ -108,23 +108,61 @@ When you first launch Guardian Server Manager, you'll be presented with a setup 
 
 ### Creating a New Server
 
-1. **Navigate to Servers**
+Guardian features a comprehensive 4-step server creation wizard that guides you through the entire process.
+
+1. **Access the Server Creation Wizard**
    - Click "Servers" in the sidebar
-   - Click "Create New Server" button
+   - Click the "Create New Server" button (plus icon)
+   - The wizard will open in a modal dialog
 
-2. **Basic Configuration**
-   - **Server Name**: Choose a descriptive name
-   - **Description**: Optional description for your server
-   - **Minecraft Version**: Select from available versions
-   - **Modpack**: Choose a modpack (optional)
+2. **Step 1: Server Basics**
+   - **Server Name**: Choose a unique, descriptive name (required)
+   - **Edition**: Select Vanilla, Fabric, or Forge
+   - **Version**: Choose from available versions for your selected edition
+   - **Install Path**: Select where server files will be stored
+   - **Memory Allocation**: Set minimum and maximum RAM (with quick presets)
+   - **Java Path**: Auto-detect or manually specify Java executable
 
-3. **Server Settings**
-   - **Max Players**: Maximum number of concurrent players
-   - **MOTD**: Message of the day displayed in server list
-   - **Difficulty**: Peaceful, Easy, Normal, or Hard
-   - **Gamemode**: Survival, Creative, Adventure, or Spectator
-   - **PvP**: Enable/disable player vs player combat
-   - **Online Mode**: Enable/disable Mojang authentication
+3. **Step 2: Mods & Modpacks (Optional)**
+   - **Modpack Tab**: Search and install popular modpacks
+     - Choose between Modrinth and CurseForge sources
+     - View modpack details including mod counts
+     - Option to install server subset only
+   - **Individual Mods Tab**: Add specific mods
+     - Search by name with server-safe filtering
+     - Add/remove mods with visual chips
+     - Support for both Modrinth and CurseForge
+
+4. **Step 3: World & Performance**
+   - **World Settings**:
+     - World seed (optional, leave empty for random)
+     - World type (Default, Flat, or Custom)
+     - Render distance (2-32 chunks)
+   - **GPU Acceleration** (optional):
+     - Enable GPU pregeneration for faster world generation
+     - Configure radius, concurrency, and timing
+   - **Crash Isolation**:
+     - Set tick timeout and quarantine behavior
+     - Configure automatic crash recovery
+
+5. **Step 4: Review & Create**
+   - Review all your settings in organized summary cards
+   - Check resource requirements and warnings
+   - Click "Create Server" to begin the process
+   - Monitor progress with real-time status updates
+
+6. **Server Creation Process**
+   The wizard handles the entire creation process non-blocking:
+   - **Preparing**: Setting up server configuration
+   - **Installing Core**: Downloading Minecraft server files
+   - **Installing Modpack/Mods**: Adding selected content (if any)
+   - **Validating**: Checking configuration and dependencies
+   - **Finalizing**: Completing setup and preparing for launch
+
+7. **Post-Creation**
+   - Server appears in your server list
+   - Automatic navigation to server detail page
+   - Ready to start, configure, and manage your server
 
 4. **Advanced Settings**
    - **JVM Memory**: Allocate RAM for the server (2GB+ recommended)

@@ -1,4 +1,4 @@
-use crate::mod_manager::{ModInfo, ModDependency, ModManager};
+use crate::mod_manager::{ModInfo, ModManager};
 use crate::external_apis::mod_provider::{ModProvider, ProviderType};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -278,7 +278,7 @@ impl ModpackInstaller {
         let mut entries = fs::read_dir(&server_mods_dir).await?;
         while let Some(entry) = entries.next_entry().await? {
             let file_path = entry.path();
-            if file_path.extension().map_or(false, |ext| ext == "jar") {
+            if file_path.extension().is_some_and(|ext| ext == "jar") {
                 if let Ok(mod_info) = self.extract_mod_info(&file_path, &ProviderType::Modrinth).await {
                     // Check for updates using the appropriate provider
                     if let Some(provider) = self.providers.get(&ProviderType::Modrinth) {

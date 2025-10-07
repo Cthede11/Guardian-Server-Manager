@@ -239,6 +239,10 @@ export const ServerSettingsSchema = z.object({
   }),
   composer: z.object({
     profile: z.string(),
+    composerMode: z.enum(['development', 'production', 'testing']).optional(),
+    enabled: z.boolean().optional(),
+    auto_update: z.boolean().optional(),
+    update_interval: z.number().optional(),
   }),
   tokens: z.object({
     rcon: z.string(),

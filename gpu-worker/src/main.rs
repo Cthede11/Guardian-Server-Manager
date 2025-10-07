@@ -1,6 +1,5 @@
 use gpu_worker::GpuWorker;
-use tracing::{info, error};
-use tracing_subscriber;
+use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

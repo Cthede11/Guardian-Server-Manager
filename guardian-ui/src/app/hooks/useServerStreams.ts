@@ -21,14 +21,25 @@ export function useServerStreams(serverId?: string) {
         // Console stream
         unsubs.push(
           await events.subscribeToConsole(serverId, (payload: ConsoleLines) => {
-            appendConsole(serverId, payload);
+            const consoleMessages = payload.map(line => ({
+              ts: new Date(line.timestamp).getTime(),
+              level: line.level,
+              msg: line.message
+            }));
+            appendConsole(serverId, consoleMessages);
           })
         );
 
         // Metrics stream
         unsubs.push(
           await events.subscribeToMetrics(serverId, (payload: Metrics) => {
-            applyMetrics(serverId, payload);
+            applyMetrics(serverId, {
+              tps: payload.tps,
+              tick_p95_ms: payload.tickP95,
+              heap_mb: payload.heapMb,
+              gpu_queue_ms: payload.gpuQueueMs,
+              players_online: payload.playersOnline
+            });
           })
         );
 

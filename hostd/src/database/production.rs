@@ -239,6 +239,7 @@ impl ProductionDatabaseManager {
                 java_path VARCHAR(500) NOT NULL DEFAULT 'java',
                 jvm_args TEXT NOT NULL DEFAULT '-Xmx4G -Xms2G',
                 server_jar VARCHAR(255) NOT NULL DEFAULT 'server.jar',
+                server_directory VARCHAR(500) NOT NULL DEFAULT 'data/servers',
                 rcon_password VARCHAR(255) NOT NULL DEFAULT '',
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()

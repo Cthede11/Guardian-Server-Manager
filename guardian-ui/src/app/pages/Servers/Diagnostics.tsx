@@ -114,8 +114,10 @@ export const Diagnostics: React.FC = () => {
   };
 
   const getHealthStatus = () => {
-    // Convert systemHealth number to health status
-    return healthStatus(stats.systemHealth);
+    // For now, use a simple health calculation based on systemHealth
+    if (stats.systemHealth === 0) return 'healthy';
+    if (stats.systemHealth < 5) return 'warning';
+    return 'critical';
   };
 
   const currentHealthStatus = getHealthStatus();
@@ -170,11 +172,11 @@ export const Diagnostics: React.FC = () => {
       </div>
 
       {/* Health Status Alert */}
-      {currentHealthStatus !== 'success' && (
-        <Alert variant={currentHealthStatus === 'error' ? 'destructive' : 'default'}>
+      {currentHealthStatus !== 'healthy' && (
+        <Alert variant={currentHealthStatus === 'critical' ? 'destructive' : 'default'}>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            {currentHealthStatus === 'error' 
+            {currentHealthStatus === 'critical' 
               ? `System health is critical (${stats.systemHealth} tickets). Immediate attention required.`
               : `System health is degraded (${stats.systemHealth} tickets). Monitor closely.`
             }
@@ -217,7 +219,7 @@ export const Diagnostics: React.FC = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">System Health</CardTitle>
-            {currentHealthStatus === 'success' ? (
+            {currentHealthStatus === 'healthy' ? (
               <CheckCircle className="h-4 w-4 text-green-500" />
             ) : (
               <AlertTriangle className="h-4 w-4 text-yellow-500" />

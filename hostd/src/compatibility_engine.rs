@@ -25,6 +25,12 @@ pub struct CompatibilityScanner {
     // Placeholder implementation
 }
 
+impl Default for CompatibilityScanner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CompatibilityScanner {
     pub fn new() -> Self {
         Self {}

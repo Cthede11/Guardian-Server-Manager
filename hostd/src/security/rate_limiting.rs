@@ -206,6 +206,12 @@ pub struct AdvancedRateLimiter {
     endpoint_limiters: HashMap<String, RateLimiter>,
 }
 
+impl Default for AdvancedRateLimiter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AdvancedRateLimiter {
     pub fn new() -> Self {
         let mut endpoint_limiters = HashMap::new();

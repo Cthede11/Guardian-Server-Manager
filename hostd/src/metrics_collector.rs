@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
-use sysinfo::{System, Process, Pid};
+use sysinfo::{System, Pid};
 
 /// Real-time server metrics
 #[derive(Debug, Clone, Serialize, Deserialize)]

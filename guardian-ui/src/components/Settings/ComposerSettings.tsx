@@ -152,6 +152,7 @@ export const ComposerSettings: React.FC = () => {
       await updateSettings(serverId, {
         ...currentServerSettings,
         composer: {
+          profile: currentServerSettings.composer?.profile || 'default',
           enabled: true,
           auto_update: true,
           update_interval: 24,

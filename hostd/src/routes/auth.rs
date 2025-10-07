@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::core::auth::{AuthManager, LoginRequest, LoginResponse, RegisterRequest, UserUpdate};
+use crate::core::auth::{LoginRequest, LoginResponse, RegisterRequest, UserUpdate};
 use crate::core::app_state::AppState;
 // use crate::core::middleware::AuthContext;
 use crate::api::ApiResponse;

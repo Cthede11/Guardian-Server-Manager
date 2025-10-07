@@ -1,7 +1,6 @@
 use anyhow::Result;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use tracing::{info, warn, error};
 use crate::external_apis::mod_provider::ModProvider;
 use crate::mod_manager::ModDependency;

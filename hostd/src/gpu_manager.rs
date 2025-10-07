@@ -4,7 +4,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{info, warn, error};
 use std::time::{Duration, Instant};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 /// GPU metrics for monitoring
 #[derive(Debug, Clone, Serialize)]
@@ -220,7 +220,7 @@ impl GpuManager {
         system.refresh_cpu();
         system.refresh_memory();
         
-        let cpu_usage = system.global_cpu_info().cpu_usage() as f32 / 100.0;
+        let cpu_usage = system.global_cpu_info().cpu_usage() / 100.0;
         let memory_usage = system.used_memory() as f32 / system.total_memory() as f32;
         
         // Update last check time
@@ -299,7 +299,7 @@ impl GpuManager {
         system.refresh_cpu();
         system.refresh_memory();
         
-        let cpu_usage = system.global_cpu_info().cpu_usage() as f32 / 100.0;
+        let cpu_usage = system.global_cpu_info().cpu_usage() / 100.0;
         let memory_usage = system.used_memory() as f32 / system.total_memory() as f32;
         
         // Adjust threshold based on system performance

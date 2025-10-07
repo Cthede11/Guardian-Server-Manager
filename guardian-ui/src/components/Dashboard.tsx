@@ -40,10 +40,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ className }) => {
   useEffect(() => {
     if (selectedServerId) {
       // Start metrics collection
-      metricsCollector.startCollection(selectedServer?.id || '');
+      metricsCollector.startCollection();
       
       // Connect to real-time updates
-      realtimeConnection.connect(selectedServer?.id || '').then(() => {
+      realtimeConnection.connect().then(() => {
         setIsConnected(true);
       }).catch((error: any) => {
         errorHandler.handleError(error, 'WebSocket Connection');
@@ -220,14 +220,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ className }) => {
               <div>
                 <p className="text-sm font-medium text-gray-600">Players</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {metrics?.playersOnline || 0}/{selectedServer?.max_players || 20}
+                  {metrics?.playersOnline || 0}/{selectedServer?.maxPlayers || 20}
                 </p>
               </div>
               <Users className="h-8 w-8 text-green-500" />
             </div>
             <div className="mt-2">
               <Progress 
-                value={metrics?.playersOnline ? (metrics.playersOnline / (selectedServer?.max_players || 20)) * 100 : 0} 
+                value={metrics?.playersOnline ? (metrics.playersOnline / (selectedServer?.maxPlayers || 20)) * 100 : 0} 
                 className="h-2"
               />
             </div>

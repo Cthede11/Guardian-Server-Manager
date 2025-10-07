@@ -1,23 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 // import { ScrollArea } from '@/components/ui/scroll-area';
 import { Trash2, Play } from 'lucide-react';
-
-interface LogEntry {
-  id: string;
-  timestamp: string;
-  level: 'info' | 'warn' | 'error' | 'debug';
-  message: string;
-  data?: any;
-}
+import { useConsoleStore } from '@/store/console';
+import type { LogEntry } from '@/lib/types.gen';
 
 export default function Console() {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const { logs, addLog, clearLogs } = useConsoleStore();
   // const [isRunning] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const logIdRef = useRef(0);
 
   // Override console methods to capture logs
   useEffect(() => {
@@ -25,16 +18,6 @@ export default function Console() {
     const originalWarn = console.warn;
     const originalError = console.error;
     const originalInfo = console.info;
-
-    const addLog = (level: LogEntry['level'], ...args: any[]) => {
-      const id = `log-${++logIdRef.current}`;
-      const timestamp = new Date().toLocaleTimeString();
-      const message = args.map(arg => 
-        typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-      ).join(' ');
-      
-      setLogs(prev => [...prev, { id, timestamp, level, message, data: args }]);
-    };
 
     console.log = (...args) => {
       originalLog(...args);
@@ -56,8 +39,10 @@ export default function Console() {
       addLog('info', ...args);
     };
 
-    // Add initial log
-    addLog('info', 'Console initialized - Ready for debugging');
+    // Add initial log if no logs exist
+    if (logs.length === 0) {
+      addLog('info', 'Console initialized - Ready for debugging');
+    }
 
     return () => {
       console.log = originalLog;
@@ -65,7 +50,7 @@ export default function Console() {
       console.error = originalError;
       console.info = originalInfo;
     };
-  }, []);
+  }, [addLog, logs.length]);
 
   // Auto-scroll to bottom when new logs are added
   useEffect(() => {
@@ -77,8 +62,8 @@ export default function Console() {
     }
   }, [logs]);
 
-  const clearLogs = () => {
-    setLogs([]);
+  const handleClearLogs = () => {
+    clearLogs();
     console.log('Console cleared');
   };
 
@@ -86,99 +71,147 @@ export default function Console() {
     console.log('Testing API connection...');
     try {
       // Use the API client instead of direct fetch
-      const { api } = await import('../../lib/api');
-      const { isSuccessResponse, logApiError, getErrorMessageWithSuggestions } = await import('../../lib/api-response-handler');
+      const { apiClient } = await import('../../lib/api');
       
-      const response = await api('/healthz') as { success: boolean; data: string; error?: string; timestamp: string };
-      console.log('API Health Check Response:', response);
+      // Test health endpoint
+      const healthResponse = await apiClient.call('/api/healthz');
+      console.log('API Health Check Response:', healthResponse);
       
-      if (isSuccessResponse(response)) {
+      if (healthResponse) {
         console.log('✅ API is working correctly');
-        console.log(`Backend health status: ${response.data}`);
-        console.log(`Response timestamp: ${response.timestamp}`);
+        console.log(`Backend health status: ${healthResponse}`);
       } else {
-        const errorMessage = getErrorMessageWithSuggestions(response);
-        console.error('❌ API Health Check Failed');
-        console.error(errorMessage);
+        console.error('❌ API Health Check Failed - No response');
       }
+      
+      // Test servers endpoint
+      try {
+        const servers = await apiClient.getServers();
+        console.log('✅ Servers endpoint working');
+        console.log(`Found ${servers?.length || 0} servers`);
+        if (servers && servers.length > 0) {
+          console.log('Existing servers:', servers.map((s: any) => ({ id: s.id, name: s.name, status: s.status })));
+        }
+      } catch (serverError) {
+        console.error('❌ Servers endpoint failed:', serverError);
+      }
+      
+      // Test Java detection endpoint
+      try {
+        const javaResponse = await apiClient.call('/api/server/detect-java');
+        console.log('✅ Java detection endpoint working');
+        console.log('Java detection response:', javaResponse);
+      } catch (javaError) {
+        console.error('❌ Java detection endpoint failed:', javaError);
+      }
+      
     } catch (error) {
-      const { logApiError, getErrorMessageWithSuggestions } = await import('../../lib/api-response-handler');
-      logApiError(error, 'API Health Check Failed');
-      console.error(getErrorMessageWithSuggestions(error));
+      console.error('❌ API test failed:', error);
+      console.error('Error details:', {
+        name: error instanceof Error ? error.name : 'Unknown',
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
     }
   };
 
   const testServerCreation = async () => {
-    console.log('Testing server creation...');
+    console.log('Testing server creation with updated API...');
     try {
+      // Test data using the correct structure that matches the backend expectations
       const serverData = {
         name: 'Test Server from Console',
         loader: 'vanilla',
         version: '1.21.1',
-        mc_version: '1.21.1', // Backend expects both version and mc_version
+        minecraft_version: '1.21.1', // Backend expects minecraft_version, not mc_version
         paths: {
           world: './world',
           mods: './mods',
-          config: './config'
+          config: './config',
+          java_path: 'java' // Added java_path with fallback
         },
-        pregeneration_policy: {
-          enabled: false,
-          radius: 0,
-          dimensions: ["overworld"],
-          gpu_acceleration: true,
-          efficiency_package: false
-        }
+        max_players: 20,
+        memory: 4096, // Memory in MB (4GB)
+        world_settings: {
+          world_name: 'Test Server from Console',
+          difficulty: 'normal',
+          gamemode: 'survival'
+        },
+        // Optional fields that the backend supports
+        port: 25565,
+        rcon_port: 25575,
+        query_port: 25566,
+        auto_start: false,
+        auto_restart: true,
+        pvp: true,
+        online_mode: true,
+        whitelist: false,
+        enable_command_block: false,
+        view_distance: 10,
+        simulation_distance: 10,
+        motd: 'A Test Minecraft Server'
       };
 
       console.log('Sending server creation request:', serverData);
       
-      // Use dynamic API base discovery instead of hardcoded localhost:8080
-      const { getAPI_BASE } = await import('../../lib/api');
-      const base = await getAPI_BASE();
+      // Use the updated API client instead of direct fetch
+      const { apiClient } = await import('../../lib/api');
       
-      const response = await fetch(`${base}/api/servers`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(serverData)
-      });
-
-      console.log('Server creation response status:', response.status, response.statusText);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`❌ Server creation failed with HTTP ${response.status} ${response.statusText}`);
-        console.error('Response body:', errorText);
-        
-        try {
-          const errorData = JSON.parse(errorText);
-          if (errorData.error) {
-            console.error('Error message:', errorData.error);
-          }
-          if (errorData.details) {
-            console.error('Error details:', errorData.details);
-          }
-        } catch (e) {
-          console.error('Could not parse error response as JSON');
-        }
-        return;
-      }
-
-      const data = await response.json();
-      console.log('Server creation response data:', data);
-      
-      if (data.success) {
+      try {
+        const newServer = await apiClient.createServer(serverData);
         console.log('✅ Server created successfully!');
-        console.log('Server ID:', data.data.id);
-        console.log('Server Name:', data.data.name);
-        console.log('Server Version:', data.data.version);
-        console.log('Server Status:', data.data.status);
-      } else {
-        console.error('❌ Server creation failed');
-        console.error('Error:', data.error || 'Unknown error');
-        if (data.details) {
-          console.error('Details:', data.details);
+        console.log('Server details:', newServer);
+        console.log('Server ID:', newServer?.id);
+        console.log('Server name:', newServer?.name);
+        console.log('Server status:', newServer?.status);
+        console.log('Server version:', newServer?.version);
+        console.log('Server memory:', newServer?.memory_usage, 'MB');
+      } catch (apiError) {
+        console.error('❌ API client error:', apiError);
+        
+        // Fallback to direct fetch for debugging
+        console.log('Falling back to direct fetch for debugging...');
+        const { getAPI_BASE } = await import('../../lib/api');
+        const base = await getAPI_BASE();
+        
+        const response = await fetch(`${base}/api/servers`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(serverData)
+        });
+
+        console.log('Direct fetch response status:', response.status, response.statusText);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`❌ Direct fetch failed with HTTP ${response.status} ${response.statusText}`);
+          console.error('Response body:', errorText);
+          
+          try {
+            const errorData = JSON.parse(errorText);
+            if (errorData.error) {
+              console.error('Error message:', errorData.error);
+            }
+            if (errorData.details) {
+              console.error('Error details:', errorData.details);
+            }
+          } catch (e) {
+            console.error('Could not parse error response as JSON');
+          }
+        } else {
+          const data = await response.json();
+          console.log('Direct fetch response data:', data);
+          
+          if (data.success) {
+            console.log('✅ Server created successfully via direct fetch!');
+            console.log('Server ID:', data.data?.id);
+            console.log('Server name:', data.data?.name);
+            console.log('Server status:', data.data?.status);
+          } else {
+            console.error('❌ Server creation failed:', data.error);
+          }
         }
       }
     } catch (error) {
@@ -242,7 +275,7 @@ export default function Console() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={clearLogs}
+                onClick={handleClearLogs}
                 className="flex items-center gap-2"
               >
                 <Trash2 className="w-4 h-4" />

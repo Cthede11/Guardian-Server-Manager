@@ -67,9 +67,14 @@ export const ServerListDashboard: React.FC<ServerListDashboardProps> = ({ classN
   const [metrics, setMetrics] = useState<Record<string, MetricData>>({});
   const [isConnected, setIsConnected] = useState(false);
 
+  // Debug: Log server list changes
+  useEffect(() => {
+    console.log('Server list updated:', { servers: servers.length, summaries: Object.keys(summaries) });
+  }, [servers, summaries]);
+
   useEffect(() => {
     // Connect to real-time updates
-    realtimeConnection.connect('').then(() => {
+    realtimeConnection.connect().then(() => {
       setIsConnected(true);
     }).catch((error: any) => {
       errorHandler.handleError(error, 'WebSocket Connection');
@@ -236,9 +241,30 @@ export const ServerListDashboard: React.FC<ServerListDashboardProps> = ({ classN
           </SelectContent>
         </Select>
 
-        <Button onClick={() => fetchServers()}>
+        <Button onClick={() => {
+          console.log('Manual refresh clicked');
+          fetchServers();
+        }}>
           <RefreshCw className="h-4 w-4 mr-2" />
           Refresh
+        </Button>
+        
+        <Button 
+          variant="outline" 
+          onClick={async () => {
+            console.log('Testing API connection...');
+            try {
+              const response = await fetch('http://127.0.0.1:52100/api/servers');
+              const data = await response.json();
+              console.log('API test response:', data);
+              alert(`API Test: Found ${data.data?.length || 0} servers`);
+            } catch (error) {
+              console.error('API test failed:', error);
+              alert(`API Test Failed: ${error}`);
+            }
+          }}
+        >
+          Test API
         </Button>
       </div>
 
@@ -353,7 +379,7 @@ export const ServerListDashboard: React.FC<ServerListDashboardProps> = ({ classN
                           {serverMetrics.playersOnline || 0}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          / {server.max_players || 20}
+                          / {server.maxPlayers || 20}
                         </div>
                       </div>
                     </div>

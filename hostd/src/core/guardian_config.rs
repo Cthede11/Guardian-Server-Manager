@@ -60,7 +60,7 @@ impl GuardianConfig {
     /// Load configuration from environment variables and .env file
     pub fn load() -> Result<Self> {
         // Load .env file if it exists
-        if let Ok(_) = dotenv::dotenv() {
+        if dotenv::dotenv().is_ok() {
             tracing::info!("Loaded .env file");
         }
         

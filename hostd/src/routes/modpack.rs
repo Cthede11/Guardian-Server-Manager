@@ -174,6 +174,12 @@ pub struct ModpackState {
     pub versions: VersionStore,
 }
 
+impl Default for ModpackState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ModpackState {
     pub fn new() -> Self {
         Self {

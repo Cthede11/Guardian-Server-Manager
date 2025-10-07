@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, warn, error};
+use tracing::debug;
 
 /// Cache entry with metadata
 #[derive(Debug, Clone)]
@@ -82,6 +82,12 @@ pub struct CacheMetrics {
     pub entries: usize,
     pub hit_rate: f64,
     pub memory_usage: usize,
+}
+
+impl Default for CacheMetrics {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CacheMetrics {
@@ -199,7 +205,7 @@ where
     /// Check if the cache contains a key
     pub async fn contains_key(&self, key: &K) -> bool {
         let entries = self.entries.read().await;
-        entries.get(key).map_or(false, |entry| !entry.is_expired())
+        entries.get(key).is_some_and(|entry| !entry.is_expired())
     }
     
     /// Get the number of entries in the cache
@@ -379,6 +385,12 @@ where
     
     fn clear(&self) {
         // This would need to be async in a real implementation
+    }
+}
+
+impl Default for CacheManager {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

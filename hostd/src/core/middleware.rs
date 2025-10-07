@@ -5,7 +5,7 @@ use axum::{
     response::{Response, IntoResponse},
     Json,
 };
-use serde_json::{json, Value};
+use serde_json::json;
 use std::sync::Arc;
 use crate::core::auth::{AuthManager, Permission};
 

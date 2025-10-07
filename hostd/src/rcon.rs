@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::net::{TcpStream, SocketAddr};
+use std::net::TcpStream;
 use std::io::{Read, Write};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -50,10 +50,7 @@ impl RconClient {
     
     pub fn is_available(&self) -> bool {
         let addr = format!("{}:{}", self.host, self.port);
-        match TcpStream::connect(addr) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        TcpStream::connect(addr).is_ok()
     }
     
     pub fn send_command(&self, command: &str) -> Result<String> {

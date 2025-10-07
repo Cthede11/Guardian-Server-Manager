@@ -25,6 +25,12 @@ pub struct MetricsHub {
     pub ring: Arc<tokio::sync::RwLock<VecDeque<MetricsPoint>>>,
 }
 
+impl Default for MetricsHub {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MetricsHub {
     pub fn new() -> Self {
         let (tx, _rx) = broadcast::channel(256);

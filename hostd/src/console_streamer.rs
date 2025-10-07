@@ -137,8 +137,7 @@ impl ConsoleStreamer {
     /// Get console message history for a server
     pub async fn get_history(&self, server_id: &str, filter: Option<ConsoleFilter>) -> Vec<ConsoleMessage> {
         let history = self.message_history.read().await;
-        let mut messages = history.get(server_id)
-            .map(|h| h.clone())
+        let mut messages = history.get(server_id).cloned()
             .unwrap_or_default();
 
         if let Some(filter) = filter {

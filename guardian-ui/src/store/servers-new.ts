@@ -73,16 +73,51 @@ export const useServers = create<ServersState>((set, get) => ({
     set({ loading: true, error: null });
     
     try {
+      console.log('Fetching servers from API...');
       const servers = await api.getServers();
+      console.log('API returned servers:', servers);
       if (signal?.aborted) return;
       
+      // Defensive programming: ensure servers is an array
+      if (!Array.isArray(servers)) {
+        console.error('Servers is not an array:', servers);
+        throw new Error('Invalid server data format received from API');
+      }
+      
       const summaries = servers.reduce((acc: Record<string, ServerSummary>, server: ServerSummary) => {
+        // Defensive programming: ensure server has required properties
+        if (!server || typeof server !== 'object' || !server.id) {
+          console.warn('Invalid server object:', server);
+          return acc;
+        }
         acc[server.id] = server;
         return acc;
       }, {} as Record<string, ServerSummary>);
       
+      console.log('Setting summaries:', summaries);
+      console.log('Number of servers:', Object.keys(summaries).length);
       set({ summaries, loading: false });
+      console.log('State updated successfully');
+      
+      // Force a re-render by logging the current state
+      setTimeout(() => {
+        const currentState = get();
+        console.log('Current state after fetchServers:', {
+          summariesCount: Object.keys(currentState.summaries).length,
+          loading: currentState.loading,
+          error: currentState.error
+        });
+      }, 100);
     } catch (error) {
+      console.error('Error fetching servers:', error);
+      console.error('Error type:', typeof error);
+      console.error('Error constructor:', error?.constructor?.name);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      } else if (typeof error === 'object' && error !== null) {
+        console.error('Error object details:', JSON.stringify(error, null, 2));
+      }
       if (!signal?.aborted) {
         set({ 
           error: error instanceof Error ? error.message : 'Failed to fetch servers',
@@ -96,15 +131,22 @@ export const useServers = create<ServersState>((set, get) => ({
     set({ loading: true, error: null });
     
     try {
+      console.log('Creating server with data:', data);
       const server = await api.createServer(data);
+      console.log('Server created:', server);
       
-      set((state) => ({
-        summaries: { ...state.summaries, [server.id]: server },
-        loading: false
-      }));
+      set((state) => {
+        const newSummaries = { ...state.summaries, [server.id]: server };
+        console.log('Updating summaries with new server:', newSummaries);
+        return {
+          summaries: newSummaries,
+          loading: false
+        };
+      });
       
       return true;
     } catch (error) {
+      console.error('Error creating server:', error);
       set({ 
         error: error instanceof Error ? error.message : 'Failed to create server',
         loading: false 
@@ -204,16 +246,16 @@ export const useServers = create<ServersState>((set, get) => ({
       // Optimistically update blue/green status
       set((state) => {
         const server = state.summaries[id];
-        if (!server?.blue_green) return state;
+        if (!server?.blueGreen) return state;
         
         return {
           summaries: {
             ...state.summaries,
             [id]: {
               ...server,
-              blue_green: {
-                ...server.blue_green,
-                active: server.blue_green.active === 'blue' ? 'green' : 'blue'
+              blueGreen: {
+                ...server.blueGreen,
+                active: server.blueGreen.active === 'blue' ? 'green' : 'blue'
               }
             }
           }

@@ -1,14 +1,14 @@
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio::time::interval;
 use uuid::Uuid;
 use serde::{Deserialize, Serialize};
 use sysinfo::{System, Pid};
-use tracing::{info, warn, error, debug};
+use tracing::{info, warn, error};
 
 use crate::core::{
-    error_handler::{AppError, Result},
+    error_handler::Result,
     guardian_config::GuardianConfig,
 };
 

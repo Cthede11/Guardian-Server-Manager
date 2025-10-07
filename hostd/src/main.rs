@@ -3,7 +3,6 @@ use axum::{
     Router,
 };
 use tower_http::cors::{CorsLayer, Any};
-use tracing_subscriber::{fmt, EnvFilter};
 use std::sync::Arc;
 
 use hostd::core::{
@@ -165,7 +164,7 @@ async fn main() -> Result<()> {
     let monitoring_manager = Arc::new(MonitoringManager::new(&monitoring_config)?);
 
     // Initialize WebSocket manager
-    let websocket_manager = Arc::new(hostd::core::websocket::WebSocketManager::new());
+    let websocket_manager = Arc::new(hostd::websocket_manager::WebSocketManager::new());
 
     // Initialize crash watchdog
     let watchdog_config = WatchdogConfig::default();
@@ -248,6 +247,7 @@ async fn main() -> Result<()> {
     
     // Create the API app state for the comprehensive router
     let api_websocket_manager = Arc::new(WebSocketManager::new());
+    let process_manager = Arc::new(hostd::core::process_manager::ProcessManager::new(api_websocket_manager.clone()));
     let api_app_state = ApiAppState {
         websocket_manager: api_websocket_manager,
         minecraft_manager: hostd::minecraft::MinecraftManager::new(database.clone()),
@@ -258,6 +258,8 @@ async fn main() -> Result<()> {
         test_harness: test_harness.clone(),
         gpu_manager: gpu_manager.clone(),
         performance_telemetry: performance_telemetry.clone(),
+        sse_sender: None,
+        process_manager: process_manager.clone(),
     };
     
     // Create the main router with auth routes

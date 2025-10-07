@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use serde::{Deserialize, Serialize};
@@ -424,7 +424,11 @@ impl ModManager {
 
         let mod_data = response.bytes().await?;
         let temp_path = self.mods_base_dir.join("temp").join(format!("{}.jar", mod_info.id));
-        tokio::fs::create_dir_all(temp_path.parent().unwrap()).await?;
+        if let Some(parent) = temp_path.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        } else {
+            return Err("Invalid temp path".into());
+        }
         tokio::fs::write(&temp_path, mod_data).await?;
 
         Ok(temp_path)
@@ -514,6 +518,27 @@ impl ModManager {
     ) -> Result<Vec<ModInfo>, Box<dyn std::error::Error>> {
         // TODO: Implement actual mod search
         Ok(vec![])
+    }
+
+    /// Search for modpacks
+    pub async fn search_modpacks(
+        &self,
+        query: &str,
+        provider: &str,
+    ) -> Result<Vec<crate::database::Modpack>, Box<dyn std::error::Error>> {
+        // TODO: Implement actual modpack search
+        Ok(vec![])
+    }
+
+    /// Install a modpack to a server
+    pub async fn install_modpack(
+        &self,
+        server_id: &str,
+        pack_id: &str,
+        pack_version_id: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        // TODO: Implement actual modpack installation
+        Ok(())
     }
 
     /// Download a mod (public version)

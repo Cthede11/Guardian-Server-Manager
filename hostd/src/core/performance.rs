@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::RwLock;
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn, error, debug};
-use sysinfo::{System, Pid};
+use tracing::debug;
+use sysinfo::System;
 
 /// Performance metrics for monitoring system health
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -544,6 +544,12 @@ pub enum EvictionPolicy {
     LRU,
     LFU,
     TTL,
+}
+
+impl Default for PerformanceOptimizer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl PerformanceOptimizer {
