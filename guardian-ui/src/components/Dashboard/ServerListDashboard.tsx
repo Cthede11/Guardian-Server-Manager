@@ -379,7 +379,7 @@ export const ServerListDashboard: React.FC<ServerListDashboardProps> = ({ classN
                           {serverMetrics.playersOnline || 0}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          / {server.maxPlayers || 20}
+                          / {server.max_players || 20}
                         </div>
                       </div>
                     </div>

@@ -31,9 +31,10 @@ interface StepWorldProps {
 }
 
 const worldTypes = [
-  { value: 'default', label: 'Default', description: 'Standard world generation' },
-  { value: 'flat', label: 'Flat', description: 'Flat world with customizable layers' },
-  { value: 'custom', label: 'Custom', description: 'Custom world generation settings' }
+  { value: 'new', label: 'New World', description: 'Create a new world' },
+  { value: 'existing', label: 'Existing World', description: 'Use an existing world' },
+  { value: 'import', label: 'Import World', description: 'Import a world from file' },
+  { value: 'default', label: 'Default', description: 'Standard world generation' }
 ];
 
 const quarantineBehaviors = [
@@ -49,12 +50,17 @@ export const StepWorld: React.FC<StepWorldProps> = ({
   isLoadingVersions,
   onValidate
 }) => {
-  const [gpuEnabled, setGpuEnabled] = useState(formData.gpuPregeneration.enabled);
+  const [gpuEnabled, setGpuEnabled] = useState(typeof formData.gpuPregeneration === 'object' && formData.gpuPregeneration?.enabled || false);
 
   const handleGpuToggle = (enabled: boolean) => {
     setGpuEnabled(enabled);
     updateFormData({
-      gpuPregeneration: { ...formData.gpuPregeneration, enabled }
+      gpuPregeneration: { 
+        enabled,
+        radius: typeof formData.gpuPregeneration === 'object' ? formData.gpuPregeneration?.radius || 1000 : 1000,
+        concurrency: typeof formData.gpuPregeneration === 'object' ? formData.gpuPregeneration?.concurrency || 4 : 4,
+        deferUntilStart: typeof formData.gpuPregeneration === 'object' ? formData.gpuPregeneration?.deferUntilStart || false : false
+      }
     });
   };
 
@@ -94,7 +100,7 @@ export const StepWorld: React.FC<StepWorldProps> = ({
               <Label htmlFor="worldType">World Type</Label>
               <Select
                 value={formData.worldType}
-                onValueChange={(value) => updateFormData({ worldType: value })}
+                onValueChange={(value: 'new' | 'existing' | 'import' | 'default') => updateFormData({ worldType: value })}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -117,7 +123,7 @@ export const StepWorld: React.FC<StepWorldProps> = ({
               <div className="space-y-3 mt-2">
                 <div className="bg-muted/50 rounded-lg p-4">
                   <Slider
-                    value={[formData.renderDistance]}
+                    value={[formData.renderDistance || 10]}
                     onValueChange={([value]) => updateFormData({ renderDistance: value })}
                     min={2}
                     max={32}
@@ -177,9 +183,9 @@ export const StepWorld: React.FC<StepWorldProps> = ({
                   <div className="space-y-3 mt-2">
                     <div className="bg-muted/50 rounded-lg p-4">
                       <Slider
-                        value={[formData.gpuPregeneration.radius]}
+                        value={[typeof formData.gpuPregeneration === 'object' ? formData.gpuPregeneration?.radius || 1000 : 1000]}
                         onValueChange={([value]) => updateFormData({
-                          gpuPregeneration: { ...formData.gpuPregeneration, radius: value }
+                          gpuPregeneration: typeof formData.gpuPregeneration === 'object' ? { ...formData.gpuPregeneration, radius: value } : { enabled: false, radius: value, concurrency: 4, deferUntilStart: false }
                         })}
                         min={100}
                         max={10000}
@@ -189,7 +195,7 @@ export const StepWorld: React.FC<StepWorldProps> = ({
                       <div className="flex justify-between text-sm mt-3">
                         <span className="text-muted-foreground">100 blocks</span>
                         <span className="font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full">
-                          {formData.gpuPregeneration.radius} blocks
+                          {typeof formData.gpuPregeneration === 'object' ? formData.gpuPregeneration?.radius || 1000 : 1000} blocks
                         </span>
                         <span className="text-muted-foreground">10,000 blocks</span>
                       </div>
@@ -205,9 +211,9 @@ export const StepWorld: React.FC<StepWorldProps> = ({
                   <div className="space-y-3 mt-2">
                     <div className="bg-muted/50 rounded-lg p-4">
                       <Slider
-                        value={[formData.gpuPregeneration.concurrency]}
+                        value={[typeof formData.gpuPregeneration === 'object' ? formData.gpuPregeneration?.concurrency || 4 : 4]}
                         onValueChange={([value]) => updateFormData({
-                          gpuPregeneration: { ...formData.gpuPregeneration, concurrency: value }
+                          gpuPregeneration: typeof formData.gpuPregeneration === 'object' ? { ...formData.gpuPregeneration, concurrency: value } : { enabled: false, radius: 1000, concurrency: value, deferUntilStart: false }
                         })}
                         min={1}
                         max={16}
@@ -217,7 +223,7 @@ export const StepWorld: React.FC<StepWorldProps> = ({
                       <div className="flex justify-between text-sm mt-3">
                         <span className="text-muted-foreground">1 thread</span>
                         <span className="font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full">
-                          {formData.gpuPregeneration.concurrency} threads
+                          {typeof formData.gpuPregeneration === 'object' ? formData.gpuPregeneration?.concurrency || 4 : 4} threads
                         </span>
                         <span className="text-muted-foreground">16 threads</span>
                       </div>
@@ -232,9 +238,9 @@ export const StepWorld: React.FC<StepWorldProps> = ({
                   <input
                     type="checkbox"
                     id="deferUntilStart"
-                    checked={formData.gpuPregeneration.deferUntilStart}
+                    checked={typeof formData.gpuPregeneration === 'object' ? formData.gpuPregeneration?.deferUntilStart || false : false}
                     onChange={(e) => updateFormData({
-                      gpuPregeneration: { ...formData.gpuPregeneration, deferUntilStart: e.target.checked }
+                      gpuPregeneration: typeof formData.gpuPregeneration === 'object' ? { ...formData.gpuPregeneration, deferUntilStart: e.target.checked } : { enabled: false, radius: 1000, concurrency: 4, deferUntilStart: e.target.checked }
                     })}
                     className="w-4 h-4 text-primary bg-background border-2 border-muted-foreground rounded focus:ring-2 focus:ring-primary focus:ring-offset-2"
                   />
@@ -273,9 +279,9 @@ export const StepWorld: React.FC<StepWorldProps> = ({
                 type="number"
                 min="1000"
                 max="300000"
-                value={formData.crashIsolation.tickTimeout}
+                value={typeof formData.crashIsolation === 'object' ? formData.crashIsolation?.tickTimeout || 60000 : 60000}
                 onChange={(e) => updateFormData({
-                  crashIsolation: { ...formData.crashIsolation, tickTimeout: parseInt(e.target.value) || 60000 }
+                  crashIsolation: typeof formData.crashIsolation === 'object' ? { ...formData.crashIsolation, tickTimeout: parseInt(e.target.value) || 60000 } : { enabled: false, tickTimeout: parseInt(e.target.value) || 60000, quarantineBehavior: 'pause_entity' }
                 })}
               />
               <p className="text-xs text-muted-foreground mt-1">
@@ -286,9 +292,9 @@ export const StepWorld: React.FC<StepWorldProps> = ({
             <div>
               <Label htmlFor="quarantineBehavior">Quarantine Behavior</Label>
               <Select
-                value={formData.crashIsolation.quarantineBehavior}
+                value={typeof formData.crashIsolation === 'object' ? formData.crashIsolation?.quarantineBehavior || 'pause_entity' : 'pause_entity'}
                 onValueChange={(value: 'pause_entity' | 'restart_region') => updateFormData({
-                  crashIsolation: { ...formData.crashIsolation, quarantineBehavior: value }
+                  crashIsolation: typeof formData.crashIsolation === 'object' ? { ...formData.crashIsolation, quarantineBehavior: value } : { enabled: false, tickTimeout: 60000, quarantineBehavior: value }
                 })}
               >
                 <SelectTrigger>
@@ -364,13 +370,13 @@ export const StepWorld: React.FC<StepWorldProps> = ({
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-muted-foreground">Radius:</span> {formData.gpuPregeneration.radius} blocks
+                  <span className="text-muted-foreground">Radius:</span> {typeof formData.gpuPregeneration === 'object' ? formData.gpuPregeneration?.radius || 1000 : 1000} blocks
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Concurrency:</span> {formData.gpuPregeneration.concurrency} threads
+                  <span className="text-muted-foreground">Concurrency:</span> {typeof formData.gpuPregeneration === 'object' ? formData.gpuPregeneration?.concurrency || 4 : 4} threads
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Defer until start:</span> {formData.gpuPregeneration.deferUntilStart ? 'Yes' : 'No'}
+                  <span className="text-muted-foreground">Defer until start:</span> {typeof formData.gpuPregeneration === 'object' ? (formData.gpuPregeneration?.deferUntilStart ? 'Yes' : 'No') : 'No'}
                 </div>
               </div>
             </div>

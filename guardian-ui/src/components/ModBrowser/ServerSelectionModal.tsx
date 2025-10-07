@@ -137,7 +137,7 @@ export const ServerSelectionModal: React.FC<ServerSelectionModalProps> = ({
             errors: string[];
           };
           error: string;
-        }>(`/api/servers/${server.id}/compatibility/check`, {
+        }>(`/api/servers/${server.id}/compatibility`, {
           method: 'POST',
           body: JSON.stringify({
             item_type: itemType,

@@ -85,7 +85,7 @@ export const StepMods: React.FC<StepModsProps> = ({
 
     setIsSearching(true);
     try {
-      const response = await api.call<{success: boolean, data: {modpacks: Modpack[]}, error: string}>(`/api/modpacks/search?query=${encodeURIComponent(query)}&provider=${searchProvider}`);
+      const response = await api.call<{success: boolean, data: {modpacks: Modpack[]}, error: string}>(`/api/modpacks?query=${encodeURIComponent(query)}&provider=${searchProvider}`);
       console.log('Modpack search response:', response);
       
       // Handle API response structure
@@ -175,7 +175,7 @@ export const StepMods: React.FC<StepModsProps> = ({
       modpack: {
         source: searchProvider,
         packId: modpack.id,
-        packVersionId: modpack.version,
+        packVersionId: 'latest', // Use latest since version is not available
         serverOnly: true
       },
       individualMods: [] // Clear individual mods when selecting modpack

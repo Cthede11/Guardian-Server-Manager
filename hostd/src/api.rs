@@ -427,6 +427,8 @@ pub fn create_api_router(state: AppState) -> Router {
         // Modpack endpoints
         .route("/api/modpacks/versions", get(get_minecraft_versions))
         .route("/api/modpacks/loaders", get(get_loader_versions))
+        .route("/api/modpacks/search", get(search_modpacks))
+        .route("/api/mods/search", get(search_mods))
         
         // Loader endpoints
         .route("/api/loaders/java/detect", get(detect_java))
@@ -460,8 +462,6 @@ pub fn create_api_router(state: AppState) -> Router {
         .route("/api/server/versions", get(get_server_versions))
         .route("/api/server/validate", post(validate_server_config))
         .route("/api/server/detect-java", get(detect_java_path))
-        .route("/api/modpacks/search", get(search_modpacks))
-        .route("/api/mods/search", get(search_mods))
         .route("/api/modpacks/apply", post(apply_modpack_to_server))
         .route("/api/mods/install", post(install_mods))
         
@@ -4602,3 +4602,4 @@ async fn get_forge_versions(Query(params): Query<HashMap<String, String>>) -> Re
         }
     }
 }
+

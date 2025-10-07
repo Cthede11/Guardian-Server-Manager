@@ -173,7 +173,7 @@ export const ModBrowser: React.FC = () => {
           pagination: PaginationInfo;
         };
         error: string;
-      }>(`/api/mods/search?${params}`);
+      }>(`/api/modpacks/mods?${params}`);
 
       if (response.success && response.data) {
         setMods(response.data.mods);
@@ -223,7 +223,7 @@ export const ModBrowser: React.FC = () => {
           pagination: PaginationInfo;
         };
         error: string;
-      }>(`/api/modpacks/search?${params}`);
+      }>(`/api/modpacks?${params}`);
 
       if (response.success && response.data) {
         setModpacks(response.data.modpacks);
@@ -258,7 +258,7 @@ export const ModBrowser: React.FC = () => {
         success: boolean;
         data: { message: string };
         error: string;
-      }>(`/api/servers/${serverId}/mods/install`, {
+      }>(`/api/servers/${serverId}/mods`, {
         method: 'POST',
         body: JSON.stringify({
           mod_id: modId,
@@ -299,10 +299,9 @@ export const ModBrowser: React.FC = () => {
         success: boolean;
         data: { message: string };
         error: string;
-      }>(`/api/servers/${serverId}/modpacks/apply`, {
+      }>(`/api/servers/${serverId}/modpacks/${modpackId}/apply`, {
         method: 'POST',
         body: JSON.stringify({
-          modpack_id: modpackId,
           provider: modpacks.find(m => m.id === modpackId)?.source || 'modrinth'
         })
       });

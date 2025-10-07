@@ -92,8 +92,9 @@ try {
         throw "Cargo build failed with exit code $LASTEXITCODE"
     }
     
-    # Copy executable to build directory
+    # Copy executables to build directory
     Copy-Item "target\release\hostd.exe" "$ProjectRoot\build\executables\" -Force
+    Copy-Item "target\release\init_db.exe" "$ProjectRoot\build\executables\" -Force
     Write-Log "Hostd backend built successfully" "SUCCESS"
 } catch {
     Write-Log "Failed to build hostd backend: $($_.Exception.Message)" "ERROR"

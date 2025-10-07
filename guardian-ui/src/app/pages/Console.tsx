@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 // import { ScrollArea } from '@/components/ui/scroll-area';
 import { Trash2, Play } from 'lucide-react';
 import { useConsoleStore } from '@/store/console';
-import type { LogEntry } from '@/lib/types.gen';
+import type { ConsoleLine } from '@/lib/types.gen';
 
 export default function Console() {
   const { logs, addLog, clearLogs } = useConsoleStore();
@@ -224,7 +224,7 @@ export default function Console() {
     }
   };
 
-  const getLevelColor = (level: LogEntry['level']) => {
+  const getLevelColor = (level: ConsoleLine['level']) => {
     switch (level) {
       case 'error': return 'text-red-400';
       case 'warn': return 'text-yellow-400';
@@ -234,7 +234,7 @@ export default function Console() {
     }
   };
 
-  const getLevelBadge = (level: LogEntry['level']) => {
+  const getLevelBadge = (level: ConsoleLine['level']) => {
     switch (level) {
       case 'error': return <Badge variant="destructive">ERROR</Badge>;
       case 'warn': return <Badge variant="outline" className="text-yellow-400 border-yellow-400">WARN</Badge>;

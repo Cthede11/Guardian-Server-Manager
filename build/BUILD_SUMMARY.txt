@@ -1,8 +1,8 @@
 ﻿Guardian Build Summary
 =====================
-Build Date: 2025-10-07 03:33:49
+Build Date: 2025-10-07 13:13:43
 Version: 1.0.0
-Git Commit: 3f33d59
+Git Commit: 9a1586f
 
 Built Components:
 - hostd.exe (Backend with comprehensive server management)
@@ -26,7 +26,7 @@ Fixes Applied:
 - Production-ready error handling and validation
 
 Installers:
-- nsis - nsis\Guardian_1.0.0_x64-setup.exe
+- msi - nsis - guardian-custom-installer.nsi - nsis-installer.nsi - wix-installer.wxs - msi\Guardian_1.0.0_x64_en-US.msi - msi\start-backend.bat - nsis\Guardian_1.0.0_x64-setup.exe - nsis\start-backend.bat
 
 Launchers:
 - start-guardian-with-backend.ps1 (PowerShell with process cleanup)

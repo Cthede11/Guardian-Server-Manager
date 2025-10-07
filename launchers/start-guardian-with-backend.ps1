@@ -23,7 +23,7 @@ Start-Sleep -Seconds 3
 # Check if backend is running
 Write-Host "Checking backend status..." -ForegroundColor Yellow
 try {
-    $Response = Invoke-WebRequest -Uri "http://localhost:8080/health" -Method GET -TimeoutSec 5
+    $Response = Invoke-WebRequest -Uri "http://127.0.0.1:52100/api/healthz" -Method GET -TimeoutSec 5
     if ($Response.StatusCode -eq 200) {
         Write-Host "Backend is running successfully" -ForegroundColor Green
     } else {

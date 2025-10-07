@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { events } from "@/lib/client";
 import { useLive } from "@/store/live-new";
-import type { ConsoleLines, Metrics, Player, FreezeTicket, PregenJob, ServerHealth } from "@/lib/types.gen";
+import type { ConsoleLine, ConsoleLines, Metrics, Player, FreezeTicket, PregenJob, ServerHealth } from "@/lib/types.gen";
 
 export function useServerStreams(serverId?: string) {
   const appendConsole = useLive((state) => state.appendConsole);
@@ -20,11 +20,11 @@ export function useServerStreams(serverId?: string) {
       try {
         // Console stream
         unsubs.push(
-          await events.subscribeToConsole(serverId, (payload: ConsoleLines) => {
+          await events.subscribeToConsole(serverId, (payload: ConsoleLine[]) => {
             const consoleMessages = payload.map(line => ({
-              ts: new Date(line.timestamp).getTime(),
+              ts: new Date(line.ts).getTime(),
               level: line.level,
-              msg: line.message
+              msg: line.msg
             }));
             appendConsole(serverId, consoleMessages);
           })
@@ -35,10 +35,10 @@ export function useServerStreams(serverId?: string) {
           await events.subscribeToMetrics(serverId, (payload: Metrics) => {
             applyMetrics(serverId, {
               tps: payload.tps,
-              tick_p95_ms: payload.tickP95,
-              heap_mb: payload.heapMb,
-              gpu_queue_ms: payload.gpuQueueMs,
-              players_online: payload.playersOnline
+              tick_p95_ms: payload.tick_p95_ms,
+              heap_mb: payload.heap_mb,
+              gpu_queue_ms: payload.gpu_queue_ms,
+              players_online: payload.players_online
             });
           })
         );

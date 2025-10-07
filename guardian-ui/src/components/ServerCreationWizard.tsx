@@ -59,37 +59,56 @@ interface ServerCreationWizardProps {
 
 const initialFormData: ServerFormData = {
   name: '',
-  edition: 'Vanilla',
+  edition: 'java',
   version: '',
+  loader: 'vanilla',
   installPath: '',
   javaPath: '',
-  memory: { min: 2, max: 4 },
+  memory: 4096,
   maxPlayers: 20,
-  port: 25565,
+  serverPort: 25565,
+  rconPort: 25575,
+  rconPassword: '',
+  queryPort: 25565,
   motd: 'A Minecraft Server',
   difficulty: 'normal',
   gamemode: 'survival',
-  levelType: 'default',
+  worldType: 'new',
   levelSeed: '',
-  levelName: 'world',
-  worldType: 'default',
+  worldName: 'world',
   pvp: true,
-  allowFlight: false,
-  allowNether: true,
-  allowEnd: true,
-  spawnProtection: 16,
+  onlineMode: true,
+  whitelist: false,
+  enableCommandBlock: false,
   viewDistance: 10,
   simulationDistance: 10,
   renderDistance: 10,
-  hardcore: false,
-  onlineMode: true,
-  whiteList: false,
-  enableCommandBlock: false,
-  spawnAnimals: true,
-  spawnMonsters: true,
-  spawnNpcs: true,
-  generateStructures: true,
-  allowCheats: false,
+  mods: {
+    client: [],
+    server: []
+  },
+  javaArgs: ['-Xmx4G', '-Xms2G', '-XX:+UseG1GC'],
+  worldPath: '',
+  modsPath: '',
+  configPath: '',
+  logsPath: '',
+  backupsPath: '',
+  autoStart: false,
+  autoRestart: true,
+  maxRestarts: 3,
+  backupInterval: 24,
+  backupRetention: 7,
+  gpuEnabled: false,
+  gpuQueueSize: 100,
+  haEnabled: false,
+  haMode: 'active-passive',
+  haNodes: 2,
+  composerEnabled: false,
+  composerAutoUpdate: true,
+  composerUpdateInterval: 24,
+  tokensEnabled: false,
+  tokenSecretKey: '',
+  tokenExpirationHours: 24,
   modpack: undefined,
   individualMods: [],
   gpuPregeneration: {
@@ -99,11 +118,10 @@ const initialFormData: ServerFormData = {
     deferUntilStart: false
   },
   crashIsolation: {
+    enabled: false,
     tickTimeout: 60000,
     quarantineBehavior: 'pause_entity'
-  },
-  serverProperties: {},
-  generatorSettings: ''
+  }
 };
 
 export function ServerCreationWizard({ open, onOpenChange, onServerCreated, onClose }: ServerCreationWizardProps) {
@@ -127,7 +145,12 @@ export function ServerCreationWizard({ open, onOpenChange, onServerCreated, onCl
   // Load versions when component mounts or edition changes
   useEffect(() => {
     if (open) {
-      loadVersions();
+      // Add a small delay to ensure the component is fully mounted
+      const timer = setTimeout(() => {
+        loadVersions();
+      }, 100);
+      
+      return () => clearTimeout(timer);
     }
   }, [open, formData.edition]);
 
@@ -147,16 +170,43 @@ export function ServerCreationWizard({ open, onOpenChange, onServerCreated, onCl
   const loadVersions = async () => {
     setIsLoadingVersions(true);
     try {
-      console.log('Loading versions for edition:', formData.edition);
-      const response = await api.call<{success: boolean, data: {versions: string[]}, error: string}>(`/api/server/versions?edition=${encodeURIComponent(formData.edition)}`, {
+      // First, test if backend is reachable
+      console.log('Testing backend connectivity...');
+      try {
+        await api.call('/api/healthz');
+        console.log('Backend is reachable');
+      } catch (healthError) {
+        console.warn('Backend health check failed:', healthError);
+        throw new Error('Backend is not reachable');
+      }
+      
+      // Map frontend edition values to backend expected values
+      const editionMap: Record<string, string> = {
+        'java': 'Vanilla',
+        'bedrock': 'Vanilla' // Bedrock uses same versions as Vanilla for now
+      };
+      
+      const backendEdition = editionMap[formData.edition || 'java'] || 'Vanilla';
+      console.log('Loading versions for edition:', formData.edition, '-> backend:', backendEdition);
+      
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout')), 5000);
+      });
+      
+      const apiPromise = api.call<{success: boolean, data: {versions: string[]}, error: string}>(`/api/server/versions?edition=${encodeURIComponent(backendEdition)}`, {
         method: 'GET'
       });
+      
+      const response = await Promise.race([apiPromise, timeoutPromise]);
       console.log('Versions response:', response);
       
-      if (response.success && response.data && response.data.versions) {
+      if (response && response.success && response.data && response.data.versions) {
+        console.log('Successfully loaded versions:', response.data.versions);
         setVersions(response.data.versions);
       } else {
-        throw new Error('Invalid response format');
+        console.warn('Invalid response format, using fallback versions');
+        throw new Error(`Invalid response format: ${JSON.stringify(response)}`);
       }
     } catch (error) {
       console.error('Failed to load versions:', error);
@@ -164,6 +214,13 @@ export function ServerCreationWizard({ open, onOpenChange, onServerCreated, onCl
       const fallbackVersions = ['1.21.1', '1.21', '1.20.6', '1.20.4', '1.20.2'];
       console.log('Using fallback versions:', fallbackVersions);
       setVersions(fallbackVersions);
+      
+      // Show a toast to inform the user
+      toast({
+        title: "Using Offline Versions",
+        description: "Could not load versions from server. Using cached versions.",
+        variant: "default"
+      });
     } finally {
       setIsLoadingVersions(false);
     }
@@ -181,14 +238,16 @@ export function ServerCreationWizard({ open, onOpenChange, onServerCreated, onCl
 
   const validateCurrentStep = (stepIndex: number): boolean => {
     try {
-      const result = validateStep(stepIndex, formData);
+      const stepNames = ['basics', 'world', 'mods', 'review'] as const;
+      const stepName = stepNames[stepIndex];
+      const result = validateStep(stepName, formData);
       
-      if (result.success) {
+      if (result.valid) {
         setErrors({});
         return true;
       } else {
-        const formattedErrors = formatValidationErrors(result.error);
-        setErrors(formattedErrors);
+        const formattedErrors = formatValidationErrors(result.errors);
+        setErrors({ [stepName]: formattedErrors });
         return false;
       }
     } catch (error) {
@@ -226,22 +285,34 @@ export function ServerCreationWizard({ open, onOpenChange, onServerCreated, onCl
       // Prepare server creation data
       const serverData = {
         name: formData.name,
-        loader: formData.edition.toLowerCase(),
+        loader: formData.loader || 'vanilla',
         version: formData.version,
         minecraft_version: formData.version,
         paths: {
-          world: './world',
-          mods: './mods',
-          config: './config',
+          world: formData.worldPath || './world',
+          mods: formData.modsPath || './mods',
+          config: formData.configPath || './config',
           java_path: formData.javaPath || 'java'
         },
-        max_players: 20,
-        memory: formData.memory.max * 1024, // Convert GB to MB
+        max_players: formData.maxPlayers || 20,
+        memory: formData.memory, // Memory is already in MB
+        port: formData.serverPort || 25565,
+        rcon_port: formData.rconPort || 25575,
+        query_port: formData.queryPort || 25565,
+        auto_start: formData.autoStart || false,
+        auto_restart: formData.autoRestart || true,
         world_settings: {
-          world_name: formData.name,
-          difficulty: 'normal',
-          gamemode: 'survival'
+          world_name: formData.worldName || formData.name,
+          difficulty: formData.difficulty || 'normal',
+          gamemode: formData.gamemode || 'survival'
         },
+        pvp: formData.pvp !== undefined ? formData.pvp : true,
+        online_mode: formData.onlineMode !== undefined ? formData.onlineMode : true,
+        whitelist: formData.whitelist || false,
+        enable_command_block: formData.enableCommandBlock || false,
+        view_distance: formData.viewDistance || 10,
+        simulation_distance: formData.simulationDistance || 10,
+        motd: formData.motd || 'A Minecraft Server',
         gpu_pregeneration: formData.gpuPregeneration,
         crash_isolation: formData.crashIsolation,
         modpack: formData.modpack,
@@ -332,6 +403,8 @@ export function ServerCreationWizard({ open, onOpenChange, onServerCreated, onCl
           errorMessage = errorObj.error;
         } else if (errorObj.message) {
           errorMessage = errorObj.message;
+        } else if (errorObj.data?.error) {
+          errorMessage = errorObj.data.error;
         }
       }
       

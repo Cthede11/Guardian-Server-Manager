@@ -36,13 +36,12 @@ export const StepReview: React.FC<StepReviewProps> = ({
   isLoadingVersions,
   onValidate
 }) => {
-  const formatMemory = (min: number, max: number) => `${min}GB - ${max}GB`;
+  const formatMemory = (memory: number) => `${Math.round(memory / 1024)}GB`;
 
   const getEditionColor = (edition: string) => {
     switch (edition) {
-      case 'Vanilla': return 'bg-green-100 text-green-800';
-      case 'Fabric': return 'bg-blue-100 text-blue-800';
-      case 'Forge': return 'bg-orange-100 text-orange-800';
+      case 'java': return 'bg-green-100 text-green-800';
+      case 'bedrock': return 'bg-blue-100 text-blue-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -82,8 +81,8 @@ export const StepReview: React.FC<StepReviewProps> = ({
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Edition</span>
-                <Badge className={getEditionColor(formData.edition)}>
-                  {formData.edition}
+                <Badge className={getEditionColor(formData.edition || 'java')}>
+                  {formData.edition || 'java'}
                 </Badge>
               </div>
               <div className="flex items-center justify-between">
@@ -92,7 +91,7 @@ export const StepReview: React.FC<StepReviewProps> = ({
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Memory</span>
-                <span className="text-sm">{formatMemory(formData.memory.min, formData.memory.max)}</span>
+                <span className="text-sm">{formatMemory(formData.memory)}</span>
               </div>
             </div>
             <Separator />
@@ -131,24 +130,24 @@ export const StepReview: React.FC<StepReviewProps> = ({
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Modpack</span>
-                  <Badge variant="outline">{formData.modpack.source}</Badge>
+                  <Badge variant="outline">{formData.modpack?.source}</Badge>
                 </div>
                 <div className="space-y-2">
                   <p className="text-sm font-medium">Selected Modpack</p>
                   <p className="text-xs text-muted-foreground">
-                    Pack ID: {formData.modpack.packId}
+                    Pack ID: {formData.modpack?.packId}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Version: {formData.modpack.packVersionId}
+                    Version: {formData.modpack?.packVersionId}
                   </p>
-                  {formData.modpack.serverOnly && (
+                  {formData.modpack?.serverOnly && (
                     <Badge variant="secondary" className="text-xs">
                       Server subset only
                     </Badge>
                   )}
                 </div>
               </div>
-            ) : formData.individualMods.length > 0 ? (
+            ) : formData.individualMods && formData.individualMods.length > 0 ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Individual Mods</span>
@@ -214,24 +213,24 @@ export const StepReview: React.FC<StepReviewProps> = ({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">GPU Pregeneration</span>
-                <Badge variant={formData.gpuPregeneration.enabled ? "default" : "outline"}>
-                  {formData.gpuPregeneration.enabled ? 'Enabled' : 'Disabled'}
+                <Badge variant={typeof formData.gpuPregeneration === 'object' && formData.gpuPregeneration?.enabled ? "default" : "outline"}>
+                  {typeof formData.gpuPregeneration === 'object' && formData.gpuPregeneration?.enabled ? 'Enabled' : 'Disabled'}
                 </Badge>
               </div>
               
-              {formData.gpuPregeneration.enabled && (
+              {typeof formData.gpuPregeneration === 'object' && formData.gpuPregeneration?.enabled && (
                 <div className="space-y-2 pl-4 border-l-2 border-primary/20">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">Radius</span>
-                    <span className="text-xs">{formData.gpuPregeneration.radius} blocks</span>
+                    <span className="text-xs">{formData.gpuPregeneration?.radius} blocks</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">Concurrency</span>
-                    <span className="text-xs">{formData.gpuPregeneration.concurrency} threads</span>
+                    <span className="text-xs">{formData.gpuPregeneration?.concurrency} threads</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">Defer until start</span>
-                    <span className="text-xs">{formData.gpuPregeneration.deferUntilStart ? 'Yes' : 'No'}</span>
+                    <span className="text-xs">{formData.gpuPregeneration?.deferUntilStart ? 'Yes' : 'No'}</span>
                   </div>
                 </div>
               )}
@@ -241,20 +240,24 @@ export const StepReview: React.FC<StepReviewProps> = ({
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Crash Isolation</span>
-                  <Badge variant="outline">Enabled</Badge>
+                  <Badge variant={typeof formData.crashIsolation === 'object' && formData.crashIsolation?.enabled ? "default" : "outline"}>
+                    {typeof formData.crashIsolation === 'object' && formData.crashIsolation?.enabled ? 'Enabled' : 'Disabled'}
+                  </Badge>
                 </div>
-                <div className="space-y-1 pl-4 border-l-2 border-primary/20">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Tick Timeout</span>
-                    <span className="text-xs">{formData.crashIsolation.tickTimeout}ms</span>
+                {typeof formData.crashIsolation === 'object' && formData.crashIsolation?.enabled && (
+                  <div className="space-y-1 pl-4 border-l-2 border-primary/20">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Tick Timeout</span>
+                      <span className="text-xs">{formData.crashIsolation?.tickTimeout}ms</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Quarantine</span>
+                      <span className="text-xs capitalize">
+                        {formData.crashIsolation?.quarantineBehavior?.replace('_', ' ')}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Quarantine</span>
-                    <span className="text-xs capitalize">
-                      {formData.crashIsolation.quarantineBehavior.replace('_', ' ')}
-                    </span>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
           </CardContent>
@@ -274,18 +277,18 @@ export const StepReview: React.FC<StepReviewProps> = ({
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="text-center">
-                <div className="text-2xl font-bold text-primary">{formData.memory.max}GB</div>
+                <div className="text-2xl font-bold text-primary">{formatMemory(formData.memory)}</div>
                 <div className="text-sm text-muted-foreground">RAM Required</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-primary">
-                  {formData.gpuPregeneration.enabled ? 'GPU' : 'CPU'}
+                  {typeof formData.gpuPregeneration === 'object' && formData.gpuPregeneration?.enabled ? 'GPU' : 'CPU'}
                 </div>
                 <div className="text-sm text-muted-foreground">Processing</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-primary">
-                  {formData.renderDistance * 2}²
+                  {(formData.renderDistance || 10) * 2}²
                 </div>
                 <div className="text-sm text-muted-foreground">Chunk Area</div>
               </div>
@@ -294,17 +297,17 @@ export const StepReview: React.FC<StepReviewProps> = ({
         </Card>
 
         {/* Warnings */}
-        {formData.memory.max < 4 && (
+        {formData.memory < 4096 && (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              <strong>Low Memory Warning:</strong> {formData.memory.max}GB may not be sufficient for a stable server.
+              <strong>Low Memory Warning:</strong> {formatMemory(formData.memory)} may not be sufficient for a stable server.
               Consider increasing to at least 4GB for better performance.
             </AlertDescription>
           </Alert>
         )}
 
-        {formData.gpuPregeneration.enabled && formData.gpuPregeneration.radius > 5000 && (
+        {typeof formData.gpuPregeneration === 'object' && formData.gpuPregeneration?.enabled && formData.gpuPregeneration?.radius > 5000 && (
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription>
@@ -314,7 +317,7 @@ export const StepReview: React.FC<StepReviewProps> = ({
           </Alert>
         )}
 
-        {formData.edition !== 'Vanilla' && formData.individualMods.length === 0 && !formData.modpack && (
+        {formData.edition !== 'java' && (!formData.individualMods || formData.individualMods.length === 0) && !formData.modpack && (
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription>

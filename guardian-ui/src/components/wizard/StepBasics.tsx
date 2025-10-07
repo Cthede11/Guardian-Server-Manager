@@ -31,12 +31,12 @@ interface StepBasicsProps {
 }
 
 const memoryPresets = [
-  { label: '2GB', value: { min: 1, max: 2 } },
-  { label: '4GB', value: { min: 2, max: 4 } },
-  { label: '6GB', value: { min: 3, max: 6 } },
-  { label: '8GB', value: { min: 4, max: 8 } },
-  { label: '12GB', value: { min: 6, max: 12 } },
-  { label: '16GB', value: { min: 8, max: 16 } }
+  { label: '2GB', value: 2048 },
+  { label: '4GB', value: 4096 },
+  { label: '6GB', value: 6144 },
+  { label: '8GB', value: 8192 },
+  { label: '12GB', value: 12288 },
+  { label: '16GB', value: 16384 }
 ];
 
 export const StepBasics: React.FC<StepBasicsProps> = ({
@@ -244,7 +244,7 @@ export const StepBasics: React.FC<StepBasicsProps> = ({
               <Select
                 value={formData.edition}
                 onValueChange={(value) => updateFormData({ 
-                  edition: value as 'Vanilla' | 'Fabric' | 'Forge',
+                  edition: value as 'java' | 'bedrock',
                   version: '' // Reset version when edition changes
                 })}
               >
@@ -252,9 +252,8 @@ export const StepBasics: React.FC<StepBasicsProps> = ({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Vanilla">Vanilla</SelectItem>
-                  <SelectItem value="Fabric">Fabric</SelectItem>
-                  <SelectItem value="Forge">Forge</SelectItem>
+                  <SelectItem value="java">Java Edition</SelectItem>
+                  <SelectItem value="bedrock">Bedrock Edition</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -283,6 +282,12 @@ export const StepBasics: React.FC<StepBasicsProps> = ({
                   <span className="text-sm text-muted-foreground">Loading versions...</span>
                 </div>
               )}
+              {!isLoadingVersions && versions.length === 0 && (
+                <div className="flex items-center gap-2 mt-2">
+                  <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                  <span className="text-sm text-yellow-600">No versions available. Check console for errors.</span>
+                </div>
+              )}
               {errors.version && (
                 <p className="text-sm text-red-500">{errors.version}</p>
               )}
@@ -307,7 +312,7 @@ export const StepBasics: React.FC<StepBasicsProps> = ({
                   placeholder="C:\Minecraft\Servers\MyServer"
                   value={formData.installPath}
                   onChange={(e) => updateFormData({ installPath: e.target.value })}
-                  onBlur={() => validateField('installPath', formData.installPath)}
+                  onBlur={() => validateField('installPath', formData.installPath || '')}
                   className={errors.installPath ? 'border-red-500' : ''}
                 />
                 <Button variant="outline" onClick={handleBrowseDirectory} className="bg-primary/10 hover:bg-primary/20 border-primary/30 hover:border-primary/50">
@@ -385,28 +390,15 @@ export const StepBasics: React.FC<StepBasicsProps> = ({
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="memoryMin">Minimum Memory (GB)</Label>
+              <Label htmlFor="memory">Memory (MB)</Label>
               <Input
-                id="memoryMin"
+                id="memory"
                 type="number"
-                min="1"
-                max="32"
-                value={formData.memory.min}
+                min="512"
+                max="32768"
+                value={formData.memory}
                 onChange={(e) => updateFormData({ 
-                  memory: { ...formData.memory, min: parseInt(e.target.value) || 1 }
-                })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="memoryMax">Maximum Memory (GB)</Label>
-              <Input
-                id="memoryMax"
-                type="number"
-                min="1"
-                max="32"
-                value={formData.memory.max}
-                onChange={(e) => updateFormData({ 
-                  memory: { ...formData.memory, max: parseInt(e.target.value) || 4 }
+                  memory: parseInt(e.target.value) || 4096
                 })}
               />
             </div>

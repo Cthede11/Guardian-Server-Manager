@@ -516,8 +516,50 @@ impl ModManager {
         loader: Option<&str>,
         limit: Option<usize>,
     ) -> Result<Vec<ModInfo>, Box<dyn std::error::Error>> {
-        // TODO: Implement actual mod search
-        Ok(vec![])
+        // For now, return some mock data to prevent frontend crashes
+        // TODO: Implement actual mod search with external APIs
+        let mut results = vec![];
+        
+        if !query.is_empty() {
+            // Create some mock mod results based on the query
+            let mock_mods = vec![
+                ("JEI", "Just Enough Items", "utility"),
+                ("OptiFine", "OptiFine", "optimization"),
+                ("Biomes O' Plenty", "Biomes O' Plenty", "worldgen"),
+                ("Applied Energistics 2", "Applied Energistics 2", "technology"),
+                ("Tinkers' Construct", "Tinkers' Construct", "technology"),
+            ];
+            
+            for (id, name, category) in mock_mods {
+                if name.to_lowercase().contains(&query.to_lowercase()) || 
+                   id.to_lowercase().contains(&query.to_lowercase()) {
+                    results.push(ModInfo {
+                        id: id.to_string(),
+                        name: name.to_string(),
+                        description: format!("A popular {} mod for Minecraft", category),
+                        author: "Unknown".to_string(),
+                        version: "1.0.0".to_string(),
+                        minecraft_version: minecraft_version.unwrap_or("1.21.1").to_string(),
+                        loader: loader.unwrap_or("forge").to_string(),
+                        category: category.to_string(),
+                        side: "both".to_string(),
+                        download_url: Some(format!("https://example.com/{}.jar", id.to_lowercase())),
+                        file_size: Some(1024 * 1024), // 1MB
+                        sha1: Some("mock_hash".to_string()),
+                        dependencies: vec![],
+                        created_at: chrono::Utc::now(),
+                        updated_at: chrono::Utc::now(),
+                    });
+                }
+            }
+        }
+        
+        // Apply limit if specified
+        if let Some(limit) = limit {
+            results.truncate(limit);
+        }
+        
+        Ok(results)
     }
 
     /// Search for modpacks
@@ -526,8 +568,40 @@ impl ModManager {
         query: &str,
         provider: &str,
     ) -> Result<Vec<crate::database::Modpack>, Box<dyn std::error::Error>> {
-        // TODO: Implement actual modpack search
-        Ok(vec![])
+        // For now, return some mock data to prevent frontend crashes
+        // TODO: Implement actual modpack search with external APIs
+        let mut results = vec![];
+        
+        if !query.is_empty() {
+            // Create some mock modpack results based on the query
+            let mock_modpacks = vec![
+                ("allthemods", "All The Mods", "A comprehensive modpack with hundreds of mods"),
+                ("ftb", "Feed The Beast", "The classic FTB experience"),
+                ("sevtech", "SevTech Ages", "A progression-based modpack"),
+                ("skyfactory", "SkyFactory", "A skyblock modpack"),
+                ("rlcraft", "RLCraft", "A challenging survival modpack"),
+            ];
+            
+            for (id, name, description) in mock_modpacks {
+                if name.to_lowercase().contains(&query.to_lowercase()) || 
+                   id.to_lowercase().contains(&query.to_lowercase()) {
+                    results.push(crate::database::Modpack {
+                        id: id.to_string(),
+                        name: name.to_string(),
+                        description: Some(description.to_string()),
+                        minecraft_version: "1.21.1".to_string(),
+                        loader: "forge".to_string(),
+                        client_mods: "50".to_string(),
+                        server_mods: "50".to_string(),
+                        config: Some("{}".to_string()),
+                        created_at: chrono::Utc::now(),
+                        updated_at: chrono::Utc::now(),
+                    });
+                }
+            }
+        }
+        
+        Ok(results)
     }
 
     /// Install a modpack to a server

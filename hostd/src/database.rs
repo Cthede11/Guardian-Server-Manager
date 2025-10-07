@@ -2,6 +2,7 @@ use anyhow::Result;
 use chrono;
 use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqlitePool, Row};
+use std::str::FromStr;
 use tracing::{info, warn, debug};
 use uuid::Uuid;
 
@@ -323,18 +324,26 @@ pub struct ServerMod {
 impl DatabaseManager {
     /// Create a new database manager
     pub async fn new(database_url: &str) -> Result<Self> {
-        let pool = SqlitePool::connect(database_url).await?;
+        // Use SqlitePoolOptions to ensure database is created if it doesn't exist
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(10)
+            .connect_with(
+                sqlx::sqlite::SqliteConnectOptions::from_str(database_url)?
+                    .create_if_missing(true)
+            )
+            .await?;
         
-        let manager = Self { pool };
-        manager.run_migrations().await?;
+        // Run migrations using SQLx
+        let migrator = sqlx::migrate!("./db/migrations");
+        migrator.run(&pool).await?;
         
-        Ok(manager)
+        Ok(Self { pool })
     }
 
-    /// Run database migrations
-    async fn run_migrations(&self) -> Result<()> {
-        info!("Running database migrations...");
-
+    // Server configuration methods
+    // Note: Database migrations are now handled by SQLx migrations in the new() function
+    
+    pub async fn run_migrations(&self) -> Result<()> {
         // Create servers table
         sqlx::query(
             r#"
@@ -825,22 +834,71 @@ impl DatabaseManager {
         .execute(&self.pool)
         .await?;
 
-        // Note: mods table already created above with enhanced schema
+        // Create mod_metadata table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS mod_metadata (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL,
+                author TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                project_id TEXT NOT NULL,
+                slug TEXT,
+                category TEXT NOT NULL,
+                side TEXT NOT NULL,
+                website_url TEXT,
+                source_url TEXT,
+                issues_url TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(provider, project_id)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create installed_mods table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS installed_mods (
+                id TEXT PRIMARY KEY,
+                server_id TEXT NOT NULL,
+                mod_metadata_id TEXT NOT NULL,
+                mod_version_id TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                enabled BOOLEAN NOT NULL DEFAULT 1,
+                installed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE,
+                FOREIGN KEY (mod_metadata_id) REFERENCES mod_metadata(id) ON DELETE CASCADE,
+                FOREIGN KEY (mod_version_id) REFERENCES mod_versions(id) ON DELETE CASCADE,
+                UNIQUE(server_id, mod_metadata_id)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
 
         // Create mod_versions table
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS mod_versions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                mod_id TEXT NOT NULL,
+                id TEXT PRIMARY KEY,
+                mod_metadata_id TEXT NOT NULL,
                 version TEXT NOT NULL,
-                minecraft_versions TEXT NOT NULL,
-                loader_versions TEXT NOT NULL,
-                download_url TEXT NOT NULL,
+                minecraft_version TEXT NOT NULL,
+                loader TEXT NOT NULL,
+                filename TEXT NOT NULL,
                 file_size INTEGER NOT NULL,
-                sha256 TEXT NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (mod_id) REFERENCES mods(id)
+                sha1 TEXT,
+                sha512 TEXT,
+                download_url TEXT NOT NULL,
+                release_type TEXT NOT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (mod_metadata_id) REFERENCES mod_metadata(id) ON DELETE CASCADE,
+                UNIQUE(mod_metadata_id, version, minecraft_version, loader)
             )
             "#,
         )
@@ -851,14 +909,14 @@ impl DatabaseManager {
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS mod_dependencies (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                mod_version_id INTEGER NOT NULL,
+                id TEXT PRIMARY KEY,
+                mod_metadata_id TEXT NOT NULL,
                 dependency_mod_id TEXT NOT NULL,
                 version_range TEXT NOT NULL,
-                side TEXT NOT NULL,
-                required BOOLEAN DEFAULT TRUE,
-                FOREIGN KEY (mod_version_id) REFERENCES mod_versions(id),
-                FOREIGN KEY (dependency_mod_id) REFERENCES mods(id)
+                required BOOLEAN NOT NULL DEFAULT 1,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (mod_metadata_id) REFERENCES mod_metadata(id) ON DELETE CASCADE,
+                FOREIGN KEY (dependency_mod_id) REFERENCES mod_metadata(id) ON DELETE CASCADE
             )
             "#,
         )
@@ -869,13 +927,14 @@ impl DatabaseManager {
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS mod_conflicts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                mod_version_id INTEGER NOT NULL,
+                id TEXT PRIMARY KEY,
+                mod_metadata_id TEXT NOT NULL,
                 conflicting_mod_id TEXT NOT NULL,
                 reason TEXT NOT NULL,
                 severity TEXT NOT NULL,
-                FOREIGN KEY (mod_version_id) REFERENCES mod_versions(id),
-                FOREIGN KEY (conflicting_mod_id) REFERENCES mods(id)
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (mod_metadata_id) REFERENCES mod_metadata(id) ON DELETE CASCADE,
+                FOREIGN KEY (conflicting_mod_id) REFERENCES mod_metadata(id) ON DELETE CASCADE
             )
             "#,
         )
@@ -951,7 +1010,7 @@ impl DatabaseManager {
             .execute(&self.pool)
             .await?;
 
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_mod_versions_mod_id ON mod_versions (mod_id)")
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_mod_versions_mod_metadata_id ON mod_versions (mod_metadata_id)")
             .execute(&self.pool)
             .await?;
 
@@ -1966,9 +2025,9 @@ impl DatabaseManager {
     pub async fn get_mod_versions(&self, mod_id: &str) -> Result<Vec<ModVersion>> {
         let rows = sqlx::query(
             r#"
-            SELECT id, mod_id, version, minecraft_versions, loader_versions, download_url, file_size, sha256, created_at
+            SELECT id, mod_metadata_id, version, minecraft_version, loader, filename, download_url, file_size, sha1, sha512, release_type, created_at, updated_at
             FROM mod_versions
-            WHERE mod_id = ?
+            WHERE mod_metadata_id = ?
             ORDER BY created_at DESC
             "#
         )
@@ -1987,7 +2046,7 @@ impl DatabaseManager {
                 filename: row.get("filename"),
                 file_size: row.get::<i64, _>("file_size") as u64,
                 sha1: row.get("sha1"),
-                sha256: row.get("sha256"),
+                sha256: None, // Not stored in database
                 sha512: row.get("sha512"),
                 download_url: row.get("download_url"),
                 release_type: row.get("release_type"),

@@ -14,22 +14,13 @@ export const CompatibilityChecker: React.FC = () => {
       const sampleModpack: Modpack = {
         id: 'sample',
         name: 'Sample Modpack',
-        version: '1.0.0',
         description: 'Sample modpack for compatibility testing',
-        author: 'Test Author',
         minecraft_version: '1.21.1',
-        mod_loader: 'forge',
         loader: { type: 'forge', version: '1.20.1' },
-        mods: [],
         client_mods: [],
         server_mods: [],
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        downloads: 0,
-        rating: 0,
-        tags: [],
-        size: 0,
-        status: 'draft'
+        updated_at: new Date().toISOString()
       };
       const result = await checkCompatibility(sampleModpack);
       setCompatibility(result);

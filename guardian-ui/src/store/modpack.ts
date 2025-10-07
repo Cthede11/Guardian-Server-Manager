@@ -7,7 +7,7 @@ import type {
   MinecraftVersion, 
   ModpackCompatibility, 
   ModFilters, 
-  ModpackSearchResult 
+  ModSearchResult 
 } from '../lib/types/modpack';
 
 interface ModpackState {
@@ -15,7 +15,7 @@ interface ModpackState {
   modpacks: Modpack[];
   mods: ModInfo[];
   minecraftVersions: MinecraftVersion[];
-  searchResults: ModpackSearchResult | null;
+  searchResults: ModSearchResult | null;
   
   // UI State
   loading: boolean;
@@ -53,7 +53,6 @@ interface ModpackState {
 
 const defaultFilters: ModFilters = {
   minecraft_version: '1.21.1',
-  mod_loader: 'forge',
   loader: { type: 'forge', version: '1.20.1' },
   category: 'all',
   side: 'all',
@@ -86,7 +85,7 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await modpackApi.getModpacks();
-      set({ modpacks: response?.data || [], loading: false });
+      set({ modpacks: response || [], loading: false });
     } catch (error) {
       console.error('Error loading modpacks:', error);
       set({ 
@@ -113,7 +112,7 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
       set({ 
         mods,
         searchResults: {
-          modpacks: [],
+          mods,
           total,
           page,
           per_page,
@@ -165,7 +164,7 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
       set({ 
         mods: mods,
         searchResults: {
-          modpacks: [],
+          mods,
           total,
           page,
           per_page,
@@ -187,7 +186,7 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await modpackApi.createModpack(modpack);
-      const newModpack = response?.data || null;
+      const newModpack = response || null;
       set((state) => ({
         modpacks: newModpack ? [...state.modpacks, newModpack] : state.modpacks,
         loading: false
@@ -207,7 +206,7 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await modpackApi.updateModpack(id, modpack);
-      const updatedModpack = response?.data || null;
+      const updatedModpack = response || null;
       set((state) => ({
         modpacks: state.modpacks.map(mp => mp.id === id ? (updatedModpack || mp) : mp),
         loading: false
@@ -272,8 +271,6 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
         loader: { type: 'forge', version: '1.20.1' },
         client_mods: [],
         server_mods: [],
-        compatible: true,
-        score: 100,
         report: {
           is_compatible: true,
           issues: [],
@@ -281,7 +278,7 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
           recommendations: []
         }
       };
-      const response = await modpackApi.checkCompatibility(modpack.client_mods.map(mod => mod.id));
+      const response = await modpackApi.checkModCompatibility(modpack.client_mods[0], modpack.client_mods[1]);
       set({ loading: false });
       return compatibilityData;
     } catch (error) {
@@ -298,7 +295,7 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await modpackApi.getServerMods(serverId);
-      const mods = response?.data || [];
+      const mods = response || [];
       set({ loading: false });
       return mods;
     } catch (error) {
@@ -313,7 +310,7 @@ export const useModpackStore = create<ModpackState>((set, get) => ({
   addModToServer: async (serverId, modId, version) => {
     set({ loading: true, error: null });
     try {
-      await modpackApi.addModToServer(serverId, modId);
+      await modpackApi.addModToServer(serverId, modId, 'latest');
       set({ loading: false });
       return true;
     } catch (error) {

@@ -351,6 +351,15 @@ if (Test-Path $GpuWorkerBinary) {
     Write-Log "Warning: gpu-worker.exe not found" "WARN"
 }
 
+# Copy init_db.exe
+$InitDbBinary = "$ProjectRoot\hostd/target/release/init_db.exe"
+if (Test-Path $InitDbBinary) {
+    Copy-Item $InitDbBinary "$ProjectRoot\build/executables/init_db.exe" -Force
+    Write-Log "Copied init_db.exe to build/executables/" "SUCCESS"
+} else {
+    Write-Log "Warning: init_db.exe not found" "WARN"
+}
+
 if (Test-Path $JavaAgentJar) {
     Copy-Item $JavaAgentJar "$ProjectRoot\build/executables/guardian-agent.jar" -Force
     Write-Log "Copied guardian-agent.jar to build/executables/" "SUCCESS"

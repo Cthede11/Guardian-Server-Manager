@@ -14,7 +14,7 @@ timeout /t 3 /nobreak >nul
 
 REM Check if backend is running
 echo Checking backend status...
-curl -s http://localhost:8080/health >nul 2>&1
+curl -s http://127.0.0.1:52100/api/healthz >nul 2>&1
 if %errorlevel% equ 0 (
     echo Backend is running successfully
 ) else (
