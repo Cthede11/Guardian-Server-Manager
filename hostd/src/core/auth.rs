@@ -8,6 +8,7 @@ use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, 
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use argon2::password_hash::{rand_core::OsRng, SaltString};
 use anyhow::{Result, anyhow};
+use crate::core::credential_manager::CredentialManager;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
@@ -118,16 +119,18 @@ pub struct AuthManager {
     user_sessions: Arc<RwLock<HashMap<String, Uuid>>>, // token -> user_id
     jwt_secret: String,
     jwt_expiry: Duration,
+    credential_manager: Arc<CredentialManager>,
 }
 
 impl AuthManager {
-    pub fn new(jwt_secret: String) -> Self {
+    pub fn new(jwt_secret: String, credential_manager: Arc<CredentialManager>) -> Self {
         Self {
             users: Arc::new(RwLock::new(HashMap::new())),
             roles: Arc::new(RwLock::new(HashMap::new())),
             user_sessions: Arc::new(RwLock::new(HashMap::new())),
             jwt_secret,
             jwt_expiry: Duration::from_secs(24 * 60 * 60), // 24 hours
+            credential_manager,
         }
     }
     

@@ -10,6 +10,7 @@ use crate::database::{DatabaseManager, ServerConfig};
 use crate::core::{
     file_manager::FileManager,
     process_manager::ProcessManager,
+    port_registry::PortRegistry,
     error_handler::{AppError, Result},
 };
 
@@ -18,6 +19,7 @@ pub struct ServerManager {
     database: std::sync::Arc<DatabaseManager>,
     file_manager: std::sync::Arc<FileManager>,
     process_manager: std::sync::Arc<ProcessManager>,
+    port_registry: std::sync::Arc<PortRegistry>,
 }
 
 impl ServerManager {
@@ -25,20 +27,28 @@ impl ServerManager {
         database: std::sync::Arc<DatabaseManager>,
         file_manager: std::sync::Arc<FileManager>,
         process_manager: std::sync::Arc<ProcessManager>,
+        port_registry: std::sync::Arc<PortRegistry>,
     ) -> Self {
         Self {
             database,
             file_manager,
             process_manager,
+            port_registry,
         }
     }
     
     pub async fn create_server(&self, config: ServerConfig) -> Result<Uuid> {
+        let server_id = Uuid::parse_str(&config.id)?;
+        
         // Validate configuration
         self.validate_server_config(&config).await?;
         
+        // Reserve ports to prevent conflicts
+        let ports = vec![config.port, config.rcon_port, config.query_port];
+        self.port_registry.reserve_ports(server_id, &ports).await?;
+        
         // Create server directory structure
-        self.file_manager.create_server_directory(Uuid::parse_str(&config.id)?).await?;
+        self.file_manager.create_server_directory(server_id).await?;
         
         // Download Minecraft server JAR
         self.download_server_jar(&config).await?;
@@ -149,8 +159,8 @@ impl ServerManager {
             let _ = self.stop_server(server_id).await;
         }
         
-        // Remove from process manager
-        // ProcessManager no longer has unregister_server method
+        // Release ports
+        self.port_registry.release_ports(server_id).await?;
         
         // Delete server files
         self.file_manager.delete_server_directory(server_id).await?;

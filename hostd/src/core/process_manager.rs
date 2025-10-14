@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, Mutex};
 use uuid::Uuid;
 use tokio::process::Command as TokioCommand;
 use tokio::io::{AsyncBufReadExt, BufReader, AsyncWriteExt};
@@ -14,7 +14,9 @@ use std::process::Stdio;
 use crate::database::ServerConfig;
 use crate::core::{
     error_handler::{AppError, Result},
+    credential_manager::CredentialManager,
 };
+use crate::database::DatabaseManager;
 use crate::websocket_manager::WebSocketManager;
 
 #[derive(Debug, Clone)]
@@ -42,40 +44,87 @@ struct ServerProcess {
     rcon_password: String,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum ServerState {
+    Stopped,
+    Starting,
+    Running,
+    Stopping,
+    Crashed,
+}
+
 #[derive(Debug)]
 pub struct ProcessManager {
     processes: Arc<RwLock<HashMap<Uuid, ServerProcess>>>,
     process_info: Arc<RwLock<HashMap<Uuid, ProcessInfo>>>,
+    server_states: Arc<RwLock<HashMap<Uuid, ServerState>>>,
     websocket: Arc<WebSocketManager>,
+    credential_manager: Arc<CredentialManager>,
+    database: Option<Arc<DatabaseManager>>,
+    monitoring_tasks: Arc<RwLock<HashMap<Uuid, tokio::task::JoinHandle<()>>>>,
 }
 
 impl ProcessManager {
-    pub fn new(websocket: Arc<WebSocketManager>) -> Self {
+    pub fn new(websocket: Arc<WebSocketManager>, credential_manager: Arc<CredentialManager>) -> Self {
         Self {
             processes: Arc::new(RwLock::new(HashMap::new())),
             process_info: Arc::new(RwLock::new(HashMap::new())),
+            server_states: Arc::new(RwLock::new(HashMap::new())),
             websocket,
+            credential_manager,
+            database: None,
+            monitoring_tasks: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+    
+    /// Set the database manager for console logging
+    pub fn set_database(&mut self, database: Arc<DatabaseManager>) {
+        self.database = Some(database);
+    }
+    
+    /// Get the database manager
+    async fn get_database_manager(&self) -> Option<Arc<DatabaseManager>> {
+        self.database.clone()
+    }
+    
+    /// Clean up all monitoring tasks (call this when shutting down)
+    pub async fn cleanup_all_monitoring_tasks(&self) {
+        let mut tasks_guard = self.monitoring_tasks.write().await;
+        for (server_id, task_handle) in tasks_guard.drain() {
+            task_handle.abort();
+            tracing::debug!("Cleaned up monitoring task for server {}", server_id);
         }
     }
     
     pub async fn start_server_process(&self, config: ServerConfig) -> Result<()> {
-        let server_id = config.id.clone();
+        let server_id = Uuid::parse_str(&config.id)?;
         let server_name = config.name.clone();
         
         tracing::info!("Starting server process for: {}", server_name);
         
-        // Check if server is already running
-        if self.is_server_running(Uuid::parse_str(&server_id)?).await {
-            return Err(AppError::ValidationError {
-                message: format!("Server {} is already running", server_name),
-                field: "server_name".to_string(),
-                value: server_name.to_string(),
-                constraint: "must not be already running".to_string(),
-            });
+        // Atomic check-and-set operation to prevent race conditions
+        {
+            let mut server_states = self.server_states.write().await;
+            let current_state = server_states.get(&server_id).cloned().unwrap_or(ServerState::Stopped);
+            
+            match current_state {
+                ServerState::Running | ServerState::Starting => {
+                    return Err(AppError::ValidationError {
+                        message: format!("Server {} is already running or starting", server_name),
+                        field: "server_name".to_string(),
+                        value: server_name.to_string(),
+                        constraint: "must not be already running or starting".to_string(),
+                    });
+                }
+                _ => {
+                    // Set state to Starting atomically
+                    server_states.insert(server_id, ServerState::Starting);
+                }
+            }
         }
         
         // Get server config to determine directory
-        let server_config = self.get_server_config(&server_id).await?;
+        let server_config = self.get_server_config(&server_id.to_string()).await?;
         let server_dir = self.get_server_directory(&server_config);
         if !server_dir.exists() {
             fs::create_dir_all(&server_dir)
@@ -98,46 +147,61 @@ impl ProcessManager {
         // Create eula.txt file
         self.create_eula_file(&server_dir).await?;
         
+        // Generate secure RCON password
+        let rcon_password = self.credential_manager.generate_rcon_password(server_id).await?;
+        
         // Start the actual Minecraft server process
-        let mut cmd = TokioCommand::new(&config.java_path);
-        cmd.current_dir(&server_dir);
-        
-        // Add JVM arguments
-        let java_args: Vec<String> = serde_json::from_str(&config.java_args).unwrap_or_default();
-        for arg in &java_args {
-            cmd.arg(arg);
-        }
-        
-        // Add memory settings
-        cmd.arg(format!("-Xmx{}M", config.memory));
-        cmd.arg(format!("-Xms{}M", config.memory / 2));
-        
-        // Add server JAR
-        cmd.arg("-jar");
-        cmd.arg(&jar_path);
-        
-        // Add server arguments
-        let server_args: Vec<String> = serde_json::from_str(&config.server_args).unwrap_or_default();
-        for arg in &server_args {
-            cmd.arg(arg);
-        }
-        
-        // Set up process
-        cmd.stdout(Stdio::piped());
-        cmd.stderr(Stdio::piped());
-        
-        let child = cmd.spawn()
-            .map_err(|e| AppError::ProcessError {
-                message: format!("Failed to start server process: {}", e),
-                process_id: None,
-                operation: "start".to_string(),
-            })?;
+        let child = {
+            let mut cmd = TokioCommand::new(&config.java_path);
+            cmd.current_dir(&server_dir);
+            
+            // Add JVM arguments
+            let java_args: Vec<String> = serde_json::from_str(&config.java_args).unwrap_or_default();
+            for arg in &java_args {
+                cmd.arg(arg);
+            }
+            
+            // Add memory settings
+            cmd.arg(format!("-Xmx{}M", config.memory));
+            cmd.arg(format!("-Xms{}M", config.memory / 2));
+            
+            // Add server JAR
+            cmd.arg("-jar");
+            cmd.arg(&jar_path);
+            
+            // Add server arguments
+            let server_args: Vec<String> = serde_json::from_str(&config.server_args).unwrap_or_default();
+            for arg in &server_args {
+                cmd.arg(arg);
+            }
+            
+            // Set up process
+            cmd.stdout(Stdio::piped());
+            cmd.stderr(Stdio::piped());
+            
+            cmd.spawn()
+                .map_err(|e| {
+                    // Reset state to Stopped on failure
+                    let server_states = self.server_states.clone();
+                    let server_id = server_id;
+                    tokio::spawn(async move {
+                        let mut states = server_states.write().await;
+                        states.insert(server_id, ServerState::Stopped);
+                    });
+                    
+                    AppError::ProcessError {
+                        message: format!("Failed to start server process: {}", e),
+                        process_id: None,
+                        operation: "start".to_string(),
+                    }
+                })?
+        };
         
         let pid = child.id().unwrap_or(0);
         
         // Create process info
         let process_info = ProcessInfo {
-            id: Uuid::parse_str(&server_id)?,
+            id: server_id,
             name: server_name,
             pid,
             tps: 20.0,
@@ -151,26 +215,31 @@ impl ProcessManager {
             last_heartbeat: chrono::Utc::now(),
         };
         
-        // Store process and info
+        // Store process and info atomically
         let server_process = ServerProcess {
             child,
             start_time: Instant::now(),
             last_heartbeat: chrono::Utc::now(),
             rcon_port: config.rcon_port,
-            rcon_password: "N/A".to_string(), // Should be loaded securely
+            rcon_password,
         };
         
-        let mut processes = self.processes.write().await;
-        let mut process_info_guard = self.process_info.write().await;
-        
-        processes.insert(Uuid::parse_str(&server_id)?, server_process);
-        process_info_guard.insert(Uuid::parse_str(&server_id)?, process_info);
+        // Use a single write lock to update all related data atomically
+        {
+            let mut processes = self.processes.write().await;
+            let mut process_info_guard = self.process_info.write().await;
+            let mut server_states = self.server_states.write().await;
+            
+            processes.insert(server_id, server_process);
+            process_info_guard.insert(server_id, process_info);
+            server_states.insert(server_id, ServerState::Running);
+        }
         
         // Start monitoring task
-        self.start_monitoring_task(Uuid::parse_str(&server_id)?).await;
+        self.start_monitoring_task(server_id).await;
         
         // Send status update via WebSocket
-        let _ = self.websocket.send_server_status_update(Uuid::parse_str(&server_id)?, "starting").await;
+        let _ = self.websocket.send_server_status_update(server_id, "running").await;
         
         tracing::info!("Server {} started with PID {}", config.name, pid);
         Ok(())
@@ -179,23 +248,37 @@ impl ProcessManager {
     pub async fn stop_server_process(&self, server_id: Uuid) -> Result<()> {
         tracing::info!("Stopping server process: {}", server_id);
         
-        let mut processes = self.processes.write().await;
-        let mut process_info = self.process_info.write().await;
-        
-        if let Some(mut process) = processes.remove(&server_id) {
-            // Send stop command to the server
-            if let Some(mut stdin) = process.child.stdin.take() {
-                let _ = stdin.write_all(b"stop\n").await;
-            }
-            
-            // Wait for the process to exit gracefully
-            let _ = tokio::time::timeout(Duration::from_secs(30), process.child.wait()).await;
-            
-            // Force kill if still running
-            let _ = process.child.kill().await;
+        // Set state to Stopping atomically
+        {
+            let mut server_states = self.server_states.write().await;
+            server_states.insert(server_id, ServerState::Stopping);
         }
         
-        process_info.remove(&server_id);
+        // Stop the process and clean up
+        {
+            let mut processes = self.processes.write().await;
+            let mut process_info = self.process_info.write().await;
+            let mut server_states = self.server_states.write().await;
+            
+            if let Some(mut process) = processes.remove(&server_id) {
+                // Send stop command to the server
+                if let Some(mut stdin) = process.child.stdin.take() {
+                    let _ = stdin.write_all(b"stop\n").await;
+                }
+                
+                // Wait for the process to exit gracefully
+                let _ = tokio::time::timeout(Duration::from_secs(30), process.child.wait()).await;
+                
+                // Force kill if still running
+                let _ = process.child.kill().await;
+            }
+            
+            process_info.remove(&server_id);
+            server_states.insert(server_id, ServerState::Stopped);
+        }
+        
+        // Stop monitoring task
+        self.stop_monitoring_task(server_id).await;
         
         // Send status update via WebSocket
         let _ = self.websocket.send_server_status_update(server_id, "stopped").await;
@@ -224,8 +307,13 @@ impl ProcessManager {
     }
     
     pub async fn is_server_running(&self, server_id: Uuid) -> bool {
-        let processes = self.processes.read().await;
-        processes.contains_key(&server_id)
+        let server_states = self.server_states.read().await;
+        matches!(server_states.get(&server_id), Some(ServerState::Running))
+    }
+    
+    pub async fn get_server_state(&self, server_id: Uuid) -> ServerState {
+        let server_states = self.server_states.read().await;
+        server_states.get(&server_id).cloned().unwrap_or(ServerState::Stopped)
     }
     
     pub async fn get_process_info(&self, server_id: Uuid) -> Result<ProcessInfo> {
@@ -436,9 +524,14 @@ simulation-distance={}
     async fn start_monitoring_task(&self, server_id: Uuid) {
         let processes = self.processes.clone();
         let process_info = self.process_info.clone();
+        let server_states = self.server_states.clone();
         let websocket = self.websocket.clone();
+        let monitoring_tasks = self.monitoring_tasks.clone();
         
-        tokio::spawn(async move {
+        // Cancel any existing monitoring task for this server
+        self.stop_monitoring_task(server_id).await;
+        
+        let task_handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(5));
             
             loop {
@@ -447,6 +540,7 @@ simulation-distance={}
                 // Check if server is still running
                 let mut processes_guard = processes.write().await;
                 let mut info_guard = process_info.write().await;
+                let mut states_guard = server_states.write().await;
                 
                 if let Some(process) = processes_guard.get_mut(&server_id) {
                     // Check if process is still alive
@@ -454,9 +548,10 @@ simulation-distance={}
                         // Process has exited
                         processes_guard.remove(&server_id);
                         info_guard.remove(&server_id);
+                        states_guard.insert(server_id, ServerState::Crashed);
                         
                         // Send status update
-                        let _ = websocket.send_server_status_update(server_id, "stopped").await;
+                        let _ = websocket.send_server_status_update(server_id, "crashed").await;
                         
                         tracing::info!("Server {} process exited", server_id);
                         break;
@@ -483,19 +578,43 @@ simulation-distance={}
                         let _ = websocket.send_metrics(server_id, metrics).await;
                     }
                 } else {
-                    // Server no longer exists
+                    // Server not found, exit monitoring
+                    tracing::info!("Server {} not found, stopping monitoring", server_id);
                     break;
                 }
             }
+            
+            // Clean up task handle when done
+            let mut tasks_guard = monitoring_tasks.write().await;
+            tasks_guard.remove(&server_id);
         });
+        
+        // Store the task handle
+        {
+            let mut tasks_guard = self.monitoring_tasks.write().await;
+            tasks_guard.insert(server_id, task_handle);
+        }
+    }
+    
+    /// Stop monitoring task for a server
+    async fn stop_monitoring_task(&self, server_id: Uuid) {
+        let mut tasks_guard = self.monitoring_tasks.write().await;
+        if let Some(task_handle) = tasks_guard.remove(&server_id) {
+            task_handle.abort();
+            tracing::debug!("Stopped monitoring task for server {}", server_id);
+        }
     }
     
     async fn start_console_streaming(&self, server_id: Uuid, mut child: TokioChild) {
         let websocket = self.websocket.clone();
+        let database = self.get_database_manager().await; // We'll need to add this method
         
         // Stream stdout
         if let Some(stdout) = child.stdout.take() {
             let websocket_clone = websocket.clone();
+            let database_clone = database.clone();
+            let server_id_clone = server_id;
+            
             tokio::spawn(async move {
                 let mut reader = BufReader::new(stdout);
                 let mut line = String::new();
@@ -505,11 +624,32 @@ simulation-distance={}
                         break; // EOF
                     }
                     
-                    // Send console message via WebSocket
-                    // Console message handling would go here
-                    
-                    // Log to database
-                    // TODO: Add database logging here
+                    let trimmed_line = line.trim();
+                    if !trimmed_line.is_empty() {
+                        // Send console message via WebSocket
+                        let console_message = crate::websocket_manager::WebSocketMessage::ConsoleMessage {
+                            server_id: server_id_clone.to_string(),
+                            timestamp: chrono::Utc::now(),
+                            level: "INFO".to_string(),
+                            message: trimmed_line.to_string(),
+                        };
+                        
+                        if let Err(e) = websocket_clone.broadcast(console_message).await {
+                            tracing::error!("Failed to send console message via WebSocket: {}", e);
+                        }
+                        
+                        // Log to database
+                        if let Some(db) = &database_clone {
+                            if let Err(e) = db.log_server_message(
+                                &server_id_clone.to_string(),
+                                "INFO",
+                                trimmed_line,
+                                Some("Console"),
+                            ).await {
+                                tracing::error!("Failed to log console message to database: {}", e);
+                            }
+                        }
+                    }
                     
                     line.clear();
                 }
@@ -519,6 +659,9 @@ simulation-distance={}
         // Stream stderr
         if let Some(stderr) = child.stderr.take() {
             let websocket_clone = websocket.clone();
+            let database_clone = database.clone();
+            let server_id_clone = server_id;
+            
             tokio::spawn(async move {
                 let mut reader = BufReader::new(stderr);
                 let mut line = String::new();
@@ -528,11 +671,32 @@ simulation-distance={}
                         break; // EOF
                     }
                     
-                    // Send console message via WebSocket
-                    // Console error message handling would go here
-                    
-                    // Log to database
-                    // TODO: Add database logging here
+                    let trimmed_line = line.trim();
+                    if !trimmed_line.is_empty() {
+                        // Send console error message via WebSocket
+                        let console_message = crate::websocket_manager::WebSocketMessage::ConsoleMessage {
+                            server_id: server_id_clone.to_string(),
+                            timestamp: chrono::Utc::now(),
+                            level: "ERROR".to_string(),
+                            message: trimmed_line.to_string(),
+                        };
+                        
+                        if let Err(e) = websocket_clone.broadcast(console_message).await {
+                            tracing::error!("Failed to send console error message via WebSocket: {}", e);
+                        }
+                        
+                        // Log to database
+                        if let Some(db) = &database_clone {
+                            if let Err(e) = db.log_server_message(
+                                &server_id_clone.to_string(),
+                                "ERROR",
+                                trimmed_line,
+                                Some("Console"),
+                            ).await {
+                                tracing::error!("Failed to log console error message to database: {}", e);
+                            }
+                        }
+                    }
                     
                     line.clear();
                 }

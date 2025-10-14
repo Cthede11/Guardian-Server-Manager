@@ -1,7 +1,7 @@
 use anyhow::Result;
 use chrono;
 use serde::{Deserialize, Serialize};
-use sqlx::{sqlite::SqlitePool, Row};
+use sqlx::{sqlite::SqlitePool, Row, Transaction};
 use std::str::FromStr;
 use tracing::{info, warn, debug};
 use uuid::Uuid;
@@ -338,6 +338,32 @@ impl DatabaseManager {
         migrator.run(&pool).await?;
         
         Ok(Self { pool })
+    }
+
+    /// Begin a new database transaction
+    pub async fn begin_transaction(&self) -> Result<Transaction<'_, sqlx::Sqlite>> {
+        self.pool.begin().await.map_err(|e| anyhow::anyhow!("Failed to begin transaction: {}", e))
+    }
+
+    /// Execute a closure within a database transaction
+    /// If the closure returns an error, the transaction is rolled back
+    /// If the closure succeeds, the transaction is committed
+    pub async fn with_transaction<F, R>(&self, f: F) -> Result<R>
+    where
+        F: FnOnce(Transaction<'_, sqlx::Sqlite>) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<R>> + Send + '_>>,
+    {
+        let tx = self.begin_transaction().await?;
+        
+        match f(tx).await {
+            Ok(result) => {
+                // Transaction is automatically committed when it goes out of scope
+                Ok(result)
+            }
+            Err(e) => {
+                // Transaction is automatically rolled back when it goes out of scope
+                Err(e)
+            }
+        }
     }
 
     // Server configuration methods
@@ -1303,12 +1329,29 @@ impl DatabaseManager {
     }
 
     pub async fn delete_server(&self, id: &str) -> Result<()> {
+        // Delete related data first
+        sqlx::query("DELETE FROM server_logs WHERE server_id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("DELETE FROM server_metrics WHERE server_id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("DELETE FROM server_mods WHERE server_id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+
+        // Delete the server itself
         sqlx::query("DELETE FROM servers WHERE id = ?")
             .bind(id)
             .execute(&self.pool)
             .await?;
 
-        info!("Deleted server configuration: {}", id);
+        info!("Deleted server configuration and all related data: {}", id);
         Ok(())
     }
 

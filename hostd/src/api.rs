@@ -2126,10 +2126,10 @@ async fn apply_modpack_to_server(
         Some(&payload.server_id),
         &job_id,
         "modpack_install",
-        1, // step
+        "1", // current_step
+        0.0, // step_progress
         4, // total_steps
-        0.0, // progress
-        "Validating server and modpack"
+        Some("Validating server and modpack") // message
     ).await {
         error!("Failed to send progress event: {}", e);
     }
@@ -2185,10 +2185,10 @@ async fn apply_modpack_to_server(
         Some(&payload.server_id),
         &job_id,
         "modpack_install",
-        2, // step
+        "2", // current_step
+        0.25, // step_progress
         4, // total_steps
-        0.25, // progress
-        "Downloading modpack files"
+        Some("Downloading modpack files") // message
     ).await {
         error!("Failed to send progress event: {}", e);
     }
@@ -2213,10 +2213,10 @@ async fn apply_modpack_to_server(
         Some(&payload.server_id),
         &job_id,
         "modpack_install",
-        3, // step
+        "3", // current_step
+        0.5, // step_progress
         4, // total_steps
-        0.5, // progress
-        "Installing modpack"
+        Some("Installing modpack") // message
     ).await {
         error!("Failed to send progress event: {}", e);
     }
@@ -2230,10 +2230,10 @@ async fn apply_modpack_to_server(
         Some(&payload.server_id),
         &job_id,
         "modpack_install",
-        4, // step
+        "4", // current_step
+        0.75, // step_progress
         4, // total_steps
-        0.75, // progress
-        "Finalizing installation"
+        Some("Finalizing installation") // message
     ).await {
         error!("Failed to send progress event: {}", e);
     }

@@ -3,7 +3,6 @@ pub mod contracts;
 pub mod core;
 pub mod database;
 pub mod api;
-pub mod websocket;
 pub mod backup;
 pub mod compatibility;
 pub mod compatibility_engine;
@@ -18,6 +17,7 @@ pub mod loaders;
 pub mod gpu_manager;
 pub mod compatibility_analyzer;
 pub mod performance_telemetry;
+pub mod middleware;
 
 // Legacy modules (to be phased out)
 pub mod routes;

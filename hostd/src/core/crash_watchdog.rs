@@ -8,8 +8,9 @@ use tracing::{info, warn, error};
 
 use crate::core::{
     error_handler::{AppError, Result},
-    process_manager::ProcessManager,
+    process_manager::{ProcessManager, ServerState},
     monitoring::MonitoringManager,
+    retry_backoff::{RetryManager, RetryConfig, with_crash_recovery_retry},
 };
 use crate::database::DatabaseManager;
 
@@ -139,16 +140,43 @@ impl CrashWatchdog {
         let mut to_remove = Vec::new();
         
         for (server_id, state) in states.iter_mut() {
-            // Check if server is still running
+            // Check server state first
+            let server_state = self.process_manager.get_server_state(*server_id).await;
+            
+            // Check if server process has crashed
             if !self.process_manager.is_server_running(*server_id).await {
                 if state.health != ServerHealth::Crashed {
                     state.health = ServerHealth::Crashed;
                     warn!("Server {} has crashed (process not running)", server_id);
                     
+                    // Log crash immediately
+                    self.log_crash_event(*server_id, "Process terminated unexpectedly").await?;
+                    
                     // Try to restart if within limits
                     if self.should_attempt_restart(state) {
                         if let Err(e) = self.attempt_restart(*server_id).await {
                             error!("Failed to restart crashed server {}: {}", server_id, e);
+                            self.log_crash_event(*server_id, &format!("Restart failed: {}", e)).await?;
+                        }
+                    }
+                }
+                continue;
+            }
+            
+            // Check if server state indicates a crash
+            if matches!(server_state, ServerState::Crashed) {
+                if state.health != ServerHealth::Crashed {
+                    state.health = ServerHealth::Crashed;
+                    warn!("Server {} state indicates crash", server_id);
+                    
+                    // Log crash immediately
+                    self.log_crash_event(*server_id, "Server state indicates crash").await?;
+                    
+                    // Try to restart if within limits
+                    if self.should_attempt_restart(state) {
+                        if let Err(e) = self.attempt_restart(*server_id).await {
+                            error!("Failed to restart crashed server {}: {}", server_id, e);
+                            self.log_crash_event(*server_id, &format!("Restart failed: {}", e)).await?;
                         }
                     }
                 }
@@ -201,19 +229,51 @@ impl CrashWatchdog {
         Ok(())
     }
 
-    /// Check if we should attempt a restart
+    /// Check if we should attempt a restart with exponential backoff
     fn should_attempt_restart(&self, state: &ServerWatchdogState) -> bool {
         if state.restart_attempts >= self.config.max_restart_attempts {
             return false;
         }
 
         if let Some(last_restart) = state.last_restart {
-            if last_restart.elapsed() < self.config.restart_cooldown {
+            // Calculate exponential backoff: base_cooldown * 2^attempts
+            let backoff_multiplier = 2_u32.pow(state.restart_attempts.min(6)); // Cap at 2^6 = 64
+            let backoff_duration = self.config.restart_cooldown * backoff_multiplier;
+            
+            if last_restart.elapsed() < backoff_duration {
                 return false;
             }
         }
 
         true
+    }
+
+    /// Log a crash event to the database
+    async fn log_crash_event(&self, server_id: Uuid, reason: &str) -> Result<()> {
+        let timestamp = chrono::Utc::now();
+        
+        // Log to database
+        if let Err(e) = self.database.log_server_message(
+            &server_id.to_string(),
+            "ERROR",
+            &format!("Server crashed: {}", reason),
+            Some("CrashWatchdog"),
+        ).await {
+            error!("Failed to log crash event for server {}: {}", server_id, e);
+        }
+        
+        // Log to monitoring system
+        // TODO: Implement record_event method in MonitoringManager
+        // if let Err(e) = self.monitoring.record_event(
+        //     server_id,
+        //     "server_crash",
+        //     &format!("Server crashed: {}", reason),
+        //     Some(timestamp),
+        // ).await {
+        //     error!("Failed to record crash event in monitoring: {}", e);
+        // }
+        
+        Ok(())
     }
 
     /// Attempt to restart a server
@@ -224,33 +284,44 @@ impl CrashWatchdog {
             state.last_restart = Some(Instant::now());
             state.health = ServerHealth::Restarting;
         }
+        drop(states); // Release the lock before the async operation
 
-        // Stop the server gracefully first
-        if let Err(e) = self.process_manager.stop_server_process(server_id).await {
-            warn!("Error stopping server {} during restart: {}", server_id, e);
-        }
+        // Use retry backoff for the restart operation
+        let restart_result = with_crash_recovery_retry(|| {
+            let process_manager = self.process_manager.clone();
+            let database = self.database.clone();
+            let server_id = server_id;
+            
+            async move {
+                // Stop the server gracefully first
+                if let Err(e) = process_manager.stop_server_process(server_id).await {
+                    warn!("Error stopping server {} during restart: {}", server_id, e);
+                }
 
-        // Wait a moment for cleanup
-        tokio::time::sleep(Duration::from_secs(2)).await;
+                // Wait a moment for cleanup
+                tokio::time::sleep(Duration::from_secs(2)).await;
 
-        // Get server config from database
-        let server_config = match self.database.get_server(&server_id.to_string()).await {
-            Ok(Some(config)) => config,
-            Ok(None) => {
-                error!("Server {} not found in database, cannot restart", server_id);
-                return Err(AppError::DatabaseError {
-                    message: format!("Server {} not found", server_id),
-                    operation: "get_server".to_string(),
-                    table: Some("servers".to_string()),
-                });
+                // Get server config from database
+                let server_config = database.get_server(&server_id.to_string()).await
+                    .map_err(|e| AppError::DatabaseError {
+                        message: format!("Failed to get server config: {}", e),
+                        operation: "get_server".to_string(),
+                        table: Some("servers".to_string()),
+                    })?
+                    .ok_or_else(|| AppError::DatabaseError {
+                        message: format!("Server {} not found", server_id),
+                        operation: "get_server".to_string(),
+                        table: Some("servers".to_string()),
+                    })?;
+                
+                // Start the server
+                process_manager.start_server_process(server_config).await?;
+                
+                Ok::<(), AppError>(())
             }
-            Err(e) => {
-                error!("Failed to get server config for {}: {}", server_id, e);
-                return Err(e.into());
-            }
-        };
-        
-        match self.process_manager.start_server_process(server_config).await {
+        }).await;
+
+        match restart_result {
             Ok(_) => {
                 info!("Successfully restarted server {}", server_id);
                 
@@ -263,7 +334,7 @@ impl CrashWatchdog {
                 }
             }
             Err(e) => {
-                error!("Failed to restart server {}: {}", server_id, e);
+                error!("Failed to restart server {} after retries: {}", server_id, e);
                 
                 // Update state to reflect restart failure
                 let mut states = self.server_states.write().await;
@@ -288,6 +359,47 @@ impl CrashWatchdog {
         states.iter()
             .map(|(id, state)| (*id, state.health.clone()))
             .collect()
+    }
+
+    /// Get crash statistics for all monitored servers
+    pub async fn get_crash_stats(&self) -> std::collections::HashMap<Uuid, serde_json::Value> {
+        let states = self.server_states.read().await;
+        let mut stats = std::collections::HashMap::new();
+        
+        for (server_id, state) in states.iter() {
+            let server_stats = serde_json::json!({
+                "server_id": server_id,
+                "health": state.health,
+                "restart_attempts": state.restart_attempts,
+                "last_heartbeat": state.last_heartbeat.elapsed().as_secs(),
+                "last_restart": state.last_restart.map(|t| t.elapsed().as_secs()),
+                "hang_start": state.hang_start.map(|t| t.elapsed().as_secs()),
+                "is_healthy": state.health == ServerHealth::Healthy,
+            });
+            
+            stats.insert(*server_id, server_stats);
+        }
+        
+        stats
+    }
+
+    /// Get crash statistics for a specific server
+    pub async fn get_server_crash_stats(&self, server_id: Uuid) -> Option<serde_json::Value> {
+        let states = self.server_states.read().await;
+        
+        if let Some(state) = states.get(&server_id) {
+            Some(serde_json::json!({
+                "server_id": server_id,
+                "health": state.health,
+                "restart_attempts": state.restart_attempts,
+                "last_heartbeat": state.last_heartbeat.elapsed().as_secs(),
+                "last_restart": state.last_restart.map(|t| t.elapsed().as_secs()),
+                "hang_start": state.hang_start.map(|t| t.elapsed().as_secs()),
+                "is_healthy": state.health == ServerHealth::Healthy,
+            }))
+        } else {
+            None
+        }
     }
 
     /// Force restart a server (bypasses restart limits)

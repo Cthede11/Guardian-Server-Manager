@@ -7,6 +7,8 @@ use crate::core::{
     config::Config,
     resource_monitor::ResourceMonitor,
     crash_watchdog::CrashWatchdog,
+    port_registry::PortRegistry,
+    credential_manager::CredentialManager,
     error_handler::Result,
 };
 use crate::database::DatabaseManager;
@@ -22,6 +24,8 @@ pub struct AppState {
     pub auth: Arc<AuthManager>,
     pub resource_monitor: Arc<ResourceMonitor>,
     pub crash_watchdog: Arc<CrashWatchdog>,
+    pub port_registry: Arc<PortRegistry>,
+    pub credential_manager: Arc<CredentialManager>,
     pub active_servers: Arc<RwLock<HashMap<Uuid, ActiveServer>>>,
 }
 
@@ -59,6 +63,12 @@ impl AppState {
         // Initialize WebSocket manager
         let websocket = Arc::new(WebSocketManager::new());
         
+        // Initialize port registry
+        let port_registry = Arc::new(PortRegistry::new());
+        
+        // Initialize credential manager
+        let credential_manager = Arc::new(CredentialManager::new());
+        
         Ok(Self {
             config,
             database,
@@ -66,13 +76,19 @@ impl AppState {
             auth,
             resource_monitor,
             crash_watchdog,
+            port_registry,
+            credential_manager,
             active_servers: Arc::new(RwLock::new(HashMap::new())),
         })
     }
     
     pub async fn start(&self) -> Result<()> {
         tracing::info!("Starting Guardian Server Manager...");
-        // Start any background tasks here
+        
+        // Start WebSocket heartbeat monitoring
+        self.websocket.start_heartbeat_monitoring().await;
+        
+        // Start any other background tasks here
         Ok(())
     }
     

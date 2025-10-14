@@ -13,6 +13,7 @@ use hostd::core::{
     crash_watchdog::{CrashWatchdog, WatchdogConfig},
     monitoring::MonitoringManager,
     auth::AuthManager,
+    shutdown::{ShutdownManager, AppShutdownHandler, setup_signal_handlers},
     error_handler::{AppError, Result},
     logging::{initialize_logging, LogConfig, LogFormat, LogOutput},
     performance::{PerformanceMonitor, PerformanceThresholds},
@@ -169,9 +170,14 @@ async fn main() -> Result<()> {
     // Initialize WebSocket manager
     let websocket_manager = Arc::new(hostd::websocket_manager::WebSocketManager::new());
 
+    // Create credential manager
+    let credential_manager = Arc::new(hostd::core::credential_manager::CredentialManager::new());
+
     // Initialize crash watchdog
     let watchdog_config = WatchdogConfig::default();
-    let process_manager = Arc::new(hostd::core::process_manager::ProcessManager::new(websocket_manager.clone()));
+    let mut process_manager = hostd::core::process_manager::ProcessManager::new(websocket_manager.clone(), credential_manager.clone());
+    process_manager.set_database(Arc::new(database.clone()));
+    let process_manager = Arc::new(process_manager);
     let crash_watchdog = Arc::new(CrashWatchdog::new(
         watchdog_config,
         process_manager,
@@ -198,7 +204,7 @@ async fn main() -> Result<()> {
         })?;
 
     // Create authentication manager
-    let auth_manager = Arc::new(AuthManager::new("your-secret-key-here".to_string()));
+    let auth_manager = Arc::new(AuthManager::new("your-secret-key-here".to_string(), credential_manager.clone()));
     auth_manager.initialize().await
         .map_err(|e| AppError::ConfigurationError {
             message: format!("Failed to initialize auth: {}", e),
@@ -208,6 +214,12 @@ async fn main() -> Result<()> {
 
     // Create application state
     let app_state = Arc::new(AppState::new(config, auth_manager.clone(), resource_monitor.clone(), crash_watchdog.clone()).await?);
+
+    // Create shutdown manager
+    let shutdown_manager = Arc::new(ShutdownManager::new(std::time::Duration::from_secs(30)));
+    
+    // Set up signal handlers
+    setup_signal_handlers(shutdown_manager.clone()).await?;
 
     // Start the application
     app_state.start().await?;
@@ -238,7 +250,12 @@ async fn main() -> Result<()> {
             Arc::new(hostd::core::server_manager::ServerManager::new(
                 Arc::new(database.clone()),
                 file_manager.clone(),
-                Arc::new(hostd::core::process_manager::ProcessManager::new(websocket_manager.clone())),
+                {
+                    let mut pm = hostd::core::process_manager::ProcessManager::new(websocket_manager.clone(), app_state.credential_manager.clone());
+                    pm.set_database(Arc::new(database.clone()));
+                    Arc::new(pm)
+                },
+                app_state.port_registry.clone(),
             )),
         )),
         Arc::new(hostd::backup_manager::BackupManager::new(
@@ -250,7 +267,9 @@ async fn main() -> Result<()> {
     
     // Create the API app state for the comprehensive router
     let api_websocket_manager = Arc::new(WebSocketManager::new());
-    let process_manager = Arc::new(hostd::core::process_manager::ProcessManager::new(api_websocket_manager.clone()));
+    let mut process_manager = hostd::core::process_manager::ProcessManager::new(api_websocket_manager.clone(), app_state.credential_manager.clone());
+    process_manager.set_database(Arc::new(database.clone()));
+    let process_manager = Arc::new(process_manager);
     let api_app_state = ApiAppState {
         websocket_manager: api_websocket_manager,
         minecraft_manager: hostd::minecraft::MinecraftManager::new(database.clone()),
@@ -278,6 +297,7 @@ async fn main() -> Result<()> {
                 default_port: 25565,
             }).await.expect("Failed to create file manager")),
             process_manager.clone(),
+            app_state.port_registry.clone(),
         )),
         secret_storage: Arc::new(hostd::security::secret_storage::SecretStorage::new()),
         rate_limiter: Arc::new(hostd::security::rate_limiting::RateLimiter::new(hostd::security::rate_limiting::RateLimitConfig::default())),
@@ -304,7 +324,18 @@ async fn main() -> Result<()> {
     
     tracing::info!("Guardian Server Manager listening on {}", addr);
 
-    // Start the server
+    // Create shutdown handler
+    let shutdown_handler = AppShutdownHandler::new(
+        shutdown_manager.clone(),
+        process_manager.clone(),
+        websocket_manager.clone(),
+        crash_watchdog.clone(),
+        app_state.port_registry.clone(),
+        credential_manager.clone(),
+        Arc::new(database.clone()),
+    );
+
+    // Start the server with shutdown handling
     let listener = tokio::net::TcpListener::bind(&addr).await
         .map_err(|e| AppError::NetworkError {
             message: format!("Failed to bind to address: {}", e),
@@ -312,15 +343,45 @@ async fn main() -> Result<()> {
             status_code: None,
         })?;
 
-    axum::serve(listener, app).await
-        .map_err(|e| AppError::NetworkError {
-            message: format!("Server error: {}", e),
-            endpoint: addr.to_string(),
-            status_code: None,
-        })?;
+    // Create a shutdown receiver for the server
+    let mut shutdown_rx = shutdown_manager.subscribe();
+    
+    // Start the server in a task
+    let server_handle = tokio::spawn(async move {
+        axum::serve(listener, app).await
+            .map_err(|e| AppError::NetworkError {
+                message: format!("Server error: {}", e),
+                endpoint: addr.to_string(),
+                status_code: None,
+            })
+    });
 
-    // Cleanup on shutdown
-    app_state.stop().await?;
+    // Wait for shutdown signal
+    tokio::select! {
+        result = server_handle => {
+            match result {
+                Ok(Ok(_)) => tracing::info!("Server stopped normally"),
+                Ok(Err(e)) => {
+                    tracing::error!("Server error: {}", e);
+                    return Err(e);
+                }
+                Err(e) => {
+                    tracing::error!("Server task panicked: {}", e);
+                    return Err(AppError::InternalError {
+                        message: format!("Server task panicked: {}", e),
+                        component: "server_task".to_string(),
+                        details: None,
+                    }.into());
+                }
+            }
+        }
+        _ = shutdown_rx.recv() => {
+            tracing::info!("Received shutdown signal, stopping server...");
+        }
+    }
+
+    // Perform graceful shutdown
+    shutdown_handler.shutdown().await?;
 
     Ok(())
 }

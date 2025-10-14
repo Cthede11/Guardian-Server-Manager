@@ -108,6 +108,28 @@ pub enum AppError {
         service: String,
         status_code: Option<u16>,
     },
+    
+    // Port conflict errors
+    PortConflictError {
+        port: u16,
+        owner_id: String,
+        requested_by: String,
+    },
+    
+    // Resource limit errors
+    ResourceLimitError {
+        message: String,
+        resource_type: String,
+        current_usage: String,
+        limit: String,
+    },
+    
+    // Timeout errors
+    TimeoutError {
+        message: String,
+        operation: String,
+        timeout_duration: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -170,6 +192,9 @@ impl AppError {
             AppError::ModpackError { .. } => StatusCode::BAD_REQUEST,
             AppError::InternalError { .. } => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::ExternalServiceError { .. } => StatusCode::BAD_GATEWAY,
+            AppError::PortConflictError { .. } => StatusCode::CONFLICT,
+            AppError::ResourceLimitError { .. } => StatusCode::TOO_MANY_REQUESTS,
+            AppError::TimeoutError { .. } => StatusCode::REQUEST_TIMEOUT,
         }
     }
     
@@ -213,6 +238,15 @@ impl AppError {
             }
             AppError::ExternalServiceError { message, .. } => {
                 format!("External service error: {}", message)
+            }
+            AppError::PortConflictError { port, owner_id, .. } => {
+                format!("Port {} is already in use by another server. Please choose a different port.", port)
+            }
+            AppError::ResourceLimitError { message, resource_type, current_usage, limit } => {
+                format!("Resource limit exceeded for {}: {} (current: {}, limit: {})", resource_type, message, current_usage, limit)
+            }
+            AppError::TimeoutError { message, operation, timeout_duration } => {
+                format!("Operation '{}' timed out after {}. {}", operation, timeout_duration, message)
             }
         }
     }
@@ -262,6 +296,15 @@ impl AppError {
             AppError::ExternalServiceError { message, service, status_code } => {
                 format!("External service error for '{}' (status: {:?}): {}", service, status_code, message)
             }
+            AppError::PortConflictError { port, owner_id, requested_by } => {
+                format!("Port conflict: port {} is used by server '{}', requested by '{}'", port, owner_id, requested_by)
+            }
+            AppError::ResourceLimitError { message, resource_type, current_usage, limit } => {
+                format!("Resource limit error for {}: {} (current: {}, limit: {})", resource_type, message, current_usage, limit)
+            }
+            AppError::TimeoutError { message, operation, timeout_duration } => {
+                format!("Timeout error for operation '{}' after {}: {}", operation, timeout_duration, message)
+            }
         }
     }
     
@@ -282,6 +325,9 @@ impl AppError {
             AppError::ModpackError { .. } => "modpack",
             AppError::InternalError { .. } => "internal",
             AppError::ExternalServiceError { .. } => "external",
+            AppError::PortConflictError { .. } => "port_conflict",
+            AppError::ResourceLimitError { .. } => "resource_limit",
+            AppError::TimeoutError { .. } => "timeout",
         }
     }
     
@@ -293,6 +339,7 @@ impl AppError {
             AppError::ExternalServiceError { .. } => true,
             AppError::ProcessError { .. } => true,
             AppError::InternalError { .. } => true,
+            AppError::TimeoutError { .. } => true,
             _ => false,
         }
     }
@@ -323,6 +370,9 @@ impl AppError {
             AppError::ModpackError { .. } => "MODPACK_ERROR".to_string(),
             AppError::InternalError { .. } => "INTERNAL_ERROR".to_string(),
             AppError::ExternalServiceError { .. } => "EXTERNAL_SERVICE_ERROR".to_string(),
+            AppError::PortConflictError { .. } => "PORT_CONFLICT".to_string(),
+            AppError::ResourceLimitError { .. } => "RESOURCE_LIMIT_EXCEEDED".to_string(),
+            AppError::TimeoutError { .. } => "OPERATION_TIMEOUT".to_string(),
         }
     }
 
@@ -341,6 +391,15 @@ impl AppError {
             AppError::NetworkError { endpoint, .. } => {
                 Some(format!("Network request to '{}' failed", endpoint))
             }
+            AppError::PortConflictError { port, .. } => {
+                Some(format!("Port {} is already in use", port))
+            }
+            AppError::ResourceLimitError { resource_type, current_usage, limit, .. } => {
+                Some(format!("{} limit exceeded (current: {}, limit: {})", resource_type, current_usage, limit))
+            }
+            AppError::TimeoutError { operation, timeout_duration, .. } => {
+                Some(format!("Operation '{}' timed out after {}", operation, timeout_duration))
+            }
             _ => None, // Don't expose internal details for other error types
         }
     }
@@ -353,6 +412,7 @@ impl AppError {
             AppError::ExternalServiceError { .. } => 5000,
             AppError::ProcessError { .. } => 1000,
             AppError::InternalError { .. } => 2000,
+            AppError::TimeoutError { .. } => 5000,
             _ => 0,
         }
     }
@@ -509,6 +569,31 @@ impl AppError {
             details: Some(details.into()),
         }
     }
+    
+    pub fn port_conflict_error(port: u16, owner_id: &str, requested_by: &str) -> Self {
+        AppError::PortConflictError {
+            port,
+            owner_id: owner_id.to_string(),
+            requested_by: requested_by.to_string(),
+        }
+    }
+    
+    pub fn resource_limit_error(resource_type: &str, current_usage: &str, limit: &str, message: impl Into<String>) -> Self {
+        AppError::ResourceLimitError {
+            message: message.into(),
+            resource_type: resource_type.to_string(),
+            current_usage: current_usage.to_string(),
+            limit: limit.to_string(),
+        }
+    }
+    
+    pub fn timeout_error(operation: &str, timeout_duration: &str, message: impl Into<String>) -> Self {
+        AppError::TimeoutError {
+            message: message.into(),
+            operation: operation.to_string(),
+            timeout_duration: timeout_duration.to_string(),
+        }
+    }
 }
 
 /// Macro for easy error creation
@@ -545,5 +630,29 @@ macro_rules! validation_error {
 macro_rules! server_error {
     ($server_id:expr, $operation:expr, $msg:expr) => {
         AppError::server_error($server_id, $operation, $msg)
+    };
+}
+
+/// Macro for port conflict errors
+#[macro_export]
+macro_rules! port_conflict_error {
+    ($port:expr, $owner_id:expr, $requested_by:expr) => {
+        AppError::port_conflict_error($port, $owner_id, $requested_by)
+    };
+}
+
+/// Macro for resource limit errors
+#[macro_export]
+macro_rules! resource_limit_error {
+    ($resource_type:expr, $current:expr, $limit:expr, $msg:expr) => {
+        AppError::resource_limit_error($resource_type, $current, $limit, $msg)
+    };
+}
+
+/// Macro for timeout errors
+#[macro_export]
+macro_rules! timeout_error {
+    ($operation:expr, $duration:expr, $msg:expr) => {
+        AppError::timeout_error($operation, $duration, $msg)
     };
 }
